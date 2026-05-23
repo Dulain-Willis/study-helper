@@ -1,0 +1,119 @@
+Question. How does a star schema organize data in a warehouse?
+
+Answer. Into a central fact table which records business events and stores foreign keys and measures, surrounded by dimension tables which provide descriptive context. The fact table is wide and tall with one row per event and many foreign key columns. Dimension tables are shorter and wider, one row per entity with many descriptive attributes. The schema looks like a star when drawn, with the fact table at the center and dimensions radiating outward.
+
+================================================================================
+
+Question. What is the first move interviewers expect when creating a star schema?
+
+Answer. To declare the grain, the exact level of detail one fact row represents.
+
+================================================================================
+
+Question. Which is better, surrogate keys or natural keys on dimensions?
+
+Answer. Surrogate keys, because natural keys can change over time.
+
+================================================================================
+
+Question. Should you put slowly changing dimension attributes in a fact table?
+
+Answer. No. You shouldn't put SCD attributes like customer address or product price in a fact table because when that attribute changes, you either lose the history (overwrite) or corrupt aggregations (multiple rows per event). Attributes that can change over time belong in a slowly changing dimension with proper versioning.
+
+================================================================================
+
+Question. What is referential integrity?
+
+Answer. Every foreign key value must either match an existing primary key in the referenced table or be null. This prevents orphaned rows that reference data which does not exist.
+
+================================================================================
+
+Question. In a one-to-many relationship, which side holds the foreign key?
+
+Answer. The FK always lives on the many side. An order has a customer_id FK, for example, because many orders can belong to one customer.
+
+================================================================================
+
+Question. Do cloud data warehouses enforce foreign keys?
+
+Answer. No. Cloud data warehouses let you declare FK constraints but don't enforce them at write time. The constraint is purely informational, used by the query optimizer for join planning — specifically to eliminate unnecessary joins. This can cause orphaned rows where a fact row references a deleted dimension row, producing nulls on join and corrupting aggregations. FK violations in warehouses are only caught by data quality tests. Whereas OLTP databases enforce FK constraints and inserts that violate them fail immediately.
+
+================================================================================
+
+Question. What does ON DELETE RESTRICT do?
+
+Answer. The delete is blocked if any child rows referencing the parent exist. This is the default behavior and is used in most production systems because it forces explicit cleanup before a parent row can be removed.
+
+================================================================================
+
+Question. What does ON DELETE CASCADE do?
+
+Answer. Deleting a parent row automatically deletes all child rows that reference it. This is dangerous at scale because a single parent delete can cascade to millions of rows with no additional warning.
+
+================================================================================
+
+Question. What does ON DELETE SET NULL do?
+
+Answer. When a parent row is deleted, the FK column on all referencing child rows is set to null rather than deleting the child rows. Use this when the child row is still valid without its parent — e.g., a customer deletes their account but their orders remain for reporting purposes.
+
+================================================================================
+
+Question. What does ON DELETE SET DEFAULT do?
+
+Answer. When a parent row is deleted, the FK column on child rows is set to a predefined default value instead of nulling out or cascading. This is used rarely because it requires a meaningful default FK value to exist. For example, if a product is discontinued, order line items could have their product_id reset to a catch-all "unknown product" row rather than losing the reference entirely.
+
+================================================================================
+
+Question. What is a conformed dimension?
+
+Answer. A conformed dimension is shared across multiple fact tables with the same SK and the same attribute definitions. For example, a customer dimension referenced by fact_sales, fact_returns, and fact_support_tickets all point to the same customer SK. This is what makes cross-domain analysis possible — e.g., show me customers who bought product X but also filed support tickets. Without conformed dimensions, each fact table defines customer differently and cross-domain queries produce inconsistent results.
+
+================================================================================
+
+Question. What is a role-playing dimension?
+
+Answer. A role-playing dimension is when the same physical dimension table is used multiple times in a single fact table, each time in a different role. For example, dim_date can appear as order_date, ship_date, and deliver_date — three separate FK columns in the fact table all pointing to the same dim_date table. To query revenue by order month, join on order_date_sk. To get revenue by ship month, join on ship_date_sk. Same table, different role.
+
+================================================================================
+
+Question. What is a junk dimension?
+
+Answer. A junk dimension consolidates low-cardinality flags and indicators that don't belong in any real dimension — e.g., is_gift, is_prime, payment_method. Instead of five separate boolean columns on the fact table, you have one FK pointing to a small dim_order_flags table with only as many rows as there are combinations of those flags. This keeps the fact table narrow. Adding new flags does not require altering the fact table.
+
+================================================================================
+
+Question. What is a degenerate dimension?
+
+Answer. A degenerate dimension is a transaction identifier — e.g., invoice_number or receipt_id — that lives directly on the fact table with no separate dimension table. It is a dimension in the conceptual sense because it describes the transaction, but it doesn't warrant its own table since it has no additional attributes. Creating a dim_invoice with a single column would be a one-to-one dimension, which is an anti-pattern.
+
+================================================================================
+
+Question. What is a date dimension and why does every data warehouse have one?
+
+Answer. A date dimension is a dim_date table with one row per calendar date, prepopulated for 100+ years. It contains every attribute you might filter or group by — day of week, month name, quarter, fiscal year, is_weekend, is_holiday. Without it, every query that groups by quarter must compute the quarter inline from the raw date, and every team ends up computing it differently.
+
+================================================================================
+
+Question. What are the advantages of a star schema?
+
+Answer. Dimensions are fully denormalized and flat, which means fewer joins per query, simpler queries for analysts to understand, and a structure that is standard across most data warehouses.
+
+================================================================================
+
+Question. What characterizes a snowflake schema and when is it useful?
+
+Answer. In a snowflake schema, dimensions are normalized into subtables rather than being flat. This results in more joins per query but less storage duplication. It is useful when dimension hierarchies change independently of one another.
+
+================================================================================
+
+Question. What is the difference between a snowflake schema and a star schema?
+
+Answer. In a snowflake schema, the product dimension is split — dim_product has a category_id FK pointing to a separate dim_category table. In a star schema, category_name is denormalized directly onto dim_product. Star schemas are the standard for data warehouses because the storage cost of denormalization is negligible compared to the query performance gain of eliminating joins.
+
+================================================================================
+
+Question. Why are star schemas fast?
+
+Answer. Columnar storage — fact tables are scanned column by column, not row by row, so only the columns referenced in your query are read. Partition pruning — fact tables are partitioned by date, so queries that filter by date skip entire partitions. Small dimension tables — dimension tables fit in memory, so joining a billion-row fact table to a ten-thousand-row dimension is fast because the dimension is broadcast. Predicate pushdown — filter conditions on dimensions are pushed into the fact scan, so the engine reads only the matching fact rows.
+
+================================================================================
