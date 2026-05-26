@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Group {
+  id        String   @id @default(cuid())
+  name      String
+  parentId  String?
+  parent    Group?   @relation("GroupChildren", fields: [parentId], references: [id])
+  children  Group[]  @relation("GroupChildren")
+  sets      Set[]
+  createdAt DateTime @default(now())
+}
+
+model Set {
+  id        String   @id @default(cuid())
+  name      String
+  groupId   String
+  group     Group    @relation(fields: [groupId], references: [id])
+  cards     Card[]
+  createdAt DateTime @default(now())
+}
+
+model Card {
+  id        String   @id @default(cuid())
+  front     String
+  back      String
+  setId     String
+  set       Set      @relation(fields: [setId], references: [id])
+  createdAt DateTime @default(now())
+}
