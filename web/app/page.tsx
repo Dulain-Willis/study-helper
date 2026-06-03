@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { createGroup } from "@/app/actions";
+import { ItemRow } from "@/app/components/item-row";
 
 export default async function Home() {
   const [groups, sets] = await Promise.all([
@@ -20,14 +20,7 @@ export default async function Home() {
       ) : (
         <div className="grid gap-3">
           {groups.map((g) => (
-            <Link
-              key={g.id}
-              href={`/groups/${g.id}`}
-              className="flex items-center justify-between rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-5 py-4 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors"
-            >
-              <span className="font-medium">{g.name}</span>
-              <span className="text-zinc-400 text-sm">→</span>
-            </Link>
+            <ItemRow key={g.id} id={g.id} name={g.name} href={`/groups/${g.id}`} type="group" />
           ))}
         </div>
       )}

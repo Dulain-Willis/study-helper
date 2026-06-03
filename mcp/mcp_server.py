@@ -143,5 +143,92 @@ def merge_sets(set_ids: list[str], new_set_name: str, group_id: str) -> dict:
             return new_set
 
 
+@mcp.tool
+def rename_group(group_id: str, name: str) -> dict:
+    """Rename a group."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                'UPDATE "Group" SET name = %s WHERE id = %s RETURNING id, name, "parentId"',
+                (name, group_id)
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"error": f"Group {group_id} not found"}
+            conn.commit()
+            return dict(row)
+
+
+@mcp.tool
+def rename_set(set_id: str, name: str) -> dict:
+    """Rename a set."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                'UPDATE "Set" SET name = %s WHERE id = %s RETURNING id, name, "groupId"',
+                (name, set_id)
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"error": f"Set {set_id} not found"}
+            conn.commit()
+            return dict(row)
+
+
+def _collect_group_ids(cur, root_id: str) -> list[str]:
+    """Recursively collect all group IDs in a subtree."""
+    ids = [root_id]
+    queue = [root_id]
+    while queue:
+        parent_id = queue.pop(0)
+        cur.execute('SELECT id FROM "Group" WHERE "parentId" = %s', (parent_id,))
+        for row in cur.fetchall():
+            ids.append(row["id"])
+            queue.append(row["id"])
+    return ids
+
+
+@mcp.tool
+def delete_group(group_id: str) -> dict:
+    """Delete a group and everything inside it (all subgroups, sets, and cards) recursively."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute('SELECT id FROM "Group" WHERE id = %s', (group_id,))
+            if not cur.fetchone():
+                return {"error": f"Group {group_id} not found"}
+
+            all_group_ids = _collect_group_ids(cur, group_id)
+            placeholders = ','.join(['%s'] * len(all_group_ids))
+
+            cur.execute(f'SELECT id FROM "Set" WHERE "groupId" IN ({placeholders})', all_group_ids)
+            set_ids = [row["id"] for row in cur.fetchall()]
+
+            if set_ids:
+                set_placeholders = ','.join(['%s'] * len(set_ids))
+                cur.execute(f'DELETE FROM "Card" WHERE "setId" IN ({set_placeholders})', set_ids)
+
+            cur.execute(f'DELETE FROM "Set" WHERE "groupId" IN ({placeholders})', all_group_ids)
+            cur.execute(f'UPDATE "Group" SET "parentId" = NULL WHERE id IN ({placeholders})', all_group_ids)
+            cur.execute(f'DELETE FROM "Group" WHERE id IN ({placeholders})', all_group_ids)
+
+            conn.commit()
+            return {"deleted": group_id}
+
+
+@mcp.tool
+def delete_set(set_id: str) -> dict:
+    """Delete a set and all its cards."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute('SELECT id FROM "Set" WHERE id = %s', (set_id,))
+            if not cur.fetchone():
+                return {"error": f"Set {set_id} not found"}
+
+            cur.execute('DELETE FROM "Card" WHERE "setId" = %s', (set_id,))
+            cur.execute('DELETE FROM "Set" WHERE id = %s', (set_id,))
+            conn.commit()
+            return {"deleted": set_id}
+
+
 if __name__ == "__main__":
     mcp.run()

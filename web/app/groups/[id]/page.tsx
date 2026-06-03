@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { createGroup, createSet } from "@/app/actions";
+import { ItemRow } from "@/app/components/item-row";
 
 export default async function GroupPage(props: PageProps<"/groups/[id]">) {
   const { id } = await props.params;
@@ -42,14 +43,7 @@ export default async function GroupPage(props: PageProps<"/groups/[id]">) {
           <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Groups</h2>
           <div className="grid gap-3">
             {group.children.map((child) => (
-              <Link
-                key={child.id}
-                href={`/groups/${child.id}`}
-                className="flex items-center justify-between rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-5 py-4 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors"
-              >
-                <span className="font-medium">{child.name}</span>
-                <span className="text-zinc-400 text-sm">→</span>
-              </Link>
+              <ItemRow key={child.id} id={child.id} name={child.name} href={`/groups/${child.id}`} type="group" />
             ))}
           </div>
         </section>
@@ -61,14 +55,7 @@ export default async function GroupPage(props: PageProps<"/groups/[id]">) {
           <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Sets</h2>
           <div className="grid gap-3">
             {group.sets.map((set) => (
-              <Link
-                key={set.id}
-                href={`/sets/${set.id}`}
-                className="flex items-center justify-between rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-5 py-4 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors"
-              >
-                <span className="font-medium">{set.name}</span>
-                <span className="text-zinc-400 text-sm">→</span>
-              </Link>
+              <ItemRow key={set.id} id={set.id} name={set.name} href={`/sets/${set.id}`} type="set" />
             ))}
           </div>
         </section>

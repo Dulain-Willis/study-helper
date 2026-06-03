@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { addCard } from "@/app/actions";
+import { CardList } from "@/app/components/card-list";
 
 export default async function SetPage(props: PageProps<"/sets/[id]">) {
   const { id } = await props.params;
@@ -47,22 +48,7 @@ export default async function SetPage(props: PageProps<"/sets/[id]">) {
       {set.cards.length === 0 ? (
         <p className="text-zinc-400 dark:text-zinc-500 text-sm">No cards yet. Add one below.</p>
       ) : (
-        <div className="space-y-3">
-          {set.cards.map((card, i) => (
-            <div
-              key={card.id}
-              className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden"
-            >
-              <div className="px-5 py-3 border-b border-zinc-100 dark:border-zinc-800">
-                <span className="text-xs text-zinc-400 mr-2">{i + 1}</span>
-                <span className="text-sm">{card.front}</span>
-              </div>
-              <div className="px-5 py-3 bg-zinc-50 dark:bg-zinc-900/50">
-                <span className="text-sm text-zinc-500 dark:text-zinc-400">{card.back}</span>
-              </div>
-            </div>
-          ))}
-        </div>
+        <CardList cards={set.cards} />
       )}
 
       {/* Add card */}
