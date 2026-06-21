@@ -82,14 +82,20 @@ export async function deleteGroup(id: string) {
   });
   const setIds = sets.map((s) => s.id);
 
-  const ops: Parameters<typeof prisma.$transaction>[0] = [];
   if (setIds.length > 0) {
-    ops.push(prisma.card.deleteMany({ where: { setId: { in: setIds } } }));
+    await prisma.$transaction([
+      prisma.card.deleteMany({ where: { setId: { in: setIds } } }),
+      prisma.set.deleteMany({ where: { groupId: { in: allGroupIds } } }),
+      prisma.group.updateMany({ where: { id: { in: allGroupIds } }, data: { parentId: null } }),
+      prisma.group.deleteMany({ where: { id: { in: allGroupIds } } }),
+    ]);
+  } else {
+    await prisma.$transaction([
+      prisma.set.deleteMany({ where: { groupId: { in: allGroupIds } } }),
+      prisma.group.updateMany({ where: { id: { in: allGroupIds } }, data: { parentId: null } }),
+      prisma.group.deleteMany({ where: { id: { in: allGroupIds } } }),
+    ]);
   }
-  ops.push(prisma.set.deleteMany({ where: { groupId: { in: allGroupIds } } }));
-  ops.push(prisma.group.updateMany({ where: { id: { in: allGroupIds } }, data: { parentId: null } }));
-  ops.push(prisma.group.deleteMany({ where: { id: { in: allGroupIds } } }));
-  await prisma.$transaction(ops);
 
   if (group?.parentId) {
     revalidatePath(`/groups/${group.parentId}`);
