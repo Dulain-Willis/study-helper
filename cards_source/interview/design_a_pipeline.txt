@@ -1,0 +1,314 @@
+Q:Every pipeline decomposes into five layers. Naming them explicitly in the first 60 seconds of your answer signals seniority. What are they? 
+
+A:Say: Say: "I'll walk through this in five parts: ingestion, transformation, serving, orchestration, and quality." Then pause. Let the interviewer redirect if they want depth on a specific layer. You've just demonstrated that you see the whole system, not just the Spark job.
+
+Q: Ingestion
+
+A: How does data enter the system?
+
+Q: Transformation
+
+A: How is raw data cleaned and enriched?
+
+Q: Serving
+
+A: How do consumers query the output?
+
+Q: Orchestration
+
+A: What runs when, and what happens on failure?
+
+Q: Quality 
+
+A: How do we know the data is correct?
+
+Q: Before designing anything, ask three clarifying questions. What are they? 
+
+A: First: what's the latency requirement? The answer splits your design into batch (hourly/daily), micro-batch (minutes), or streaming (seconds). 
+
+Second: what's the data volume? 1GB/day and 1TB/day are fundamentally different architectures. 
+
+Third: who consumes the output? Analysts writing SQL need a different serving layer than ML engineers pulling training sets.
+
+Q: The model answer for decomposing the prompt in the first 60 seconds? 
+
+A: (1) Restate the problem in your own words. (2) Ask 2-3 clarifying questions. (3) Name the five layers. (4) Propose a high-level stack. (5) Say which layer you'll dive into first and why. 
+
+Q: Decomposing The Prompt Section Dont's
+
+A: 
+
+- "So I'd use Kafka and Spark..."
+- Jumps to tools before requirements
+- No clarifying questions asked
+- Interviewer has to pull structure out of you
+
+Q: Decomposing The Prompt Section Do's 
+
+A: 
+
+- "Let me confirm scope first - what latency?"
+- Asks volume, latency, consumer questions
+- Names five layers explicitly
+- You drive the conversation structure
+
+Q: Decomposing The Prompt Interview Section Key Takeaways
+
+A: 
+
+- Decompose every pipeline into 5 layers: ingestion, transformation, serving, orchestration, quality
+- Ask clarifying questions (volume, latency, consumers) before designing
+- Name all five layers in the first 60 seconds to signal systems thinking
+- Control the pacing - tell the interviewer which layer you'll dive into first
+
+Q: When the interviewer asks how data gets into your pipeline, they are probing for a real choice, not a list. The three source patterns are?
+
+A: File drops, API pulls, and Change Data Capture
+
+Q: File-Based Ingestion
+
+A: a source system drops files (CSV, JSON, Parquet) into cloud storage (S3, GCS, ADLS). Your pipeline picks them up on a schedule. This is the default for vendor data feeds, data exports from SaaS tools, and any system where you don't control the source. It's batch by nature - latency is measured in hours, not seconds.
+
+TIP: Always mention idempotent file processing in interviews. If a file lands twice, your pipeline should produce the same output. Say: 'I'd use a file manifest table to track processed files and skip duplicates.' This is a senior signal that interviewers explicitly look for.
+
+Q: API-Based Ingestion 
+
+A: When the source is a SaaS API (Salesforce, Stripe, HubSpot), you pull data via REST or GraphQL endpoints. The challenge is rate limiting, pagination, and incremental extraction. Naive full-refresh pulls are simple but don't scale: pulling 10M records every hour when only 500 changed is wasteful. Use cursor-based pagination with a high-water mark - store the last modified timestamp and only pull records newer than that.
+
+Q: Change Data Capture (CDC) 
+
+A: CDC reads the database transaction log (binlog in MySQL, WAL in Postgres) and streams row-level changes. Tools like Debezium, Fivetran, and AWS DMS make this accessible. CDC is the gold standard for replicating operational databases into a warehouse: low latency, minimal source load, and complete change history. The tradeoff is operational complexity - you're reading internal database logs, which means schema changes in the source can break your CDC pipeline.
+
+Q: File / API Ingestion Pros 
+
+A: 
+
+- Simple to implement and debug
+- Works with any source that can export
+- Batch latency (minutes to hours)
+- Full refresh is safe but expensive at scale
+
+Q: CDC Ingestion Pros 
+
+A: 
+
+- Real-time row-level changes
+- Minimal load on source database
+- Complete change history (inserts, updates, deletes)
+- Schema evolution requires careful handling
+
+Q: Ingestion Layer Interview Section Key Takeaways
+
+A: 
+
+- File ingestion: simple, batch, use manifest tables for idempotency
+- API ingestion: use high-water marks for incremental extraction, handle rate limits
+- CDC: gold standard for database replication, uses transaction log reading
+- Always state your idempotency strategy unprompted - it's a scoring rubric item
+
+Q: ELT vs ETL
+
+A: ETL (Extract-Transform-Load) transforms data before loading it into the warehouse. ELT (Extract-Load-Transform) loads raw data first, then transforms it inside the warehouse. This isn't just an acronym difference - it's a fundamental architecture decision that affects cost, flexibility, and debugging.
+
+TIP: The correct answer in 2025 is almost always ELT for analytical pipelines. Say: 'I'd land raw data in the lake first so we can reprocess without re-extracting from the source. Storage is cheap; re-extraction is expensive and sometimes impossible.' Interviewers are testing whether you understand this shift.
+
+Q: ETL 
+
+A: 
+
+- Data is cleaned before it enters the warehouse
+- Warehouse stores only processed data - lower storage cost
+- Hard to reprocess: raw data may not be retained
+- Common in legacy Informatica/SSIS pipelines
+
+Q: ELT 
+
+A: 
+
+- Raw data lands in the warehouse immediately
+- Higher storage cost, but raw data is always available
+- Easy to reprocess: re-run transforms on raw data
+- Standard in modern Snowflake/BigQuery/Databricks stacks
+
+Q: In 2025, which is almost always the correct answer for analytical pipelines between ETL and ELT
+
+A: ELT. Where you can say something like 'I'd land raw data in the lake first so we can reprocess without re-extracting from the source. Storage is cheap; re-extraction is expensive and sometimes impossible.' Interviewers are testing whether you understand this shift.
+
+Q: Medallion: Bronze / Silver / Gold
+
+A: Medallion architecture organizes your lake into three quality tiers. Bronze is raw, exactly as ingested. Silver is cleaned, deduplicated, and typed. Gold is business-ready aggregates. This isn't vendor marketing - it's a genuinely useful mental model that interviewers recognize. When you say 'bronze, silver, gold,' you're speaking a shared vocabulary that signals you've built real pipelines.
+
+Q: Bronze
+
+A: Raw, as-ingested. Read for pipeline debugging 
+
+Ex: Raw JSON clickstream events 
+
+Q: Silver
+
+A: Cleaned, typed, deduped. Read by data engineers & data scientists 
+
+Q: Gold 
+
+A: Business aggregates. Read by analysts, dashboard executives 
+
+Q: Partitioning Strategy 
+
+A: Partitioning is how you avoid scanning 10TB when you only need 10GB. Partition by the most common filter column - usually date. If analysts always query by date range and country, partition by date and cluster by country. State this explicitly in interviews: 'I'd partition the gold tables by event_date so daily dashboard queries scan a single partition instead of the full table.'
+
+Q: Transformation section Do's 
+
+A: 
+
+- Always justify ELT over ETL by citing reprocessing capability
+- Use medallion terminology (bronze/silver/gold) to signal production experience
+- State your partitioning strategy and explain why you chose that column
+
+Q: Transformation section Dont's
+
+A: 
+
+- Say 'we transform the data' without specifying where (in Spark? in the warehouse?)
+-Skip partitioning - interviewers treat it as a must-mention
+- Forget to mention how you handle late-arriving data
+
+Q: Transformation Interview Section Key Takeaways 
+
+A: 
+
+- ELT is the modern default: load raw, transform in-warehouse, retain raw for reprocessing
+- Medallion architecture (bronze/silver/gold) is the shared vocabulary - use it
+- Partition by the most common filter column (usually date) to avoid full scans
+- Late-arriving data is a common follow-up - have a strategy ready
+
+Q: Consumer Archetypes 
+
+A: Different consumers need different data shapes. Analysts writing SQL dashboards need pre-aggregated, denormalized gold tables with low query latency. Data scientists building ML features need wide tables with historical snapshots. Reverse ETL consumers (pushing data back to Salesforce, Braze, Iterable) need narrow, frequently-refreshed tables keyed on user_id. Name the consumer explicitly in your answer - it justifies your entire transformation design.
+
+Q: Consumer Archetypes BI Dashboards 
+
+A: 
+
+Data Shape: denormalized, pre-aggregated 
+
+Latency Need: < 5 sec query 
+
+Serving Pattern: Materialized views, OLAP cubes
+
+Q: Consumer Archetypes ML Features
+
+A:
+
+Data Shape: Wide tables, point-in-time correct
+
+Latency Need: Minutes to hours
+
+Serving Pattern: Feature store, snapshot tables
+
+Q: Consumer Archetypes Reverse ETL
+
+A:
+
+Data Shape: Narrow, user-keyed
+
+Latency Need: Near real-time
+
+Serving Pattern: CDC to SaaS, event triggers
+
+Q: Consumer Archetypes Downstream Pipelines
+
+A:
+
+Data Shape: Clean, typed, partitioned
+
+Latency Need: Hours
+
+Serving Pattern: Silver/Gold lake tables
+
+Q: Materialized Views vs. Pre-Computed
+
+A: When dashboards need sub-second response times, you have two options: materialized views (the warehouse auto-refreshes the pre-computation) or pre-computed tables (your pipeline writes the aggregated output). Materialized views are simpler to manage but give you less control over refresh timing. Pre-computed tables are more work but let you run data quality checks before exposing data to consumers. 
+
+TIP: A strong interview move: 'I'd build gold tables as pre-computed aggregates rather than materialized views so I can run data quality checks between transformation and serving. I don't want a dashboard showing incorrect numbers because a transform bug made it through.' This shows you think about data trust, not just data movement.
+
+Q: The SLA Question 
+
+A: Every serving layer has an implicit SLA. Dashboards need data by 7 AM so the executive standup has current numbers. ML models need features refreshed before the daily training run at midnight. Reverse ETL needs to sync user segments to the marketing platform before the 9 AM email campaign. State the SLA explicitly: 'The gold table must be refreshed by 6 AM UTC so the US team's dashboards are current by market open.'
+
+Q: Serving Layer Section Dont's 
+
+A: 
+
+- "Analysts query the table"
+- No mention of latency or SLAs
+- No consumer-specific optimization
+- Treats serving as an afterthought
+
+Q: Serving Layer Section Do's 
+
+A: 
+
+- "Analysts query a gold table partitioned by date with a materialized view for the executive dashboard"
+- States SLA: data ready by 6 AM UTC
+- Different tables for different consumers
+- Serving layer drives upstream design
+
+Q: Serving Layer Interview Section Key Takeaways
+
+A: 
+
+- Name the consumer explicitly - it justifies your entire transformation design
+- Different consumers need different data shapes (denormalized, wide, narrow)
+- State the SLA: when must the data be ready, and who depends on it
+- Pre-computed tables give you a quality gate between transformation and serving
+
+Q: The Meta Layer 
+
+A: Orchestration, data quality, and monitoring are the meta layer - the infrastructure that makes a pipeline a pipeline instead of a script. Candidates who skip this layer cap themselves at 'hire.' Candidates who treat it as first-class get 'strong hire.' The meta layer is where you prove you've operated pipelines in production, not just built them.
+
+Q: Orchestration: DAGs, Not Scripts
+
+A: A production pipeline isn't a Python script that runs on a cron job. It's a directed acyclic graph (DAG) of tasks with dependencies, retries, and alerting. Say 'Airflow' or 'Dagster' - the specific tool matters less than demonstrating you understand task dependencies. If the ingestion task fails, the transformation task shouldn't run. If the transformation task fails, the quality checks should still execute to capture what went wrong.
+
+Q: Data Quality: Trust as a Feature
+
+A: Data quality is not optional. In interviews, mention at least two types of checks: row count validation (did we get roughly the expected number of records?) and schema validation (did the source change column types?). More advanced: null rate thresholds, freshness checks, and cross-table referential integrity. Tools like Great Expectations and dbt tests make this concrete, but the concept matters more than the tool.
+
+TIP: Mention data quality before the interviewer asks. Say: 'Between silver and gold, I'd run row count validation and null rate checks. If today's event count drops below 80% of the 7-day average, the pipeline halts and pages on-call.' Proactive quality discussion is the strongest senior signal in pipeline interviews.
+
+Q: Monitoring and Alerting
+
+A: Monitoring answers: is the pipeline healthy right now? Track three things: task duration (is the transform taking 3x longer than usual?), data freshness (when was the gold table last updated?), and data volume (did we process the expected number of records?). Alert on anomalies, not thresholds. A 2-hour pipeline that suddenly takes 6 hours is a problem even if it finishes before the SLA.
+
+Q: Backfills and Idempotency
+
+A: Backfills are the hidden test of pipeline maturity. When a bug corrupts three days of data, can you reprocess those three days without affecting the rest? The answer requires idempotent pipelines: running the same date twice produces the same output. Use partition-level overwrites (OVERWRITE PARTITION) rather than appends, so re-execution replaces bad data instead of duplicating it.
+
+Q: Meta Layer Section Do's 
+
+A: 
+
+- Mention orchestration (Airflow/Dagster) and describe task dependencies
+- State at least two data quality checks: row counts and schema validation
+- Design for idempotency: partition-level overwrites, not appends
+- Describe monitoring: task duration, data freshness, volume anomalies
+
+Q: Meta Layer Section Dont's 
+
+A: 
+
+- Say 'we'd run it on a cron job' - this signals no production experience
+- Skip data quality entirely - interviewers notice and it caps your score
+- Assume backfills won't happen - they always do
+
+Q: Meta Layer Interview Section Key Takeaways
+
+A: 
+
+- Orchestration means DAGs with dependencies, retries, and alerts - not cron jobs
+- Data quality checks between layers are the #1 senior signal
+- Monitor duration, freshness, and volume - alert on anomalies, not fixed thresholds
+- Idempotent design enables backfills: partition-level overwrites, not appends
+
+
+
