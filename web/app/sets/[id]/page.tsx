@@ -33,12 +33,20 @@ export default async function SetPage(props: PageProps<"/sets/[id]">) {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{set.name}</h1>
         {set.cards.length > 0 && (
-          <Link
-            href={`/sets/${id}/study`}
-            className="rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-4 py-2 text-sm font-medium hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
-          >
-            Study →
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              href={`/sets/${id}/study`}
+              className="rounded-lg border border-zinc-200 dark:border-zinc-800 px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            >
+              Browse
+            </Link>
+            <Link
+              href={`/sets/${id}/study?mode=practice`}
+              className="rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-4 py-2 text-sm font-medium hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
+            >
+              Practice
+            </Link>
+          </div>
         )}
       </div>
 
