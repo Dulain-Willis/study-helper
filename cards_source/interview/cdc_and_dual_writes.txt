@@ -1,0 +1,35 @@
+Q: Why is it when deciding Full Refresh vs Incremental saying "Incremental obviously" is wrong?
+
+A: Because every pipeline starts as a full refresh and that full refresh is correct until it is not.
+
+
+Q: Full Refresh vs Incremental should be framed as a cost function. What does that mean?
+
+A: Full refresh cost grows linearly with source table size. Incremental has fixed overhead - change detection, merge logic, state tracking - plus variable cost that grows with change volume, not total data. At some point the lines cross. 
+
+
+Q: Full Refresh vs Incremental Tradeoffs
+
+A: Simple: SELECT * and replace | Complex: detect changes, merge, track state
+   Always correct - no state to corrupt | Can accumulate drift if change detection fails
+   Cost grows with total data size | Cost grows with change volume, not total size
+   10M rows: 3 min, 100M: 30 min, 1B: 5+ hrs | 10K changes on 1B rows: 20 seconds
+
+
+Q: Where does the typical crossover for Full Refresh vs Incremental land, and how can you go deeper like the interviewer will expect you to? 
+
+A: The crossover typically lands between 10-50 million rows for most warehouse workloads. 
+   
+   Compute-time billing pushes the crossover earlier because full refreshes burn credit     
+   linearly. This is like Snowflake or Redshift Serverless where you pay for uptime and 
+   compute. 
+
+   Storage-based pricing pushes it later because incremental state has its own cost. This is 
+   like object storage, or iceberg/delta tables. Incremental pipelines store state tables, 
+   snapshots, change logs, etc., so incremental must save enough compute to justify extra 
+   storage cost 
+
+   Red flag: candidates who give a number without explaining what drives it.
+
+
+Q: When 
