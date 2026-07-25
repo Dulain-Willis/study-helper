@@ -75,3 +75,11 @@
 .node-edit input {
   font-size: 1em;
 }
+
+.node-name-clickable {
+  cursor: pointer;
+}
+
+.node-name-clickable:hover {
+  text-decoration: underline;
+}

@@ -1,0 +1,49 @@
+.card-list {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px;
+  text-align: left;
+  color: #e6e6e6;
+}
+
+.card-list-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.card-new {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.card-new input {
+  flex: 1;
+}
+
+.card-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.card-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #333;
+}
+
+.card-front,
+.card-back {
+  flex: 1;
+}
+
+.card-actions {
+  display: flex;
+  gap: 4px;
+}

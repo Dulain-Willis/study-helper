@@ -5,7 +5,11 @@ import './GroupTree.css'
 type EditTarget = { kind: 'group' | 'set'; id: number } | null
 type MenuTarget = { kind: 'group' | 'set'; id: number } | null
 
-export default function GroupTree(): React.JSX.Element {
+export default function GroupTree({
+  onOpenSet
+}: {
+  onOpenSet: (set: Set) => void
+}): React.JSX.Element {
   const [groups, setGroups] = useState<Group[]>([])
   const [sets, setSets] = useState<Set[]>([])
   const [editing, setEditing] = useState<EditTarget>(null)
@@ -66,7 +70,7 @@ export default function GroupTree(): React.JSX.Element {
 
   async function handleDeleteSet(id: number, name: string): Promise<void> {
     setOpenMenu(null)
-    const summary = await window.api.getSetDeleteSummary()
+    const summary = await window.api.getSetDeleteSummary(id)
     const cards = summary.cardCount > 0 ? `, ${summary.cardCount} card(s)` : ''
     const confirmed = window.confirm(`Delete the set "${name}"${cards}? This cannot be undone.`)
     if (!confirmed) return
@@ -101,9 +105,20 @@ export default function GroupTree(): React.JSX.Element {
     )
   }
 
-  function renderName(kind: 'group' | 'set', id: number, name: string): React.JSX.Element {
+  function renderName(
+    kind: 'group' | 'set',
+    id: number,
+    name: string,
+    onClick?: () => void
+  ): React.JSX.Element {
     const isEditing = editing?.kind === kind && editing.id === id
-    if (!isEditing) return <span className="node-name">{name}</span>
+    if (!isEditing) {
+      return (
+        <span className={onClick ? 'node-name node-name-clickable' : 'node-name'} onClick={onClick}>
+          {name}
+        </span>
+      )
+    }
     return (
       <span className="node-edit">
         <input
@@ -142,7 +157,7 @@ export default function GroupTree(): React.JSX.Element {
             {childSets.map((set) => (
               <li key={`set-${set.id}`} className="node">
                 <div className="node-row">
-                  {renderName('set', set.id, set.name)}
+                  {renderName('set', set.id, set.name, () => onOpenSet(set))}
                   <span className="node-actions">{renderMenu('set', set.id, set.name)}</span>
                 </div>
               </li>

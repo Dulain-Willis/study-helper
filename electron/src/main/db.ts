@@ -19,6 +19,13 @@ export interface GroupDeleteSummary {
   setCount: number
 }
 
+export interface Card {
+  id: number
+  front: string
+  back: string
+  setId: number
+}
+
 const db = new Database(join(app.getPath('userData'), 'study-helper.db'))
 
 // WAL mode set once here at DB creation — MCP server (direct SQLite access)
@@ -37,6 +44,13 @@ db.exec(`
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
     group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS cards (
+    id INTEGER PRIMARY KEY,
+    front TEXT NOT NULL,
+    back TEXT NOT NULL,
+    set_id INTEGER NOT NULL REFERENCES sets(id) ON DELETE CASCADE
   );
 `)
 
@@ -84,8 +98,8 @@ export function getGroupDeleteSummary(id: number): GroupDeleteSummary {
 }
 
 export function deleteGroup(id: number): void {
-  // ON DELETE CASCADE on groups.parent_id and sets.group_id handles the
-  // recursive cleanup of subgroups/sets (and cards, once #4 adds them).
+  // ON DELETE CASCADE on groups.parent_id, sets.group_id, and cards.set_id
+  // handles the recursive cleanup of subgroups/sets/cards.
   db.prepare('DELETE FROM groups WHERE id = ?').run(id)
 }
 
@@ -100,11 +114,35 @@ export function renameSet(id: number, name: string): void {
   db.prepare('UPDATE sets SET name = ? WHERE id = ?').run(name, id)
 }
 
-export function getSetDeleteSummary(): { cardCount: number } {
-  // Cards aren't implemented yet (#4) — cascade wiring is a no-op for now.
-  return { cardCount: 0 }
+export function getSetDeleteSummary(id: number): { cardCount: number } {
+  const { cardCount } = db
+    .prepare('SELECT COUNT(*) AS cardCount FROM cards WHERE set_id = ?')
+    .get(id) as { cardCount: number }
+  return { cardCount }
 }
 
 export function deleteSet(id: number): void {
+  // ON DELETE CASCADE on cards.set_id handles the cleanup of the Set's Cards.
   db.prepare('DELETE FROM sets WHERE id = ?').run(id)
+}
+
+export function getCards(setId: number): Card[] {
+  return db
+    .prepare('SELECT id, front, back, set_id AS setId FROM cards WHERE set_id = ? ORDER BY id')
+    .all(setId) as Card[]
+}
+
+export function addCard(setId: number, front: string, back: string): Card {
+  const { lastInsertRowid } = db
+    .prepare('INSERT INTO cards (front, back, set_id) VALUES (?, ?, ?)')
+    .run(front, back, setId)
+  return { id: Number(lastInsertRowid), front, back, setId }
+}
+
+export function updateCard(id: number, front: string, back: string): void {
+  db.prepare('UPDATE cards SET front = ?, back = ? WHERE id = ?').run(front, back, id)
+}
+
+export function deleteCard(id: number): void {
+  db.prepare('DELETE FROM cards WHERE id = ?').run(id)
 }
