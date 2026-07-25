@@ -151,6 +151,9 @@ export function deleteCard(id: number): void {
 // creation time, not referenced. Editing a source Set afterward does not
 // affect the merged Set.
 export function mergeSets(setIds: number[], name: string, groupId: number): Set {
+  if (setIds.length < 2) throw new Error('mergeSets requires at least 2 source Sets')
+  if (!name.trim()) throw new Error('mergeSets requires a non-empty name')
+
   const insertSet = db.prepare('INSERT INTO sets (name, group_id) VALUES (?, ?)')
   const getCardsForSet = db.prepare('SELECT front, back FROM cards WHERE set_id = ?')
   const insertCard = db.prepare('INSERT INTO cards (front, back, set_id) VALUES (?, ?, ?)')
