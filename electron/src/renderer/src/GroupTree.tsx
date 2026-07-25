@@ -24,13 +24,15 @@ export default function GroupTree(): React.JSX.Element {
   }, [])
 
   async function handleCreateGroup(parentId: number | null): Promise<void> {
-    await window.api.createGroup('New Group', parentId)
+    const group = await window.api.createGroup('New Group', parentId)
     await refresh()
+    startRename('group', group.id, group.name)
   }
 
   async function handleCreateSet(groupId: number): Promise<void> {
-    await window.api.createSet('New Set', groupId)
+    const set = await window.api.createSet('New Set', groupId)
     await refresh()
+    startRename('set', set.id, set.name)
   }
 
   function startRename(kind: 'group' | 'set', id: number, currentName: string): void {
@@ -106,6 +108,7 @@ export default function GroupTree(): React.JSX.Element {
       <span className="node-edit">
         <input
           autoFocus
+          onFocus={(e) => e.target.select()}
           value={editValue}
           onChange={(e) => setEditValue(e.target.value)}
           onKeyDown={(e) => {
