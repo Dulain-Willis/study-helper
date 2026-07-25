@@ -17,6 +17,7 @@ export interface Api {
   addCard: (setId: number, front: string, back: string) => Promise<Card>
   updateCard: (id: number, front: string, back: string) => Promise<void>
   deleteCard: (id: number) => Promise<void>
+  mergeSets: (setIds: number[], name: string, groupId: number) => Promise<Set>
 }
 
 declare global {

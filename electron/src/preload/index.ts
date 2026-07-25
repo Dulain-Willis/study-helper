@@ -25,7 +25,9 @@ const api = {
     ipcRenderer.invoke('db:addCard', setId, front, back),
   updateCard: (id: number, front: string, back: string): Promise<void> =>
     ipcRenderer.invoke('db:updateCard', id, front, back),
-  deleteCard: (id: number): Promise<void> => ipcRenderer.invoke('db:deleteCard', id)
+  deleteCard: (id: number): Promise<void> => ipcRenderer.invoke('db:deleteCard', id),
+  mergeSets: (setIds: number[], name: string, groupId: number): Promise<Set> =>
+    ipcRenderer.invoke('db:mergeSets', setIds, name, groupId)
 }
 
 if (process.contextIsolated) {

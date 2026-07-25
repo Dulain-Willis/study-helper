@@ -146,3 +146,24 @@ export function updateCard(id: number, front: string, back: string): void {
 export function deleteCard(id: number): void {
   db.prepare('DELETE FROM cards WHERE id = ?').run(id)
 }
+
+// ADR 0002: merge is a snapshot — Cards are duplicated into the new Set at
+// creation time, not referenced. Editing a source Set afterward does not
+// affect the merged Set.
+export function mergeSets(setIds: number[], name: string, groupId: number): Set {
+  const insertSet = db.prepare('INSERT INTO sets (name, group_id) VALUES (?, ?)')
+  const getCardsForSet = db.prepare('SELECT front, back FROM cards WHERE set_id = ?')
+  const insertCard = db.prepare('INSERT INTO cards (front, back, set_id) VALUES (?, ?, ?)')
+
+  const merge = db.transaction((): Set => {
+    const { lastInsertRowid } = insertSet.run(name, groupId)
+    const newSetId = Number(lastInsertRowid)
+    for (const setId of setIds) {
+      const cards = getCardsForSet.all(setId) as { front: string; back: string }[]
+      for (const card of cards) insertCard.run(card.front, card.back, newSetId)
+    }
+    return { id: newSetId, name, groupId }
+  })
+
+  return merge()
+}

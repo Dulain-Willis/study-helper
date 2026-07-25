@@ -90,6 +90,9 @@ if (gotLock) {
       db.updateCard(id, front, back)
     )
     ipcMain.handle('db:deleteCard', (_e, id: number) => db.deleteCard(id))
+    ipcMain.handle('db:mergeSets', (_e, setIds: number[], name: string, groupId: number) =>
+      db.mergeSets(setIds, name, groupId)
+    )
 
     createWindow()
 
