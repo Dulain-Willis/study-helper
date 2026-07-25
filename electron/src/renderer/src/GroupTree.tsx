@@ -6,9 +6,11 @@ type EditTarget = { kind: 'group' | 'set'; id: number } | null
 type MenuTarget = { kind: 'group' | 'set'; id: number } | null
 
 export default function GroupTree({
-  onOpenSet
+  onOpenSet,
+  onStudyAdhoc
 }: {
   onOpenSet: (set: Set) => void
+  onStudyAdhoc: (selection: { title: string; setIds: number[] }) => void
 }): React.JSX.Element {
   const [groups, setGroups] = useState<Group[]>([])
   const [sets, setSets] = useState<Set[]>([])
@@ -19,6 +21,8 @@ export default function GroupTree({
   const [selectedSetIds, setSelectedSetIds] = useState<number[]>([])
   const [mergeName, setMergeName] = useState('')
   const [mergeTargetGroupId, setMergeTargetGroupId] = useState<number | null>(null)
+  const [studyMode, setStudyMode] = useState(false)
+  const [studySelectedSetIds, setStudySelectedSetIds] = useState<number[]>([])
 
   async function refresh(): Promise<void> {
     const tree = await window.api.getTree()
@@ -91,6 +95,24 @@ export default function GroupTree({
 
   function toggleSetSelection(id: number): void {
     setSelectedSetIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
+  function toggleStudyMode(): void {
+    setStudyMode((m) => !m)
+    setStudySelectedSetIds([])
+  }
+
+  function toggleStudySetSelection(id: number): void {
+    setStudySelectedSetIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
+  }
+
+  function handleStartAdhocStudy(): void {
+    if (studySelectedSetIds.length === 0) return
+    const names = sets.filter((s) => studySelectedSetIds.includes(s.id)).map((s) => s.name)
+    onStudyAdhoc({ title: names.join(', '), setIds: studySelectedSetIds })
+    toggleStudyMode()
   }
 
   function flattenGroups(
@@ -198,6 +220,15 @@ export default function GroupTree({
                       />{' '}
                       {set.name}
                     </label>
+                  ) : studyMode ? (
+                    <label className="node-name">
+                      <input
+                        type="checkbox"
+                        checked={studySelectedSetIds.includes(set.id)}
+                        onChange={() => toggleStudySetSelection(set.id)}
+                      />{' '}
+                      {set.name}
+                    </label>
                   ) : (
                     <>
                       {renderName('set', set.id, set.name, () => onOpenSet(set))}
@@ -220,11 +251,26 @@ export default function GroupTree({
       <div className="group-tree-header">
         <h1>Groups</h1>
         <span className="group-tree-header-actions">
-          {!mergeMode && <button onClick={() => handleCreateGroup(null)}>+ New Group</button>}
-          <button onClick={toggleMergeMode}>{mergeMode ? 'Cancel Merge' : 'Merge Sets'}</button>
+          {!mergeMode && !studyMode && (
+            <button onClick={() => handleCreateGroup(null)}>+ New Group</button>
+          )}
+          {!studyMode && (
+            <button onClick={toggleMergeMode}>{mergeMode ? 'Cancel Merge' : 'Merge Sets'}</button>
+          )}
+          {!mergeMode && (
+            <button onClick={toggleStudyMode}>{studyMode ? 'Cancel Study' : 'Study Sets'}</button>
+          )}
         </span>
       </div>
       <ul>{rootGroups.map(renderGroup)}</ul>
+      {studyMode && (
+        <div className="merge-panel">
+          <span>{studySelectedSetIds.length} set(s) selected</span>
+          <button onClick={handleStartAdhocStudy} disabled={studySelectedSetIds.length === 0}>
+            Start Study Session
+          </button>
+        </div>
+      )}
       {mergeMode && (
         <div className="merge-panel">
           <span>{selectedSetIds.length} set(s) selected</span>

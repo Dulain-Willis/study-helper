@@ -109,4 +109,50 @@ await page.waitForTimeout(200)
 html = await page.content()
 console.log('session completes after a clean retry round:', html.includes('Session complete'))
 
+// back to the tree, create a second set with its own cards
+await page.click('text=← Back')
+await page.waitForTimeout(200)
+await page.click('text=← Back')
+await page.waitForTimeout(200)
+
+await page.hover('.node-row')
+await page.click('text=+ Set')
+await page.waitForTimeout(400)
+await page.keyboard.press('Enter')
+await page.waitForTimeout(400)
+
+const setNames = await page.$$('.node-name-clickable')
+await setNames[1].click()
+await page.waitForTimeout(400)
+await page.fill('input[placeholder="Front"]', 'Q4')
+await page.fill('input[placeholder="Back"]', 'A4')
+await page.click('text=+ Add Card')
+await page.waitForTimeout(300)
+await page.click('text=← Back')
+await page.waitForTimeout(300)
+
+// Ad-hoc Study: select both sets, start a combined Browse session, nothing persisted
+await page.click('text=Study Sets')
+await page.waitForTimeout(200)
+const checkboxes = await page.$$('.node-row input[type="checkbox"]')
+for (const cb of checkboxes) await cb.click()
+await page.waitForTimeout(200)
+html = await page.content()
+console.log('adhoc panel shows both sets selected:', html.includes('2 set(s) selected'))
+
+await page.click('text=Start Study Session')
+await page.waitForTimeout(300)
+await page.click('text=Browse')
+await page.waitForTimeout(300)
+html = await page.content()
+console.log('adhoc session combines cards from both sets:', html.includes('Card 1 of 4'))
+
+await page.click('text=← Back')
+await page.waitForTimeout(300)
+html = await page.content()
+console.log(
+  'adhoc selection not retained after exit (Study Sets available again, no leftover selection):',
+  html.includes('Study Sets') && !html.includes('set(s) selected')
+)
+
 await app.close()
