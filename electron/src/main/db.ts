@@ -19,6 +19,13 @@ export interface GroupDeleteSummary {
   setCount: number
 }
 
+export interface Card {
+  id: number
+  front: string
+  back: string
+  setId: number
+}
+
 const db = new Database(join(app.getPath('userData'), 'study-helper.db'))
 
 // WAL mode set once here at DB creation — MCP server (direct SQLite access)
@@ -37,6 +44,13 @@ db.exec(`
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
     group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS cards (
+    id INTEGER PRIMARY KEY,
+    front TEXT NOT NULL,
+    back TEXT NOT NULL,
+    set_id INTEGER NOT NULL REFERENCES sets(id) ON DELETE CASCADE
   );
 `)
 
@@ -84,8 +98,8 @@ export function getGroupDeleteSummary(id: number): GroupDeleteSummary {
 }
 
 export function deleteGroup(id: number): void {
-  // ON DELETE CASCADE on groups.parent_id and sets.group_id handles the
-  // recursive cleanup of subgroups/sets (and cards, once #4 adds them).
+  // ON DELETE CASCADE on groups.parent_id, sets.group_id, and cards.set_id
+  // handles the recursive cleanup of subgroups/sets/cards.
   db.prepare('DELETE FROM groups WHERE id = ?').run(id)
 }
 
@@ -100,11 +114,59 @@ export function renameSet(id: number, name: string): void {
   db.prepare('UPDATE sets SET name = ? WHERE id = ?').run(name, id)
 }
 
-export function getSetDeleteSummary(): { cardCount: number } {
-  // Cards aren't implemented yet (#4) — cascade wiring is a no-op for now.
-  return { cardCount: 0 }
+export function getSetDeleteSummary(id: number): { cardCount: number } {
+  const { cardCount } = db
+    .prepare('SELECT COUNT(*) AS cardCount FROM cards WHERE set_id = ?')
+    .get(id) as { cardCount: number }
+  return { cardCount }
 }
 
 export function deleteSet(id: number): void {
+  // ON DELETE CASCADE on cards.set_id handles the cleanup of the Set's Cards.
   db.prepare('DELETE FROM sets WHERE id = ?').run(id)
+}
+
+export function getCards(setId: number): Card[] {
+  return db
+    .prepare('SELECT id, front, back, set_id AS setId FROM cards WHERE set_id = ? ORDER BY id')
+    .all(setId) as Card[]
+}
+
+export function addCard(setId: number, front: string, back: string): Card {
+  const { lastInsertRowid } = db
+    .prepare('INSERT INTO cards (front, back, set_id) VALUES (?, ?, ?)')
+    .run(front, back, setId)
+  return { id: Number(lastInsertRowid), front, back, setId }
+}
+
+export function updateCard(id: number, front: string, back: string): void {
+  db.prepare('UPDATE cards SET front = ?, back = ? WHERE id = ?').run(front, back, id)
+}
+
+export function deleteCard(id: number): void {
+  db.prepare('DELETE FROM cards WHERE id = ?').run(id)
+}
+
+// ADR 0002: merge is a snapshot — Cards are duplicated into the new Set at
+// creation time, not referenced. Editing a source Set afterward does not
+// affect the merged Set.
+export function mergeSets(setIds: number[], name: string, groupId: number): Set {
+  if (setIds.length < 2) throw new Error('mergeSets requires at least 2 source Sets')
+  if (!name.trim()) throw new Error('mergeSets requires a non-empty name')
+
+  const insertSet = db.prepare('INSERT INTO sets (name, group_id) VALUES (?, ?)')
+  const getCardsForSet = db.prepare('SELECT front, back FROM cards WHERE set_id = ?')
+  const insertCard = db.prepare('INSERT INTO cards (front, back, set_id) VALUES (?, ?, ?)')
+
+  const merge = db.transaction((): Set => {
+    const { lastInsertRowid } = insertSet.run(name, groupId)
+    const newSetId = Number(lastInsertRowid)
+    for (const setId of setIds) {
+      const cards = getCardsForSet.all(setId) as { front: string; back: string }[]
+      for (const card of cards) insertCard.run(card.front, card.back, newSetId)
+    }
+    return { id: newSetId, name, groupId }
+  })
+
+  return merge()
 }

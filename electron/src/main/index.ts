@@ -80,8 +80,19 @@ if (gotLock) {
       db.createSet(name, groupId)
     )
     ipcMain.handle('db:renameSet', (_e, id: number, name: string) => db.renameSet(id, name))
-    ipcMain.handle('db:getSetDeleteSummary', () => db.getSetDeleteSummary())
+    ipcMain.handle('db:getSetDeleteSummary', (_e, id: number) => db.getSetDeleteSummary(id))
     ipcMain.handle('db:deleteSet', (_e, id: number) => db.deleteSet(id))
+    ipcMain.handle('db:getCards', (_e, setId: number) => db.getCards(setId))
+    ipcMain.handle('db:addCard', (_e, setId: number, front: string, back: string) =>
+      db.addCard(setId, front, back)
+    )
+    ipcMain.handle('db:updateCard', (_e, id: number, front: string, back: string) =>
+      db.updateCard(id, front, back)
+    )
+    ipcMain.handle('db:deleteCard', (_e, id: number) => db.deleteCard(id))
+    ipcMain.handle('db:mergeSets', (_e, setIds: number[], name: string, groupId: number) =>
+      db.mergeSets(setIds, name, groupId)
+    )
 
     createWindow()
 

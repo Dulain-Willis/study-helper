@@ -5,12 +5,20 @@ import './GroupTree.css'
 type EditTarget = { kind: 'group' | 'set'; id: number } | null
 type MenuTarget = { kind: 'group' | 'set'; id: number } | null
 
-export default function GroupTree(): React.JSX.Element {
+export default function GroupTree({
+  onOpenSet
+}: {
+  onOpenSet: (set: Set) => void
+}): React.JSX.Element {
   const [groups, setGroups] = useState<Group[]>([])
   const [sets, setSets] = useState<Set[]>([])
   const [editing, setEditing] = useState<EditTarget>(null)
   const [editValue, setEditValue] = useState('')
   const [openMenu, setOpenMenu] = useState<MenuTarget>(null)
+  const [mergeMode, setMergeMode] = useState(false)
+  const [selectedSetIds, setSelectedSetIds] = useState<number[]>([])
+  const [mergeName, setMergeName] = useState('')
+  const [mergeTargetGroupId, setMergeTargetGroupId] = useState<number | null>(null)
 
   async function refresh(): Promise<void> {
     const tree = await window.api.getTree()
@@ -66,11 +74,39 @@ export default function GroupTree(): React.JSX.Element {
 
   async function handleDeleteSet(id: number, name: string): Promise<void> {
     setOpenMenu(null)
-    const summary = await window.api.getSetDeleteSummary()
+    const summary = await window.api.getSetDeleteSummary(id)
     const cards = summary.cardCount > 0 ? `, ${summary.cardCount} card(s)` : ''
     const confirmed = window.confirm(`Delete the set "${name}"${cards}? This cannot be undone.`)
     if (!confirmed) return
     await window.api.deleteSet(id)
+    await refresh()
+  }
+
+  function toggleMergeMode(): void {
+    setMergeMode((m) => !m)
+    setSelectedSetIds([])
+    setMergeName('')
+    setMergeTargetGroupId(null)
+  }
+
+  function toggleSetSelection(id: number): void {
+    setSelectedSetIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
+  function flattenGroups(
+    parentId: number | null,
+    depth: number
+  ): { group: Group; depth: number }[] {
+    return groups
+      .filter((g) => g.parentId === parentId)
+      .flatMap((g) => [{ group: g, depth }, ...flattenGroups(g.id, depth + 1)])
+  }
+
+  async function handleMerge(): Promise<void> {
+    const name = mergeName.trim()
+    if (selectedSetIds.length < 2 || !name || mergeTargetGroupId === null) return
+    await window.api.mergeSets(selectedSetIds, name, mergeTargetGroupId)
+    toggleMergeMode()
     await refresh()
   }
 
@@ -101,9 +137,20 @@ export default function GroupTree(): React.JSX.Element {
     )
   }
 
-  function renderName(kind: 'group' | 'set', id: number, name: string): React.JSX.Element {
+  function renderName(
+    kind: 'group' | 'set',
+    id: number,
+    name: string,
+    onClick?: () => void
+  ): React.JSX.Element {
     const isEditing = editing?.kind === kind && editing.id === id
-    if (!isEditing) return <span className="node-name">{name}</span>
+    if (!isEditing) {
+      return (
+        <span className={onClick ? 'node-name node-name-clickable' : 'node-name'} onClick={onClick}>
+          {name}
+        </span>
+      )
+    }
     return (
       <span className="node-edit">
         <input
@@ -142,8 +189,21 @@ export default function GroupTree(): React.JSX.Element {
             {childSets.map((set) => (
               <li key={`set-${set.id}`} className="node">
                 <div className="node-row">
-                  {renderName('set', set.id, set.name)}
-                  <span className="node-actions">{renderMenu('set', set.id, set.name)}</span>
+                  {mergeMode ? (
+                    <label className="node-name">
+                      <input
+                        type="checkbox"
+                        checked={selectedSetIds.includes(set.id)}
+                        onChange={() => toggleSetSelection(set.id)}
+                      />{' '}
+                      {set.name}
+                    </label>
+                  ) : (
+                    <>
+                      {renderName('set', set.id, set.name, () => onOpenSet(set))}
+                      <span className="node-actions">{renderMenu('set', set.id, set.name)}</span>
+                    </>
+                  )}
                 </div>
               </li>
             ))}
@@ -159,9 +219,39 @@ export default function GroupTree(): React.JSX.Element {
     <div className="group-tree">
       <div className="group-tree-header">
         <h1>Groups</h1>
-        <button onClick={() => handleCreateGroup(null)}>+ New Group</button>
+        <span className="group-tree-header-actions">
+          {!mergeMode && <button onClick={() => handleCreateGroup(null)}>+ New Group</button>}
+          <button onClick={toggleMergeMode}>{mergeMode ? 'Cancel Merge' : 'Merge Sets'}</button>
+        </span>
       </div>
       <ul>{rootGroups.map(renderGroup)}</ul>
+      {mergeMode && (
+        <div className="merge-panel">
+          <span>{selectedSetIds.length} set(s) selected</span>
+          <input
+            placeholder="New set name"
+            value={mergeName}
+            onChange={(e) => setMergeName(e.target.value)}
+          />
+          <select
+            value={mergeTargetGroupId ?? ''}
+            onChange={(e) => setMergeTargetGroupId(e.target.value ? Number(e.target.value) : null)}
+          >
+            <option value="">Select group…</option>
+            {flattenGroups(null, 0).map(({ group, depth }) => (
+              <option key={group.id} value={group.id}>
+                {'—'.repeat(depth)} {group.name}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={handleMerge}
+            disabled={selectedSetIds.length < 2 || !mergeName.trim() || mergeTargetGroupId === null}
+          >
+            Merge
+          </button>
+        </div>
+      )}
     </div>
   )
 }

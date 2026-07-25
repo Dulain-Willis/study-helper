@@ -1,0 +1,140 @@
+import { useEffect, useState } from 'react'
+import type { Card, Set } from '../../preload'
+import './StudySession.css'
+
+type Mode = 'pick' | 'browse' | 'practice' | 'complete'
+
+export default function StudySession({
+  set,
+  onExit
+}: {
+  set: Set
+  onExit: () => void
+}): React.JSX.Element {
+  const [mode, setMode] = useState<Mode>('pick')
+  const [cards, setCards] = useState<Card[]>([])
+  const [deck, setDeck] = useState<Card[]>([])
+  const [index, setIndex] = useState(0)
+  const [flipped, setFlipped] = useState(false)
+  const [wrong, setWrong] = useState<Card[]>([])
+  const [round, setRound] = useState(1)
+
+  useEffect(() => {
+    window.api.getCards(set.id).then(setCards)
+  }, [set.id])
+
+  function startBrowse(): void {
+    setDeck(cards)
+    setIndex(0)
+    setFlipped(false)
+    setMode('browse')
+  }
+
+  function startPractice(): void {
+    setDeck(cards)
+    setIndex(0)
+    setFlipped(false)
+    setWrong([])
+    setRound(1)
+    setMode('practice')
+  }
+
+  function mark(correct: boolean): void {
+    const next = correct ? wrong : [...wrong, deck[index]]
+    if (index + 1 < deck.length) {
+      setWrong(next)
+      setIndex(index + 1)
+      setFlipped(false)
+      return
+    }
+    if (next.length === 0) {
+      setMode('complete')
+      return
+    }
+    setDeck(next)
+    setWrong([])
+    setIndex(0)
+    setFlipped(false)
+    setRound(round + 1)
+  }
+
+  if (mode === 'pick') {
+    return (
+      <div className="study-session">
+        <div className="study-header">
+          <button onClick={onExit}>← Back</button>
+          <h1>{set.name}</h1>
+        </div>
+        {cards.length === 0 ? (
+          <p>No cards in this set.</p>
+        ) : (
+          <div className="study-pick">
+            <button onClick={startBrowse}>Browse</button>
+            <button onClick={startPractice}>Practice</button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (mode === 'complete') {
+    return (
+      <div className="study-session">
+        <div className="study-header">
+          <button onClick={onExit}>← Back</button>
+          <h1>{set.name}</h1>
+        </div>
+        <p>All cards correct. Session complete.</p>
+      </div>
+    )
+  }
+
+  const card = deck[index]
+
+  return (
+    <div className="study-session">
+      <div className="study-header">
+        <button onClick={onExit}>← Back</button>
+        <h1>{set.name}</h1>
+      </div>
+      <p className="study-progress">
+        {mode === 'practice' ? `Round ${round} — ` : ''}
+        Card {index + 1} of {deck.length}
+      </p>
+      <div className="study-card" onClick={() => setFlipped(!flipped)}>
+        {flipped ? card.back : card.front}
+      </div>
+      {mode === 'browse' ? (
+        <div className="study-controls">
+          <button
+            disabled={index === 0}
+            onClick={() => {
+              setIndex(index - 1)
+              setFlipped(false)
+            }}
+          >
+            Prev
+          </button>
+          <button
+            disabled={index === deck.length - 1}
+            onClick={() => {
+              setIndex(index + 1)
+              setFlipped(false)
+            }}
+          >
+            Next
+          </button>
+        </div>
+      ) : (
+        <div className="study-controls">
+          <button disabled={!flipped} onClick={() => mark(false)} aria-label="Incorrect">
+            ✗
+          </button>
+          <button disabled={!flipped} onClick={() => mark(true)} aria-label="Correct">
+            ✓
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}

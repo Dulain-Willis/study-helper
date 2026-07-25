@@ -1,8 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { Group, GroupDeleteSummary, Set } from '../main/db'
+import type { Card, Group, GroupDeleteSummary, Set } from '../main/db'
 
-export type { Group, GroupDeleteSummary, Set }
+export type { Card, Group, GroupDeleteSummary, Set }
 
 const api = {
   getTree: (): Promise<{ groups: Group[]; sets: Set[] }> => ipcRenderer.invoke('db:getTree'),
@@ -17,9 +17,17 @@ const api = {
     ipcRenderer.invoke('db:createSet', name, groupId),
   renameSet: (id: number, name: string): Promise<void> =>
     ipcRenderer.invoke('db:renameSet', id, name),
-  getSetDeleteSummary: (): Promise<{ cardCount: number }> =>
-    ipcRenderer.invoke('db:getSetDeleteSummary'),
-  deleteSet: (id: number): Promise<void> => ipcRenderer.invoke('db:deleteSet', id)
+  getSetDeleteSummary: (id: number): Promise<{ cardCount: number }> =>
+    ipcRenderer.invoke('db:getSetDeleteSummary', id),
+  deleteSet: (id: number): Promise<void> => ipcRenderer.invoke('db:deleteSet', id),
+  getCards: (setId: number): Promise<Card[]> => ipcRenderer.invoke('db:getCards', setId),
+  addCard: (setId: number, front: string, back: string): Promise<Card> =>
+    ipcRenderer.invoke('db:addCard', setId, front, back),
+  updateCard: (id: number, front: string, back: string): Promise<void> =>
+    ipcRenderer.invoke('db:updateCard', id, front, back),
+  deleteCard: (id: number): Promise<void> => ipcRenderer.invoke('db:deleteCard', id),
+  mergeSets: (setIds: number[], name: string, groupId: number): Promise<Set> =>
+    ipcRenderer.invoke('db:mergeSets', setIds, name, groupId)
 }
 
 if (process.contextIsolated) {
