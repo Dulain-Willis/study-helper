@@ -20,7 +20,7 @@ def _user_data_dir() -> Path:
         return home / "Library" / "Application Support" / APP_NAME
     if system == "Windows":
         return Path(os.environ.get("APPDATA", home)) / APP_NAME
-    return home / ".config" / APP_NAME
+    return Path(os.environ.get("XDG_CONFIG_HOME", str(home / ".config"))) / APP_NAME
 
 
 DB_PATH = os.environ.get("STUDY_HELPER_DB_PATH", str(_user_data_dir() / "study-helper.db"))
@@ -108,6 +108,8 @@ def search(query: str) -> dict:
 @mcp.tool
 def create_group(name: str, parent_group_id: int | None = None) -> dict:
     """Create a new group. Optionally nest it under a parent group."""
+    # closing(conn) guarantees .close(); the bare `conn` after it is
+    # sqlite3's own commit-on-success/rollback-on-exception context manager.
     with closing(get_conn()) as conn, conn:
         cur = conn.execute(
             "INSERT INTO groups (name, parent_id) VALUES (?, ?)", (name, parent_group_id)
