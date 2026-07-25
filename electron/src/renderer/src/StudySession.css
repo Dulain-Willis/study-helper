@@ -1,0 +1,45 @@
+.study-session {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px;
+  text-align: left;
+  color: #e6e6e6;
+}
+
+.study-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.study-pick {
+  display: flex;
+  gap: 8px;
+}
+
+.study-progress {
+  opacity: 0.7;
+  margin-bottom: 8px;
+}
+
+.study-card {
+  cursor: pointer;
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 1.25rem;
+}
+
+.study-controls {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}

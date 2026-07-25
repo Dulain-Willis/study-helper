@@ -4,10 +4,12 @@ import './CardList.css'
 
 export default function CardList({
   set,
-  onBack
+  onBack,
+  onStudy
 }: {
   set: Set
   onBack: () => void
+  onStudy: () => void
 }): React.JSX.Element {
   const [cards, setCards] = useState<Card[]>([])
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -65,6 +67,7 @@ export default function CardList({
       <div className="card-list-header">
         <button onClick={onBack}>← Back</button>
         <h1>{set.name}</h1>
+        <button onClick={onStudy}>Study</button>
       </div>
 
       <div className="card-new">

@@ -52,4 +52,61 @@ await page.waitForTimeout(400)
 html = await page.content()
 console.log('card deleted:', !html.includes('What is 3+3?'))
 
+// add three cards back for a Study Session
+for (const [front, back] of [
+  ['Q1', 'A1'],
+  ['Q2', 'A2'],
+  ['Q3', 'A3']
+]) {
+  await page.fill('input[placeholder="Front"]', front)
+  await page.fill('input[placeholder="Back"]', back)
+  await page.click('text=+ Add Card')
+  await page.waitForTimeout(300)
+}
+
+// Browse mode: flip, Prev/Next
+await page.click('text=Study')
+await page.waitForTimeout(300)
+await page.click('text=Browse')
+await page.waitForTimeout(300)
+html = await page.content()
+console.log('browse shows card 1 front:', html.includes('Q1') && html.includes('Card 1 of 3'))
+await page.click('.study-card')
+await page.waitForTimeout(200)
+html = await page.content()
+console.log('browse flip shows back:', html.includes('A1'))
+await page.click('text=Next')
+await page.waitForTimeout(200)
+html = await page.content()
+console.log('browse next advances:', (await page.content()).includes('Card 2 of 3') && html.includes('Q2'))
+
+// Practice mode: mark wrong/right, verify retry round and completion
+await page.click('text=← Back')
+await page.waitForTimeout(200)
+await page.click('text=Study')
+await page.waitForTimeout(200)
+await page.click('text=Practice')
+await page.waitForTimeout(300)
+
+await page.click('.study-card') // flip Q1
+await page.click('text=✗') // mark wrong
+await page.waitForTimeout(200)
+await page.click('.study-card') // flip Q2
+await page.click('text=✓') // mark correct
+await page.waitForTimeout(200)
+await page.click('.study-card') // flip Q3
+await page.click('text=✓') // mark correct, ends round 1 with one wrong card
+await page.waitForTimeout(200)
+html = await page.content()
+console.log(
+  'retry round has only the missed card:',
+  html.includes('Round 2') && html.includes('Card 1 of 1') && html.includes('Q1')
+)
+
+await page.click('.study-card') // flip Q1 again
+await page.click('text=✓') // mark correct, retry round ends clean
+await page.waitForTimeout(200)
+html = await page.content()
+console.log('session completes after a clean retry round:', html.includes('Session complete'))
+
 await app.close()
