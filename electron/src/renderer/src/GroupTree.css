@@ -1,0 +1,77 @@
+.group-tree {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 24px;
+  text-align: left;
+  color: #e6e6e6;
+}
+
+.group-tree-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.group-tree ul {
+  list-style: none;
+  margin: 0;
+  padding-left: 16px;
+}
+
+.group-tree > ul {
+  padding-left: 0;
+}
+
+.node-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.node-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+}
+
+.node-row:hover .node-actions {
+  opacity: 1;
+}
+
+.node-menu {
+  position: relative;
+}
+
+.node-menu-dropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  min-width: 100px;
+}
+
+.node-menu-dropdown button {
+  text-align: left;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  color: inherit;
+}
+
+.node-menu-dropdown button:hover {
+  background: #3a3a3a;
+}
+
+.node-edit input {
+  font-size: 1em;
+}

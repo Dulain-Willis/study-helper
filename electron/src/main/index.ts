@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import * as db from './db'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -68,8 +69,19 @@ if (gotLock) {
       optimizer.watchWindowShortcuts(window)
     })
 
-    // IPC test
-    ipcMain.on('ping', () => console.log('pong'))
+    ipcMain.handle('db:getTree', () => db.getTree())
+    ipcMain.handle('db:createGroup', (_e, name: string, parentId: number | null) =>
+      db.createGroup(name, parentId)
+    )
+    ipcMain.handle('db:renameGroup', (_e, id: number, name: string) => db.renameGroup(id, name))
+    ipcMain.handle('db:getGroupDeleteSummary', (_e, id: number) => db.getGroupDeleteSummary(id))
+    ipcMain.handle('db:deleteGroup', (_e, id: number) => db.deleteGroup(id))
+    ipcMain.handle('db:createSet', (_e, name: string, groupId: number) =>
+      db.createSet(name, groupId)
+    )
+    ipcMain.handle('db:renameSet', (_e, id: number, name: string) => db.renameSet(id, name))
+    ipcMain.handle('db:getSetDeleteSummary', () => db.getSetDeleteSummary())
+    ipcMain.handle('db:deleteSet', (_e, id: number) => db.deleteSet(id))
 
     createWindow()
 

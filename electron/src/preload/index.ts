@@ -1,12 +1,27 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import type { Group, GroupDeleteSummary, Set } from '../main/db'
 
-// Custom APIs for renderer
-const api = {}
+export type { Group, GroupDeleteSummary, Set }
 
-// Use `contextBridge` APIs to expose Electron APIs to
-// renderer only if context isolation is enabled, otherwise
-// just add to the DOM global.
+const api = {
+  getTree: (): Promise<{ groups: Group[]; sets: Set[] }> => ipcRenderer.invoke('db:getTree'),
+  createGroup: (name: string, parentId: number | null): Promise<Group> =>
+    ipcRenderer.invoke('db:createGroup', name, parentId),
+  renameGroup: (id: number, name: string): Promise<void> =>
+    ipcRenderer.invoke('db:renameGroup', id, name),
+  getGroupDeleteSummary: (id: number): Promise<GroupDeleteSummary> =>
+    ipcRenderer.invoke('db:getGroupDeleteSummary', id),
+  deleteGroup: (id: number): Promise<void> => ipcRenderer.invoke('db:deleteGroup', id),
+  createSet: (name: string, groupId: number): Promise<Set> =>
+    ipcRenderer.invoke('db:createSet', name, groupId),
+  renameSet: (id: number, name: string): Promise<void> =>
+    ipcRenderer.invoke('db:renameSet', id, name),
+  getSetDeleteSummary: (): Promise<{ cardCount: number }> =>
+    ipcRenderer.invoke('db:getSetDeleteSummary'),
+  deleteSet: (id: number): Promise<void> => ipcRenderer.invoke('db:deleteSet', id)
+}
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
