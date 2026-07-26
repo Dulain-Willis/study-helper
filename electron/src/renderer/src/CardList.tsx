@@ -67,7 +67,9 @@ export default function CardList({
       <div className="card-list-header">
         <button onClick={onBack}>← Back</button>
         <h1>{set.name}</h1>
-        <button onClick={onStudy}>Study</button>
+        <button className="primary" onClick={onStudy}>
+          Study
+        </button>
       </div>
 
       <div className="card-new">
@@ -83,7 +85,9 @@ export default function CardList({
           onChange={(e) => setNewBack(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
         />
-        <button onClick={handleAdd}>+ Add Card</button>
+        <button className="primary" onClick={handleAdd}>
+          + Add Card
+        </button>
       </div>
 
       <ul>
@@ -119,7 +123,9 @@ export default function CardList({
                 <span className="card-back">{card.back}</span>
                 <span className="card-actions">
                   <button onClick={() => startEdit(card)}>Edit</button>
-                  <button onClick={() => handleDelete(card.id)}>Delete</button>
+                  <button className="danger" onClick={() => handleDelete(card.id)}>
+                    Delete
+                  </button>
                 </span>
               </>
             )}

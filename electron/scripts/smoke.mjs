@@ -9,20 +9,22 @@ page.on('console', (m) => console.log('[renderer]', m.text()))
 page.on('pageerror', (e) => console.log('[pageerror]', e))
 await page.waitForTimeout(1500)
 
-await page.click('text=+ New Group')
+// Root page: create a group, navigate into it
+await page.fill('input[placeholder="New group name"]', 'New Group')
+await page.click('text=+ Group')
 await page.waitForTimeout(400)
-await page.keyboard.press('Enter')
+await page.click('.node-name-clickable')
 await page.waitForTimeout(400)
+let html = await page.content()
+console.log('breadcrumb shows group name after navigating in:', html.includes('New Group'))
 
-await page.hover('.node-row')
+// Inside group: create a set, open it
+await page.fill('input[placeholder="New set name"]', 'New Set')
 await page.click('text=+ Set')
-await page.waitForTimeout(400)
-await page.keyboard.press('Enter')
 await page.waitForTimeout(400)
 await page.screenshot({ path: '/tmp/shots-01-set-created.png' })
 
-// open the set
-await page.click('.node-name-clickable')
+await page.click('.node-name-clickable:has-text("New Set")')
 await page.waitForTimeout(500)
 await page.screenshot({ path: '/tmp/shots-02-cardlist-empty.png' })
 
@@ -33,7 +35,7 @@ await page.click('text=+ Add Card')
 await page.waitForTimeout(400)
 await page.screenshot({ path: '/tmp/shots-03-card-added.png' })
 
-let html = await page.content()
+html = await page.content()
 console.log('card shown after add:', html.includes('What is 2+2?') && html.includes('>4<'))
 
 // edit the card
@@ -67,7 +69,7 @@ for (const [front, back] of [
 }
 
 // Browse mode: flip, Prev/Next
-await page.click('text=Study')
+await page.click('.card-list-header >> text=Study')
 await page.waitForTimeout(300)
 await page.click('text=Browse')
 await page.waitForTimeout(300)
@@ -85,7 +87,7 @@ console.log('browse next advances:', (await page.content()).includes('Card 2 of 
 // Practice mode: mark wrong/right, verify retry round and completion
 await page.click('text=← Back')
 await page.waitForTimeout(200)
-await page.click('text=Study')
+await page.click('.card-list-header >> text=Study')
 await page.waitForTimeout(200)
 await page.click('text=Practice')
 await page.waitForTimeout(300)
@@ -111,20 +113,17 @@ await page.waitForTimeout(200)
 html = await page.content()
 console.log('session completes after a clean retry round:', html.includes('Session complete'))
 
-// back to the tree, create a second set with its own cards
-await page.click('text=← Back')
+// back to the group page, create a second set with its own cards
+await page.click('text=Back to Set')
 await page.waitForTimeout(200)
 await page.click('text=← Back')
 await page.waitForTimeout(200)
 
-await page.hover('.node-row')
+await page.fill('input[placeholder="New set name"]', 'Second Set')
 await page.click('text=+ Set')
 await page.waitForTimeout(400)
-await page.keyboard.press('Enter')
-await page.waitForTimeout(400)
 
-const setNames = await page.$$('.node-name-clickable')
-await setNames[1].click()
+await page.click('.node-name-clickable:has-text("Second Set")')
 await page.waitForTimeout(400)
 await page.fill('input[placeholder="Front"]', 'Q4')
 await page.fill('input[placeholder="Back"]', 'A4')
@@ -136,7 +135,7 @@ await page.waitForTimeout(300)
 // Ad-hoc Study: select both sets, start a combined Browse session, nothing persisted
 await page.click('text=Study Sets')
 await page.waitForTimeout(200)
-const checkboxes = await page.$$('.node-row input[type="checkbox"]')
+const checkboxes = await page.$$('input[type="checkbox"]')
 for (const cb of checkboxes) await cb.click()
 await page.waitForTimeout(200)
 html = await page.content()
@@ -160,17 +159,18 @@ console.log(
 // Merge Sets: combine both sets into a new one, verify card count
 await page.click('text=Merge Sets')
 await page.waitForTimeout(200)
-const mergeCheckboxes = await page.$$('.node-row input[type="checkbox"]')
+const mergeCheckboxes = await page.$$('input[type="checkbox"]')
 for (const cb of mergeCheckboxes) await cb.click()
 await page.fill('input[placeholder="New set name"]', 'Merged Set')
 await page.selectOption('select', { index: 1 })
 await page.click('.merge-panel >> text=Merge')
 await page.waitForTimeout(400)
+
+// merge mode exits back to whichever group page was active (New Group, unchanged throughout)
 html = await page.content()
 console.log('merged set appears in tree:', html.includes('Merged Set'))
 
-const mergedSetHandle = await page.$('text=Merged Set')
-await mergedSetHandle.click()
+await page.click('.node-name-clickable:has-text("Merged Set")')
 await page.waitForTimeout(400)
 html = await page.content()
 console.log(

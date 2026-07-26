@@ -76,7 +76,9 @@ export default function StudySession({
         ) : (
           <div className="study-pick">
             <button onClick={startBrowse}>Browse</button>
-            <button onClick={startPractice}>Practice</button>
+            <button className="primary" onClick={startPractice}>
+              Practice
+            </button>
           </div>
         )}
       </div>
@@ -86,11 +88,13 @@ export default function StudySession({
   if (mode === 'complete') {
     return (
       <div className="study-session">
-        <div className="study-header">
-          <button onClick={onExit}>← Back</button>
-          <h1>{title}</h1>
+        <div className="study-end">
+          <h2>Session complete</h2>
+          <p>All cards correct.</p>
+          <button className="primary" onClick={onExit}>
+            Back to Set
+          </button>
         </div>
-        <p>All cards correct. Session complete.</p>
       </div>
     )
   }
@@ -107,6 +111,12 @@ export default function StudySession({
         {mode === 'practice' ? `Round ${round} — ` : ''}
         Card {index + 1} of {deck.length}
       </p>
+      <div className="study-progress-bar">
+        <div
+          className="study-progress-bar-fill"
+          style={{ width: `${((index + 1) / deck.length) * 100}%` }}
+        />
+      </div>
       <div className="study-card" onClick={() => setFlipped(!flipped)}>
         {flipped ? card.back : card.front}
       </div>
@@ -122,6 +132,7 @@ export default function StudySession({
             Prev
           </button>
           <button
+            className="primary"
             disabled={index === deck.length - 1}
             onClick={() => {
               setIndex(index + 1)
@@ -133,10 +144,20 @@ export default function StudySession({
         </div>
       ) : (
         <div className="study-controls">
-          <button disabled={!flipped} onClick={() => mark(false)} aria-label="Incorrect">
+          <button
+            className="danger"
+            disabled={!flipped}
+            onClick={() => mark(false)}
+            aria-label="Incorrect"
+          >
             ✗
           </button>
-          <button disabled={!flipped} onClick={() => mark(true)} aria-label="Correct">
+          <button
+            className="success"
+            disabled={!flipped}
+            onClick={() => mark(true)}
+            aria-label="Correct"
+          >
             ✓
           </button>
         </div>
