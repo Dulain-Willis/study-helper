@@ -5,6 +5,8 @@ const app = await electron.launch({
   cwd: process.cwd()
 })
 const page = await app.firstWindow()
+page.on('console', (m) => console.log('[renderer]', m.text()))
+page.on('pageerror', (e) => console.log('[pageerror]', e))
 await page.waitForTimeout(1500)
 
 await page.click('text=+ New Group')
@@ -153,6 +155,27 @@ html = await page.content()
 console.log(
   'adhoc selection not retained after exit (Study Sets available again, no leftover selection):',
   html.includes('Study Sets') && !html.includes('set(s) selected')
+)
+
+// Merge Sets: combine both sets into a new one, verify card count
+await page.click('text=Merge Sets')
+await page.waitForTimeout(200)
+const mergeCheckboxes = await page.$$('.node-row input[type="checkbox"]')
+for (const cb of mergeCheckboxes) await cb.click()
+await page.fill('input[placeholder="New set name"]', 'Merged Set')
+await page.selectOption('select', { index: 1 })
+await page.click('.merge-panel >> text=Merge')
+await page.waitForTimeout(400)
+html = await page.content()
+console.log('merged set appears in tree:', html.includes('Merged Set'))
+
+const mergedSetHandle = await page.$('text=Merged Set')
+await mergedSetHandle.click()
+await page.waitForTimeout(400)
+html = await page.content()
+console.log(
+  'merged set contains all 4 source cards:',
+  ['Q1', 'Q2', 'Q3', 'Q4'].every((q) => html.includes(q))
 )
 
 await app.close()
