@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
-import type { Card, Set } from '../../preload'
+import type { Card } from '../../preload'
 import './StudySession.css'
 
 type Mode = 'pick' | 'browse' | 'practice' | 'complete'
 
 export default function StudySession({
-  set,
+  title,
+  setIds,
   onExit
 }: {
-  set: Set
+  title: string
+  setIds: number[]
   onExit: () => void
 }): React.JSX.Element {
   const [mode, setMode] = useState<Mode>('pick')
@@ -19,9 +21,13 @@ export default function StudySession({
   const [wrong, setWrong] = useState<Card[]>([])
   const [round, setRound] = useState(1)
 
+  const setIdsKey = setIds.join(',')
+
   useEffect(() => {
-    window.api.getCards(set.id).then(setCards)
-  }, [set.id])
+    Promise.all(setIds.map((id) => window.api.getCards(id))).then((lists) => setCards(lists.flat()))
+    // setIdsKey is the stable dependency; setIds itself is a new array each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setIdsKey])
 
   function startBrowse(): void {
     setDeck(cards)
@@ -63,7 +69,7 @@ export default function StudySession({
       <div className="study-session">
         <div className="study-header">
           <button onClick={onExit}>← Back</button>
-          <h1>{set.name}</h1>
+          <h1>{title}</h1>
         </div>
         {cards.length === 0 ? (
           <p>No cards in this set.</p>
@@ -82,7 +88,7 @@ export default function StudySession({
       <div className="study-session">
         <div className="study-header">
           <button onClick={onExit}>← Back</button>
-          <h1>{set.name}</h1>
+          <h1>{title}</h1>
         </div>
         <p>All cards correct. Session complete.</p>
       </div>
@@ -95,7 +101,7 @@ export default function StudySession({
     <div className="study-session">
       <div className="study-header">
         <button onClick={onExit}>← Back</button>
-        <h1>{set.name}</h1>
+        <h1>{title}</h1>
       </div>
       <p className="study-progress">
         {mode === 'practice' ? `Round ${round} — ` : ''}
