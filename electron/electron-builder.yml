@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: electron
+appId: com.dulainwillis.study-helper
+productName: Study Helper
 directories:
   buildResources: build
 files:

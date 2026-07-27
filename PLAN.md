@@ -1,17 +1,19 @@
 # Study Helper — Build Plan
 
 ## What it is
-A local flashcard app for personal use. Browser-based at localhost:3000. Data lives in a local Postgres database.
+A local flashcard app for personal use. Runs as a native Electron app (Mac/Windows/Linux). Data lives in a local SQLite file.
 
 ## Stack
-- **Frontend + API:** Next.js (API routes handle backend, no separate server)
-- **ORM:** Prisma (defines schema, generates migrations, type-safe queries)
-- **Database:** Postgres (local)
-- **MCP Server:** FastMCP (Python, separate process, connects to same Postgres DB)
+- **App:** Electron + React + TypeScript, no local web server — main process reads/writes SQLite directly via `better-sqlite3`
+- **Database:** SQLite (local file, WAL mode)
+- **MCP Server:** FastMCP (Python, separate process, reads/writes the same SQLite file directly)
 
 ## Running it
-- `npm run dev` — app at localhost:3000
-- `python mcp_server.py` — MCP server Claude Desktop connects to
+- `cd electron && npm run dev` — dev app
+- `cd electron && npm run build:mac` — packaged installable app
+- `python mcp/mcp_server.py` — MCP server Claude connects to
+
+Superseded the original Next.js/Prisma/Postgres stack this plan was written against — see #9/#23.
 
 ## Core Entities
 

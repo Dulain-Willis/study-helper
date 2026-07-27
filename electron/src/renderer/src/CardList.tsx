@@ -67,23 +67,39 @@ export default function CardList({
       <div className="card-list-header">
         <button onClick={onBack}>← Back</button>
         <h1>{set.name}</h1>
-        <button onClick={onStudy}>Study</button>
+        <button className="primary" onClick={onStudy}>
+          Study
+        </button>
       </div>
 
       <div className="card-new">
-        <input
+        <textarea
           placeholder="Front"
+          rows={2}
           value={newFront}
           onChange={(e) => setNewFront(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              handleAdd()
+            }
+          }}
         />
-        <input
+        <textarea
           placeholder="Back"
+          rows={2}
           value={newBack}
           onChange={(e) => setNewBack(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              handleAdd()
+            }
+          }}
         />
-        <button onClick={handleAdd}>+ Add Card</button>
+        <button className="primary" onClick={handleAdd}>
+          + Add Card
+        </button>
       </div>
 
       <ul>
@@ -91,21 +107,29 @@ export default function CardList({
           <li key={card.id} className="card-row">
             {editingId === card.id ? (
               <>
-                <input
+                <textarea
                   autoFocus
+                  rows={2}
                   onFocus={(e) => e.target.select()}
                   value={editFront}
                   onChange={(e) => setEditFront(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') confirmEdit()
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      confirmEdit()
+                    }
                     if (e.key === 'Escape') setEditingId(null)
                   }}
                 />
-                <input
+                <textarea
+                  rows={2}
                   value={editBack}
                   onChange={(e) => setEditBack(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') confirmEdit()
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      confirmEdit()
+                    }
                     if (e.key === 'Escape') setEditingId(null)
                   }}
                 />
@@ -119,7 +143,9 @@ export default function CardList({
                 <span className="card-back">{card.back}</span>
                 <span className="card-actions">
                   <button onClick={() => startEdit(card)}>Edit</button>
-                  <button onClick={() => handleDelete(card.id)}>Delete</button>
+                  <button className="danger" onClick={() => handleDelete(card.id)}>
+                    Delete
+                  </button>
                 </span>
               </>
             )}
