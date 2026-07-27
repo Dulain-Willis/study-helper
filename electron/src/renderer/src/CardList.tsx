@@ -73,17 +73,29 @@ export default function CardList({
       </div>
 
       <div className="card-new">
-        <input
+        <textarea
           placeholder="Front"
+          rows={2}
           value={newFront}
           onChange={(e) => setNewFront(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              handleAdd()
+            }
+          }}
         />
-        <input
+        <textarea
           placeholder="Back"
+          rows={2}
           value={newBack}
           onChange={(e) => setNewBack(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              handleAdd()
+            }
+          }}
         />
         <button className="primary" onClick={handleAdd}>
           + Add Card
@@ -95,21 +107,29 @@ export default function CardList({
           <li key={card.id} className="card-row">
             {editingId === card.id ? (
               <>
-                <input
+                <textarea
                   autoFocus
+                  rows={2}
                   onFocus={(e) => e.target.select()}
                   value={editFront}
                   onChange={(e) => setEditFront(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') confirmEdit()
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      confirmEdit()
+                    }
                     if (e.key === 'Escape') setEditingId(null)
                   }}
                 />
-                <input
+                <textarea
+                  rows={2}
                   value={editBack}
                   onChange={(e) => setEditBack(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') confirmEdit()
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      confirmEdit()
+                    }
                     if (e.key === 'Escape') setEditingId(null)
                   }}
                 />

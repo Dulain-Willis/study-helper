@@ -24,10 +24,12 @@
   display: flex;
   gap: 8px;
   margin-bottom: 24px;
+  align-items: flex-start;
 }
 
-.card-new input {
+.card-new textarea {
   flex: 1;
+  resize: vertical;
 }
 
 .card-list ul {
@@ -41,7 +43,7 @@
 
 .card-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   padding: 12px 16px;
   border: 1px solid var(--border);
@@ -49,10 +51,17 @@
   background: var(--surface);
 }
 
+.card-row textarea {
+  flex: 1;
+  resize: vertical;
+}
+
 .card-front,
 .card-back {
   flex: 1;
   font-size: 0.875rem;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .card-back {

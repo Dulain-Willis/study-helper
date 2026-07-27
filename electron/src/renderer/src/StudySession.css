@@ -52,14 +52,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  text-align: center;
+  text-align: left;
   padding: 32px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
   margin-bottom: 24px;
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+  max-height: 60vh;
   transition: border-color 0.15s;
 }
 
