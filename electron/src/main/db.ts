@@ -26,6 +26,15 @@ export interface Card {
   setId: number
 }
 
+export interface StudyProgress {
+  deck: number[]
+  index: number
+  wrong: number[]
+  round: number
+  correctCount: number
+  total: number
+}
+
 const db = new Database(join(app.getPath('userData'), 'study-helper.db'))
 
 // WAL mode set once here at DB creation — MCP server (direct SQLite access)
@@ -51,6 +60,16 @@ db.exec(`
     front TEXT NOT NULL,
     back TEXT NOT NULL,
     set_id INTEGER NOT NULL REFERENCES sets(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS study_progress (
+    set_id INTEGER PRIMARY KEY REFERENCES sets(id) ON DELETE CASCADE,
+    deck TEXT NOT NULL,
+    idx INTEGER NOT NULL,
+    wrong TEXT NOT NULL,
+    round INTEGER NOT NULL,
+    correct_count INTEGER NOT NULL,
+    total INTEGER NOT NULL
   );
 `)
 
@@ -169,4 +188,52 @@ export function mergeSets(setIds: number[], name: string, groupId: number): Set 
   })
 
   return merge()
+}
+
+export function getStudyProgress(setId: number): StudyProgress | null {
+  const row = db
+    .prepare(
+      'SELECT deck, idx, wrong, round, correct_count AS correctCount, total FROM study_progress WHERE set_id = ?'
+    )
+    .get(setId) as
+    | {
+        deck: string
+        idx: number
+        wrong: string
+        round: number
+        correctCount: number
+        total: number
+      }
+    | undefined
+  if (!row) return null
+  return {
+    deck: JSON.parse(row.deck),
+    index: row.idx,
+    wrong: JSON.parse(row.wrong),
+    round: row.round,
+    correctCount: row.correctCount,
+    total: row.total
+  }
+}
+
+export function saveStudyProgress(setId: number, progress: StudyProgress): void {
+  db.prepare(
+    `INSERT INTO study_progress (set_id, deck, idx, wrong, round, correct_count, total)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(set_id) DO UPDATE SET
+       deck = excluded.deck, idx = excluded.idx, wrong = excluded.wrong,
+       round = excluded.round, correct_count = excluded.correct_count, total = excluded.total`
+  ).run(
+    setId,
+    JSON.stringify(progress.deck),
+    progress.index,
+    JSON.stringify(progress.wrong),
+    progress.round,
+    progress.correctCount,
+    progress.total
+  )
+}
+
+export function clearStudyProgress(setId: number): void {
+  db.prepare('DELETE FROM study_progress WHERE set_id = ?').run(setId)
 }

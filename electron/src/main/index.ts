@@ -93,6 +93,11 @@ if (gotLock) {
     ipcMain.handle('db:mergeSets', (_e, setIds: number[], name: string, groupId: number) =>
       db.mergeSets(setIds, name, groupId)
     )
+    ipcMain.handle('db:getStudyProgress', (_e, setId: number) => db.getStudyProgress(setId))
+    ipcMain.handle('db:saveStudyProgress', (_e, setId: number, progress: db.StudyProgress) =>
+      db.saveStudyProgress(setId, progress)
+    )
+    ipcMain.handle('db:clearStudyProgress', (_e, setId: number) => db.clearStudyProgress(setId))
 
     createWindow()
 

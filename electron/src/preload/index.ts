@@ -1,8 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { Card, Group, GroupDeleteSummary, Set } from '../main/db'
+import type { Card, Group, GroupDeleteSummary, Set, StudyProgress } from '../main/db'
 
-export type { Card, Group, GroupDeleteSummary, Set }
+export type { Card, Group, GroupDeleteSummary, Set, StudyProgress }
 
 const api = {
   getTree: (): Promise<{ groups: Group[]; sets: Set[] }> => ipcRenderer.invoke('db:getTree'),
@@ -27,7 +27,13 @@ const api = {
     ipcRenderer.invoke('db:updateCard', id, front, back),
   deleteCard: (id: number): Promise<void> => ipcRenderer.invoke('db:deleteCard', id),
   mergeSets: (setIds: number[], name: string, groupId: number): Promise<Set> =>
-    ipcRenderer.invoke('db:mergeSets', setIds, name, groupId)
+    ipcRenderer.invoke('db:mergeSets', setIds, name, groupId),
+  getStudyProgress: (setId: number): Promise<StudyProgress | null> =>
+    ipcRenderer.invoke('db:getStudyProgress', setId),
+  saveStudyProgress: (setId: number, progress: StudyProgress): Promise<void> =>
+    ipcRenderer.invoke('db:saveStudyProgress', setId, progress),
+  clearStudyProgress: (setId: number): Promise<void> =>
+    ipcRenderer.invoke('db:clearStudyProgress', setId)
 }
 
 if (process.contextIsolated) {

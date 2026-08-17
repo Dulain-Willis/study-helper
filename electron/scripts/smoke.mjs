@@ -1,10 +1,10 @@
 import { _electron as electron } from 'playwright-core'
 
-const app = await electron.launch({
+let app = await electron.launch({
   args: ['--user-data-dir=/tmp/study-helper-smoke', '.'],
   cwd: process.cwd()
 })
-const page = await app.firstWindow()
+let page = await app.firstWindow()
 page.on('console', (m) => console.log('[renderer]', m.text()))
 page.on('pageerror', (e) => console.log('[pageerror]', e))
 await page.waitForTimeout(1500)
@@ -82,7 +82,10 @@ console.log('browse flip shows back:', html.includes('A1'))
 await page.click('text=Next')
 await page.waitForTimeout(200)
 html = await page.content()
-console.log('browse next advances:', (await page.content()).includes('Card 2 of 3') && html.includes('Q2'))
+console.log(
+  'browse next advances:',
+  (await page.content()).includes('Card 2 of 3') && html.includes('Q2')
+)
 
 // Practice mode: mark wrong/right, verify retry round and completion
 await page.click('text=← Back')
@@ -155,6 +158,73 @@ console.log(
   'adhoc selection not retained after exit (Study Sets available again, no leftover selection):',
   html.includes('Study Sets') && !html.includes('set(s) selected')
 )
+
+// Practice session persistence (#36): mark a card wrong on Second Set, force-quit,
+// relaunch pointed at the same user-data-dir, and confirm the session resumes.
+await page.click('.node-name-clickable:has-text("Second Set")')
+await page.waitForTimeout(400)
+await page.click('.card-list-header >> text=Study')
+await page.waitForTimeout(200)
+await page.click('text=Practice')
+await page.waitForTimeout(300)
+await page.click('.study-card') // flip Q4
+await page.click('text=✗') // mark wrong
+await page.waitForTimeout(300)
+await app.close()
+
+const app2 = await electron.launch({
+  args: ['--user-data-dir=/tmp/study-helper-smoke', '.'],
+  cwd: process.cwd()
+})
+const page2 = await app2.firstWindow()
+await page2.waitForTimeout(1500)
+await page2.click('.node-name-clickable:has-text("New Group")')
+await page2.waitForTimeout(400)
+await page2.click('.node-name-clickable:has-text("Second Set")')
+await page2.waitForTimeout(400)
+await page2.click('.card-list-header >> text=Study')
+await page2.waitForTimeout(400)
+html = await page2.content()
+console.log(
+  'practice session resumes after force-quit:',
+  html.includes('Round 2') && html.includes('Card 1 of 1') && html.includes('0 / 1')
+)
+await app2.close()
+
+const app3 = await electron.launch({
+  args: ['--user-data-dir=/tmp/study-helper-smoke', '.'],
+  cwd: process.cwd()
+})
+const page3 = await app3.firstWindow()
+await page3.waitForTimeout(1500)
+await page3.click('.node-name-clickable:has-text("New Group")')
+await page3.waitForTimeout(400)
+await page3.click('.node-name-clickable:has-text("Second Set")')
+await page3.waitForTimeout(400)
+await page3.click('.card-list-header >> text=Study')
+await page3.waitForTimeout(400)
+await page3.click('.study-card') // flip Q4 (resumed round 2)
+await page3.click('text=✓') // mark correct, session completes, progress cleared
+await page3.waitForTimeout(300)
+await page3.click('text=Back to Set')
+await page3.waitForTimeout(300)
+await page3.click('.card-list-header >> text=Study')
+await page3.waitForTimeout(400)
+html = await page3.content()
+console.log(
+  'completed session clears persisted progress (fresh pick screen shown):',
+  html.includes('Practice')
+)
+await app3.close()
+
+app = await electron.launch({
+  args: ['--user-data-dir=/tmp/study-helper-smoke', '.'],
+  cwd: process.cwd()
+})
+page = await app.firstWindow()
+await page.waitForTimeout(1500)
+await page.click('.node-name-clickable:has-text("New Group")')
+await page.waitForTimeout(400)
 
 // Merge Sets: combine both sets into a new one, verify card count
 await page.click('text=Merge Sets')

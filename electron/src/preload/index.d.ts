@@ -1,7 +1,7 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
-import type { Card, Group, GroupDeleteSummary, Set } from '../main/db'
+import type { Card, Group, GroupDeleteSummary, Set, StudyProgress } from '../main/db'
 
-export type { Card, Group, GroupDeleteSummary, Set }
+export type { Card, Group, GroupDeleteSummary, Set, StudyProgress }
 
 export interface Api {
   getTree: () => Promise<{ groups: Group[]; sets: Set[] }>
@@ -18,6 +18,9 @@ export interface Api {
   updateCard: (id: number, front: string, back: string) => Promise<void>
   deleteCard: (id: number) => Promise<void>
   mergeSets: (setIds: number[], name: string, groupId: number) => Promise<Set>
+  getStudyProgress: (setId: number) => Promise<StudyProgress | null>
+  saveStudyProgress: (setId: number, progress: StudyProgress) => Promise<void>
+  clearStudyProgress: (setId: number) => Promise<void>
 }
 
 declare global {
