@@ -21,6 +21,7 @@ export default function StudySession({
   const [flipped, setFlipped] = useState(false)
   const [wrong, setWrong] = useState<Card[]>([])
   const [round, setRound] = useState(1)
+  const [correctCount, setCorrectCount] = useState(0)
 
   const setIdsKey = setIds.join(',')
 
@@ -43,10 +44,16 @@ export default function StudySession({
     setFlipped(false)
     setWrong([])
     setRound(1)
+    setCorrectCount(0)
     setMode('practice')
   }
 
+  function restart(): void {
+    startPractice()
+  }
+
   function mark(correct: boolean): void {
+    if (round === 1 && correct) setCorrectCount(correctCount + 1)
     const next = correct ? wrong : [...wrong, deck[index]]
     if (index + 1 < deck.length) {
       setWrong(next)
@@ -92,9 +99,15 @@ export default function StudySession({
         <div className="study-end">
           <h2>Session complete</h2>
           <p>All cards correct.</p>
-          <button className="primary" onClick={onExit}>
-            Back to Set
-          </button>
+          <p className="study-score">
+            {correctCount} / {cards.length}
+          </p>
+          <div className="study-end-actions">
+            <button onClick={restart}>Restart</button>
+            <button className="primary" onClick={onExit}>
+              Back to Set
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -107,10 +120,12 @@ export default function StudySession({
       <div className="study-header">
         <button onClick={onExit}>← Back</button>
         <h1>{title}</h1>
+        {mode === 'practice' && <button onClick={restart}>Restart</button>}
       </div>
       <p className="study-progress">
         {mode === 'practice' ? `Round ${round} — ` : ''}
         Card {index + 1} of {deck.length}
+        {mode === 'practice' ? ` — ${correctCount} / ${cards.length}` : ''}
       </p>
       <div className="study-progress-bar">
         <div
