@@ -60,8 +60,6 @@
   margin-bottom: 24px;
   font-size: 1.125rem;
   line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
   overflow-y: auto;
   max-height: 60vh;
   transition: border-color 0.15s;
@@ -69,6 +67,11 @@
 
 .study-card:hover {
   border-color: var(--border-hover);
+}
+
+.study-card-body {
+  width: 100%;
+  word-break: break-word;
 }
 
 .study-controls {

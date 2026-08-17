@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Card, Set } from '../../preload'
+import CardContent from './CardContentDisplay'
 import './CardList.css'
 
 export default function CardList({
@@ -139,8 +140,12 @@ export default function CardList({
               </>
             ) : (
               <>
-                <span className="card-front">{card.front}</span>
-                <span className="card-back">{card.back}</span>
+                <div className="card-front">
+                  <CardContent text={card.front} />
+                </div>
+                <div className="card-back">
+                  <CardContent text={card.back} />
+                </div>
                 <span className="card-actions">
                   <button onClick={() => startEdit(card)}>Edit</button>
                   <button className="danger" onClick={() => handleDelete(card.id)}>
