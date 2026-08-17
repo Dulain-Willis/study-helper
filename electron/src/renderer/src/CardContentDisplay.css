@@ -1,0 +1,27 @@
+.cc-text {
+  white-space: pre-wrap;
+}
+
+.cc-bullet {
+  display: flex;
+  gap: 0.4em;
+}
+
+.cc-bullet-glyph {
+  flex-shrink: 0;
+}
+
+.cc-bullet-text {
+  white-space: pre-wrap;
+}
+
+.cc-code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin: 4px 0;
+}

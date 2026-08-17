@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Card } from '../../preload'
+import CardContent from './CardContentDisplay'
 import './StudySession.css'
 
 type Mode = 'pick' | 'browse' | 'practice' | 'complete'
@@ -118,7 +119,9 @@ export default function StudySession({
         />
       </div>
       <div className="study-card" onClick={() => setFlipped(!flipped)}>
-        {flipped ? card.back : card.front}
+        <div className="study-card-body">
+          <CardContent text={flipped ? card.back : card.front} />
+        </div>
       </div>
       {mode === 'browse' ? (
         <div className="study-controls">

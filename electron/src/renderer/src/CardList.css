@@ -60,7 +60,6 @@
 .card-back {
   flex: 1;
   font-size: 0.875rem;
-  white-space: pre-wrap;
   word-break: break-word;
 }
 
