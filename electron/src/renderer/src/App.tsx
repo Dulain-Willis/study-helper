@@ -37,6 +37,7 @@ function App(): React.JSX.Element {
           <StudySession
             title={openSet.name}
             setIds={[openSet.id]}
+            setId={openSet.id}
             onExit={() => setStudying(false)}
           />
         )}
