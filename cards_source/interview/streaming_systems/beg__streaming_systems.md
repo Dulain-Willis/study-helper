@@ -7,11 +7,10 @@ Q: When you hear these in an interview, what concept is being tested?
 A: Event platforms
 
 ---
-
-Q: "Tell me about Kafka."
-"How does an event streaming platform work?"
-"What is the difference between Kafka and a message queue?"
-
+Q:
+- "Tell me about Kafka."
+- "How does an event streaming platform work?"
+- "What is the difference between Kafka and a message queue?"
 A: Kafka is a distributed event streaming platform. Producers write events to topics. Each topic is split into partitions for parallel processing. Consumers read from partitions using consumer groups, where each partition is assigned to exactly one consumer in the group. The key difference from a traditional message queue: Kafka retains events after they are read, so multiple consumers can independently replay the same data. That is the answer. Topics, partitions, consumer groups, and retention. Four concepts in four sentences.
 
 ---
@@ -67,11 +66,10 @@ Q: When you hear these in an interview, what concept is being tested?
 A: Event-driven architecture
 
 ---
-
-Q: "What is event-driven architecture?"
-"How is event streaming different from request-response?"
-"When would you choose an event-driven approach?"
-
+Q:
+- "What is event-driven architecture?"
+- "How is event streaming different from request-response?"
+- "When would you choose an event-driven approach?"
 A: In event-driven architecture, services communicate by publishing events instead of calling each other directly. When an order is placed, the order service publishes an event. The inventory service, the notification service, and the analytics pipeline each consume that event independently. No service needs to know about the others. This decouples teams and systems. That is the answer. Publish, not call. Independent consumers. Decoupled teams.
 
 ---
@@ -123,11 +121,10 @@ Q: When you hear these in an interview, what concept is being tested?
 A: Late-arriving data
 
 ---
-
-Q: "What happens when events arrive late?"
-"How do you handle out-of-order data?"
-"What is a watermark?"
-
+Q:
+- "What happens when events arrive late?"
+- "How do you handle out-of-order data?"
+- "What is a watermark?"
 A: Late data arrives after the window it belongs to has already been processed. A click that happened at 11:58 PM might arrive at 12:03 AM, after the hourly window closed. I handle this with watermarks: a threshold that says how late I am willing to wait. If my watermark is 10 minutes, I keep the window open for 10 extra minutes to accept late events. Events that arrive after the watermark are either dropped or sent to a dead letter queue for reprocessing. That is the answer. Late data is inevitable. Watermarks define how long you wait. After that, dead letter queue.
 
 ---
@@ -169,11 +166,10 @@ Q: When you hear these in an interview, what concept is being tested?
 A: Dead letter queues
 
 ---
-
-Q: "What happens to records that fail processing?"
-"How do you handle poison messages?"
-"What is a dead letter queue?"
-
+Q:
+- "What happens to records that fail processing?"
+- "How do you handle poison messages?"
+- "What is a dead letter queue?"
 A: A dead letter queue (DLQ) is where events go when they cannot be processed. Instead of crashing the pipeline or blocking the stream, the bad event is moved to a separate topic for investigation. This keeps the main pipeline flowing. I monitor DLQ depth as a health metric: if it grows, something is systematically wrong. I reprocess DLQ events after fixing the root cause. That is the answer. DLQ = safety valve. Monitor depth. Fix root cause, then replay.
 
 ---
@@ -215,11 +211,10 @@ Q: When you hear these in an interview, what concept is being tested?
 A: Micro-batch vs true streaming
 
 ---
-
-Q: "What is the difference between Spark Streaming and Flink?"
-"Is Spark Structured Streaming real streaming?"
-"When is micro-batch good enough?"
-
+Q:
+- "What is the difference between Spark Streaming and Flink?"
+- "Is Spark Structured Streaming real streaming?"
+- "When is micro-batch good enough?"
 A: Micro-batch processes events in small time windows, typically every few seconds. Spark Structured Streaming uses this model. True streaming processes each event as it arrives with no batching delay. Flink uses this model. The practical difference is latency: micro-batch has a floor around 100 milliseconds. True streaming can process in single-digit milliseconds. For most use cases, micro-batch is good enough and simpler to operate. That is the answer. Micro-batch = small windows, 100ms floor, simpler. True streaming = per-event, sub-10ms, more complex.
 
 ---

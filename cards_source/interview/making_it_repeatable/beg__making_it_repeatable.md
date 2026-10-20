@@ -6,11 +6,10 @@ Q: When you hear these in an interview, which concept is being tested?
 A: DAG Orchestration
 
 ---
-
-Q: How do you orchestrate your pipelines?
+Q:
+- How do you orchestrate your pipelines?
 - What is a DAG?
 - Why not just use cron?
-
 A: A DAG is a directed acyclic graph that defines tasks and their dependencies. Airflow is the standard orchestrator. Each task is a node. Edges define ordering. If task B depends on task A, Airflow won't start B until A succeeds.
 
 ---
@@ -51,11 +50,10 @@ Q: When you hear these in an interview, which concept is being tested?
 A: Task Dependencies
 
 ---
-
-Q: How do you handle dependencies between pipelines?
+Q:
+- How do you handle dependencies between pipelines?
 - What if pipeline B needs data from pipeline A?
 - Sensor versus trigger, when do you use each?
-
 A: Within a DAG, dependencies are edges — task A runs before task B. Across DAGs, it gets harder. Sensors poll for a signal (a file exists, a partition is populated). Event triggers fire when the data is ready. The trade-off: sensors waste compute by polling; event triggers are more efficient but require the producer to publish a signal.
 
 ---
@@ -86,11 +84,10 @@ Q: When you hear these in an interview, what is the concept being tested?
 A: Safe Retries
 
 ---
-
-Q: What happens when a pipeline fails?
+Q:
+- What happens when a pipeline fails?
 - How do you make retry safe?
 - What is exponential backoff?
-
 A: Two things make retry safe. Idempotency (running twice produces the same result) and exponential backoff (wait longer between each retry). Classify failures as transient (network timeout, API rate limit: retry with backoff) or permanent (schema mismatch, bad data): alert human, do not retry.
 
 ---
@@ -148,11 +145,10 @@ Q: When you hear these in an interview, which concept is being tested?
 A: dev / staging / prod
 
 ---
-
-Q: What environments do you use?
+Q:
+- What environments do you use?
 - How do you test pipeline changes before production?
 - What is thin staging?
-
 A: Three environments: dev (fast iteration, sample data), staging (production-like infrastructure, recent data snapshot), prod (real data, real consumers). Staging catches issues that dev misses: permission errors, data volume differences, infrastructure differences. A common cost optimization is thin staging: production-like infrastructure, but only the last 7 days of data instead of the full history.
 
 ---
@@ -192,11 +188,10 @@ Q: When you hear these in an interview, what concept is being tested?
 A: CI/CD for data
 
 ---
-
-Q: Do you have CI/CD for your pipelines?
+Q:
+- Do you have CI/CD for your pipelines?
 - What tests run before a pipeline change ships?
 - How do you deploy pipeline changes safely?
-
 A: Every PR triggers: linting, unit tests, schema validation (fast, seconds). On merge to main, integration tests in staging (minutes). Before release, data diff on a staging subset (optional, hours). On deploy, canary rollout if the change affects critical pipelines. The key insight: fast checks on every push, slow checks before release. Never skip the fast checks.
 
 ---

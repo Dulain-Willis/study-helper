@@ -6,11 +6,10 @@ Q: When you hear these in an interview, what concept is being tested?
 A: Spark execution model
 
 ---
-
-Q: Explain how Spark works.
+Q:
+- Explain how Spark works.
 - What is the difference between a driver and an executor?
 - What happens when you submit a Spark job?
-
 A: Spark splits work across a cluster. The driver is the coordinator — it plans the work, divides it into tasks, and sends those tasks to executors. Executors are the workers — each one processes a partition of the data in parallel. The key insight is that Spark is lazy: it builds a plan (the DAG) but does not execute anything until you call an action like `.count()` or `.write()`. Driver plans, executors execute. Nothing happens until an action triggers it.
 
 ---
@@ -64,11 +63,10 @@ Q: When you hear these in an interview, what concept is being tested?
 A: Distributed primitives
 
 ---
-
-Q: What is a transformation versus an action?
+Q:
+- What is a transformation versus an action?
 - What does lazy evaluation mean in Spark?
 - What is a narrow versus wide transformation?
-
 A: A transformation defines a new dataset from an existing one without executing anything; an action triggers execution and returns a result. Narrow transformations like `filter` and `map` process each partition independently. Wide transformations like `groupBy` and `join` require data to move between executors, which creates a shuffle. Narrow = no data movement, wide = shuffle. The distinction is the foundation of Spark performance.
 
 ---
@@ -119,7 +117,8 @@ A: Shuffle operations
 
 ---
 
-Q: What is a shuffle in Spark?
+Q:
+- What is a shuffle in Spark?
 - Why is this join slow?
 - How do you avoid shuffles?
 
@@ -162,11 +161,10 @@ Q: When you hear these in an interview, what concept is being tested?
 A: Memory management
 
 ---
-
-Q: Your Spark job is running out of memory. What do you check?
+Q:
+- Your Spark job is running out of memory. What do you check?
 - How does Spark use memory?
 - What does spill-to-disk mean?
-
 A: Each executor gets a fixed amount of memory, split between storage (caching data) and execution (shuffles, joins, sorts). When execution memory runs out, Spark spills data to disk, which is much slower. When the disk fills up too, the job fails with an out-of-memory error. The fix depends on the cause: too few partitions means each one is too large, so repartition to create smaller chunks. Too much data cached means storage is crowding out execution, so unpersist unused caches. Memory splits into storage and execution. Spill to disk is the warning sign.
 
 ---
@@ -218,11 +216,10 @@ Q: When you hear these in an interview, this is the concept being tested:
 A: Small files problem
 
 ---
-
-Q: "Your data lake has millions of small files. What is the impact?"
+Q:
+- "Your data lake has millions of small files. What is the impact?"
 - "What is the optimal file size for Parquet?"
 - "coalesce vs repartition: what is the difference?"
-
 A: Too many small files kill read performance. Each file requires a separate metadata lookup, a separate file open, and a separate read request. Thousands of 1KB files are far slower to read than one 128MB file with the same data. The target file size is 128MB to 256MB. To fix small files, I use `coalesce()` to reduce the number of output partitions before writing, or run a compaction job that rewrites small files into larger ones. Target size, the problem, and two fixes.
 
 ---
