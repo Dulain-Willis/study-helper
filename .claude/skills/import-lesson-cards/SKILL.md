@@ -94,10 +94,15 @@ source in the convention above, in page order.
 
 ### 3. Show and get approval
 
-Post the full drafted markdown in a code block in chat. Treat this as a
-draft, not a done deal — stop and wait for the user to confirm or edit it.
-Apply any requested edits and re-show before moving on. Do not proceed to
-step 4 on an implicit go-ahead; get an explicit one.
+Post the full drafted markdown in a code block in chat. If any card's answer
+is itself a fenced code block (see the code-block pattern in step 2.3), wrap
+the whole draft in a longer fence — ` ~~~~ ` or 4+ backticks — so the card's
+own 3-backtick fence can't prematurely close the outer one and corrupt
+everything after it.
+
+Treat this as a draft, not a done deal — stop and wait for the user to
+confirm or edit it. Apply any requested edits and re-show before moving on.
+Do not proceed to step 4 on an implicit go-ahead; get an explicit one.
 
 ### 4. Find or create the destination set
 

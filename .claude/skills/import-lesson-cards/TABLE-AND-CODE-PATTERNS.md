@@ -99,13 +99,15 @@ section just described. Card it in that same position: front asks for the
 implementation, back is the snippet verbatim in a fenced code block with no
 language tag (the app renders plain code blocks, not syntax highlighting).
 
-Build the question from the snippet's own leading comment when it has one;
-otherwise describe what the snippet demonstrates.
+Always open the question with "Write the code to..." so it reads
+unmistakably as a coding prompt, not a conceptual one. Name the topic from
+the snippet's own leading comment when it has one; otherwise describe what
+the snippet demonstrates.
 
 > Snippet comment: `# Spark Structured Streaming: tumbling window with watermark`
 
 ~~~
-Q: How do you implement a tumbling window with a watermark in Spark Structured Streaming?
+Q: Write the code to implement a tumbling window with a watermark in Spark Structured Streaming.
 
 A:
 ```
