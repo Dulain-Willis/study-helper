@@ -6,9 +6,9 @@ description: Shapes a lesson-page table or code block can take and the card to d
 # Table and code patterns
 
 Reached from `SKILL.md` step 2.3, only when the current section has a table,
-comparison grid, or code block between "What They Want to Hear" and "The
-Curveball Follow-ups". Three shapes show up: a real table, a **broken pair**,
-or a code block.
+comparison grid, or code block between the mechanism block and "The
+Curveball Follow-ups". Four shapes show up: a real table, a **labeled
+pair**, a **broken pair**, or a code block.
 
 ## Real data table
 
@@ -50,10 +50,56 @@ A:
 | Session | Dynamic size, grouped by activity gaps | User sessions, conversation threads |
 ```
 
+## Labeled-pair comparison
+
+Two side-by-side bullet lists, **both headed** — e.g. `✓ ROW-ORIENTED (CSV,
+POSTGRES)` beside `✗ COLUMNAR (PARQUET, BIGQUERY)`, or `✓ DATA LAKE` beside
+`✗ DATA WAREHOUSE`. The ✓/✗ are decorative: both sides carry pluses *and*
+minuses (a `Risk:` bullet shows up under each), so never read ✗ as "this one
+is the bad option".
+
+Ask for both sides by name, including whatever examples the header carries
+in parentheses, and answer with the two lists verbatim under their own
+headers:
+
+> Left: `✓ ROW-ORIENTED (CSV, POSTGRES)` / all columns for each row together
+> / fast for reading full records / used by transactional databases / must
+> read all columns even for one
+>
+> Right: `✗ COLUMNAR (PARQUET, BIGQUERY)` / all values of each column
+> together / fast for reading selected columns / used by analytical systems
+> / excellent compression (same types)
+
+```
+Q: For both row-oriented (CSV, Postgres) and columnar (Parquet, BigQuery)
+storage, give the pluses and minuses.
+
+A:
+**Row-oriented (CSV, Postgres)**
+- All columns for each row together
+- Fast for reading full records
+- Used by transactional databases
+- Must read all columns even for one
+
+**Columnar (Parquet, BigQuery)**
+- All values of each column together
+- Fast for reading selected columns
+- Used by analytical systems
+- Excellent compression (same types)
+```
+
+Two lists, not a table, because these bullets are a grab-bag of pros and
+cons rather than one shared dimension per row — here the fourth bullets
+("must read all columns even for one" / "excellent compression") measure
+nothing in common. When the bullets *do* pair one-for-one on a shared
+dimension, use the table form from the broken-pair pattern below instead,
+which is the same decision made on content rather than on whether a header
+rendered.
+
 ## Broken-pair comparison (the missing-header bug)
 
-Some sections render as two side-by-side bullet lists instead of a table —
-e.g. "NARROW TRANSFORMATIONS" vs. a second list with **no visible label**, or
+Same two side-by-side lists as above, except **only one side is headed** —
+e.g. "NARROW TRANSFORMATIONS" vs. a second list with no visible label, or
 "COALESCE()" vs. a second list with no visible label. This is a rendering
 bug on the source site, not a sign the right side has no content: the right
 list's bullets are real, paired one-for-one with the left list's bullets —
