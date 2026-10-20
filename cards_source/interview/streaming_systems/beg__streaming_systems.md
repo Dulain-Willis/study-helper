@@ -1,8 +1,8 @@
 Q: When you hear these in an interview, what concept is being tested?
 
-"Tell me about Kafka."
-"How does an event streaming platform work?"
-"What is the difference between Kafka and a message queue?"
+- "Tell me about Kafka."
+- "How does an event streaming platform work?"
+- "What is the difference between Kafka and a message queue?"
 
 A: Event platforms
 
@@ -59,9 +59,9 @@ Partitions = parallelism. At least one partition per consumer.
 
 Q: When you hear these in an interview, what concept is being tested?
 
-"What is event-driven architecture?"
-"How is event streaming different from request-response?"
-"When would you choose an event-driven approach?"
+- "What is event-driven architecture?"
+- "How is event streaming different from request-response?"
+- "When would you choose an event-driven approach?"
 
 A: Event-driven architecture
 
@@ -114,9 +114,9 @@ Event sourcing stores every change. The current state is derived by replay.
 
 Q: When you hear these in an interview, what concept is being tested?
 
-"What happens when events arrive late?"
-"How do you handle out-of-order data?"
-"What is a watermark?"
+- "What happens when events arrive late?"
+- "How do you handle out-of-order data?"
+- "What is a watermark?"
 
 A: Late-arriving data
 
@@ -159,9 +159,9 @@ The watermark tradeoff: longer = more correct, but higher latency and memory
 
 Q: When you hear these in an interview, what concept is being tested?
 
-"What happens to records that fail processing?"
-"How do you handle poison messages?"
-"What is a dead letter queue?"
+- "What happens to records that fail processing?"
+- "How do you handle poison messages?"
+- "What is a dead letter queue?"
 
 A: Dead letter queues
 
@@ -204,9 +204,9 @@ DLQ depth is a health metric. Growing depth = systemic problem.
 
 Q: When you hear these in an interview, what concept is being tested?
 
-"What is the difference between Spark Streaming and Flink?"
-"Is Spark Structured Streaming real streaming?"
-"When is micro-batch good enough?"
+- "What is the difference between Spark Streaming and Flink?"
+- "Is Spark Structured Streaming real streaming?"
+- "When is micro-batch good enough?"
 
 A: Micro-batch vs true streaming
 

@@ -111,7 +111,7 @@ A:
 Q: When you hear these in an interview, what concept is being tested?
 - What is a shuffle in Spark?
 - Why is this join slow?
-- Why do you avoid shuffles?
+- How do you avoid shuffles?
 
 A: Shuffle operations
 

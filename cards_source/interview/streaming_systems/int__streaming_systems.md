@@ -1,8 +1,8 @@
 Q: When you hear these in an interview, what concept is being tested?
 
-"How do you guarantee exactly-once processing?"
-"Your consumer group rebalances every 30 seconds. Why?"
-"What happens when you add a consumer to the group?"
+- "How do you guarantee exactly-once processing?"
+- "Your consumer group rebalances every 30 seconds. Why?"
+- "What happens when you add a consumer to the group?"
 
 A: Consumer groups and offsets
 
@@ -56,9 +56,9 @@ Reset offsets to replay. Kafka retention defines the replay window.
 
 Q: When you hear these in an interview, what concept is being tested?
 
-"What is event sourcing and when do you use it?"
-"What is CQRS?"
-"How do you rebuild state from events?"
+- "What is event sourcing and when do you use it?"
+- "What is CQRS?"
+- "How do you rebuild state from events?"
 
 A: Event sourcing patterns
 
@@ -101,9 +101,9 @@ Snapshots prevent unbounded replay time
 
 Q: When you hear these in an interview, what concept is being tested?
 
-"Design a streaming aggregation with late data handling."
-"What are tumbling vs sliding vs session windows?"
-"How do you set the right watermark duration?"
+- "Design a streaming aggregation with late data handling."
+- "What are tumbling vs sliding vs session windows?"
+- "How do you set the right watermark duration?"
 
 A: Windowing and watermarks
 
@@ -174,9 +174,9 @@ Extremely late events: DLQ + batch correction. Do not compromise streaming laten
 
 Q: When you hear these in an interview, what concept is being tested?
 
-"Design a DLQ reprocessing workflow."
-"How do you distinguish transient errors from permanent errors?"
-"Your DLQ has 500K events. Walk me through remediation."
+- "Design a DLQ reprocessing workflow."
+- "How do you distinguish transient errors from permanent errors?"
+- "Your DLQ has 500K events. Walk me through remediation."
 
 A: DLQ patterns
 
@@ -231,9 +231,9 @@ DLQ events include full metadata: original event, error, retry count, timestamps
 
 Q: When you hear these in an interview, what concept is being tested?
 
-"Why did you choose Spark Streaming over Flink?"
-"What is the latency floor for Spark Structured Streaming?"
-"How does Flink handle state differently than Spark?"
+- "Why did you choose Spark Streaming over Flink?"
+- "What is the latency floor for Spark Structured Streaming?"
+- "How does Flink handle state differently than Spark?"
 
 A: Spark Streaming vs Flink
 

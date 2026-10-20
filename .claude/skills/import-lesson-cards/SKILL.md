@@ -24,8 +24,8 @@ A: <answer>
 ```
 
 Blank line between Q and A, `---` on its own line between cards, no `---`
-after the last card. When a front is a bullet list, `Q:` sits alone on its
-line and every bullet takes a `- ` below it:
+after the last card. Front bullets always take a `- ` and sit below the `Q:`
+line, which is left bare when the front is bullets alone:
 
 ```
 Q:
