@@ -31,8 +31,11 @@ after the last card.
 ### 1. Find the sections
 
 A section is any heading immediately followed by an "Interview Trigger
-Phrases" block. Everything else on the page is noise — skip it without
-asking:
+Phrases" block. Identify a section's parts by **position**, not by heading
+text: the prose block right after the trigger phrases is the **mechanism
+block**, whatever it is titled ("What They Want to Hear", "The 10-Second
+Answer", anything else). Everything else on the page is noise — skip it
+without asking:
 
 - The intro paragraph and "What you will be able to do" bullets
 - "Daily Life / Interviews" tab labels
@@ -52,9 +55,9 @@ asking:
 
 Section done: you have the ordered list of section headings (e.g. "Spark
 Execution Model", "Distributed Primitives") with their four live blocks —
-Interview Trigger Phrases, What They Want to Hear, The Curveball Follow-ups,
+Interview Trigger Phrases, the mechanism block, The Curveball Follow-ups,
 KEY TAKEAWAYS — and, when present, one comparison/data table or code block
-between "What They Want to Hear" and "The Curveball Follow-ups".
+between the mechanism block and "The Curveball Follow-ups".
 
 ### 2. Draft cards per section, in page order
 
@@ -67,11 +70,11 @@ duplication in steps 1 and 2 below is intentional, not a bug to fix:
    read as a label (e.g. "Spark Execution Model" → "Spark execution model").
 
 2. **Mechanism card.** Front: the *same* trigger-phrase bullets, this time
-   with no intro sentence — just the bullets. Back: the "What They Want to
-   Hear" paragraph, word for word, dropping only the outer quote marks.
+   with no intro sentence — just the bullets. Back: the mechanism block's
+   paragraph, word for word, dropping only the outer quote marks.
 
 3. **Table or code card(s)**, if the section has a table, comparison grid,
-   or code block between "What They Want to Hear" and "The Curveball
+   or code block between the mechanism block and "The Curveball
    Follow-ups". See `TABLE-AND-CODE-PATTERNS.md` for how to turn each shape
    into a card — load it now if this section has one.
 
