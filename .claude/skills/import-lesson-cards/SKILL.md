@@ -24,7 +24,14 @@ A: <answer>
 ```
 
 Blank line between Q and A, `---` on its own line between cards, no `---`
-after the last card.
+after the last card. Front bullets always take a `- ` and sit below the `Q:`
+line, which is left bare when the front is bullets alone:
+
+```
+Q:
+- "Why Parquet over CSV?"
+- "Row-oriented vs columnar: explain the difference."
+```
 
 ## Steps
 

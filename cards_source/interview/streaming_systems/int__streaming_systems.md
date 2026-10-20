@@ -1,17 +1,16 @@
 Q: When you hear these in an interview, what concept is being tested?
 
-"How do you guarantee exactly-once processing?"
-"Your consumer group rebalances every 30 seconds. Why?"
-"What happens when you add a consumer to the group?"
+- "How do you guarantee exactly-once processing?"
+- "Your consumer group rebalances every 30 seconds. Why?"
+- "What happens when you add a consumer to the group?"
 
 A: Consumer groups and offsets
 
 ---
-
-Q: "How do you guarantee exactly-once processing?"
-"Your consumer group rebalances every 30 seconds. Why?"
-"What happens when you add a consumer to the group?"
-
+Q:
+- "How do you guarantee exactly-once processing?"
+- "Your consumer group rebalances every 30 seconds. Why?"
+- "What happens when you add a consumer to the group?"
 A: Each consumer in a group tracks its position in the partition using offsets. After processing a batch of events, the consumer commits its offset. If the consumer crashes, it restarts from the last committed offset. This gives at-least-once delivery by default. For exactly-once, I use the transactional pattern: commit the offset and write the output in the same transaction, so either both happen or neither does. This is the answer that shows you understand the offset commit lifecycle and why exactly-once requires transactional writes.
 
 ---
@@ -57,18 +56,17 @@ Reset offsets to replay. Kafka retention defines the replay window.
 
 Q: When you hear these in an interview, what concept is being tested?
 
-"What is event sourcing and when do you use it?"
-"What is CQRS?"
-"How do you rebuild state from events?"
+- "What is event sourcing and when do you use it?"
+- "What is CQRS?"
+- "How do you rebuild state from events?"
 
 A: Event sourcing patterns
 
 ---
-
-Q: "What is event sourcing and when do you use it?"
-"What is CQRS?"
-"How do you rebuild state from events?"
-
+Q:
+- "What is event sourcing and when do you use it?"
+- "What is CQRS?"
+- "How do you rebuild state from events?"
 A: Event sourcing stores every state change as an immutable event. The current state is derived by replaying events from the beginning. I pair it with CQRS: Command Query Responsibility Segregation, where writes go to the event log and reads come from a materialized view that is built by processing the event stream. This separates the write model from the read model, allowing each to be optimized independently. This is the answer that shows you understand event sourcing as an architectural pattern, not just a buzzword.
 
 ---
@@ -103,18 +101,17 @@ Snapshots prevent unbounded replay time
 
 Q: When you hear these in an interview, what concept is being tested?
 
-"Design a streaming aggregation with late data handling."
-"What are tumbling vs sliding vs session windows?"
-"How do you set the right watermark duration?"
+- "Design a streaming aggregation with late data handling."
+- "What are tumbling vs sliding vs session windows?"
+- "How do you set the right watermark duration?"
 
 A: Windowing and watermarks
 
 ---
-
-Q: "Design a streaming aggregation with late data handling."
-"What are tumbling vs sliding vs session windows?"
-"How do you set the right watermark duration?"
-
+Q:
+- "Design a streaming aggregation with late data handling."
+- "What are tumbling vs sliding vs session windows?"
+- "How do you set the right watermark duration?"
 A: I choose the window type based on the use case. Tumbling windows are fixed, non-overlapping intervals: count clicks per hour. Sliding windows overlap: count clicks in the last hour, updated every 5 minutes. Session windows are activity-based: group events that are close together in time, with a gap timeout. I set the watermark based on observed lateness: if 99th percentile lateness is 5 minutes, I set the watermark to 10 minutes to catch stragglers with margin. This is the answer that shows you can match window type to use case and set watermarks from data.
 
 ---
@@ -177,18 +174,17 @@ Extremely late events: DLQ + batch correction. Do not compromise streaming laten
 
 Q: When you hear these in an interview, what concept is being tested?
 
-"Design a DLQ reprocessing workflow."
-"How do you distinguish transient errors from permanent errors?"
-"Your DLQ has 500K events. Walk me through remediation."
+- "Design a DLQ reprocessing workflow."
+- "How do you distinguish transient errors from permanent errors?"
+- "Your DLQ has 500K events. Walk me through remediation."
 
 A: DLQ patterns
 
 ---
-
-Q: "Design a DLQ reprocessing workflow."
-"How do you distinguish transient errors from permanent errors?"
-"Your DLQ has 500K events. Walk me through remediation."
-
+Q:
+- "Design a DLQ reprocessing workflow."
+- "How do you distinguish transient errors from permanent errors?"
+- "Your DLQ has 500K events. Walk me through remediation."
 A: I structure DLQ events with metadata: the original event, the error message, the retry count, and the timestamp. For reprocessing, I classify errors first. Transient errors (timeout, rate limit) go back to the main topic after a delay. Permanent errors (schema mismatch, invalid data) require a code fix before replay. I never blindly replay the entire DLQ: that just reproduces the same errors and wastes compute. This is the answer that shows you have actually dealt with a DLQ in production.
 
 ---
@@ -235,18 +231,17 @@ DLQ events include full metadata: original event, error, retry count, timestamps
 
 Q: When you hear these in an interview, what concept is being tested?
 
-"Why did you choose Spark Streaming over Flink?"
-"What is the latency floor for Spark Structured Streaming?"
-"How does Flink handle state differently than Spark?"
+- "Why did you choose Spark Streaming over Flink?"
+- "What is the latency floor for Spark Structured Streaming?"
+- "How does Flink handle state differently than Spark?"
 
 A: Spark Streaming vs Flink
 
 ---
-
-Q: "Why did you choose Spark Streaming over Flink?"
-"What is the latency floor for Spark Structured Streaming?"
-"How does Flink handle state differently than Spark?"
-
+Q:
+- "Why did you choose Spark Streaming over Flink?"
+- "What is the latency floor for Spark Structured Streaming?"
+- "How does Flink handle state differently than Spark?"
 A: Spark Structured Streaming is micro-batch: it collects events for a trigger interval (e.g., 10 seconds), processes them as a batch, then starts the next interval. Flink processes each event as it arrives with continuous operator pipelines. The practical differences: Spark has a 100ms latency floor and simpler state management. Flink has sub-10ms latency, more powerful windowing (session windows, event-time processing), and built-in savepoints for state migration. I choose Spark when the team already runs Spark for batch and latency requirements are relaxed. I choose Flink when latency is critical or the streaming logic requires complex stateful processing. This is the answer that shows you can make a technology choice with concrete tradeoff reasoning.
 
 ---

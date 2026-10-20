@@ -7,11 +7,10 @@ Q: When you hear these in an interview, what concept is being tested?
 A: Columnar vs row formats
 
 ---
-
-Q: - "Why Parquet over CSV?"
+Q:
+- "Why Parquet over CSV?"
 - "Row-oriented vs columnar: explain the difference."
 - "How does a columnar format speed up queries?"
-
 A: Parquet stores data by column instead of by row. Analytical queries that only need 3 out of 100 columns read 97% less data. Same-type values grouped together compress 10x better. And row group statistics let the engine skip chunks without reading them. Done. Three benefits, one sentence each. That is the answer.
 
 ---
@@ -69,11 +68,10 @@ Q: When you hear these in an interview, what concept is being tested?
 A: Compression and encoding
 
 ---
-
-Q: - "What compression do you use and why?"
+Q:
+- "What compression do you use and why?"
 - "Snappy vs Gzip: when do you use each?"
 - "How does compression affect query performance?"
-
 A: Snappy for interactive queries because it decompresses fast. Gzip for archival because it compresses more. Zstd is the emerging winner: Gzip-level compression at nearly Snappy-level speed. That is the complete answer. They are testing whether you understand the speed-vs-ratio tradeoff, not whether you know the algorithms' internals.
 
 ---
@@ -120,11 +118,10 @@ Q: When you hear these in an interview, what concept is being tested?
 A: Partitioning strategies
 
 ---
-
-Q: - "How do you partition this table?"
+Q:
+- "How do you partition this table?"
 - "What is partition pruning?"
 - "What happens if you over-partition?"
-
 A: I partition by the column that appears most often in WHERE clauses, usually date. Partition pruning lets the engine skip all other date folders entirely. A query for one day reads 1/365th of the data. Then immediately add the pitfall: The risk is over-partitioning. Too many partitions create thousands of tiny files, which is actually slower than no partitioning at all because of per-file overhead.
 
 ---
@@ -165,11 +162,10 @@ Q: When you hear these in an interview, what concept is being tested?
 A: Data lake architecture
 
 ---
-
-Q: - "Data lake vs warehouse: what is the difference?"
+Q:
+- "Data lake vs warehouse: what is the difference?"
 - "When would you use a lake instead of a warehouse?"
 - "What is a lakehouse?"
-
 A: A lake stores raw data cheaply on object storage. A warehouse stores structured, query-optimized data in a purpose-built engine. A lakehouse puts a table format (Delta, Iceberg) on top of lake storage to get warehouse features without the warehouse cost. Then the critical insight: Most modern platforms use both. The lake is the cheap source of truth. The warehouse materializes the hot queries.
 
 ---
@@ -227,11 +223,10 @@ Q: When you hear these in an interview, what concept is being tested?
 A: Table formats
 
 ---
-
-Q: - "What is Delta Lake?"
+Q:
+- "What is Delta Lake?"
 - "Delta vs Iceberg vs Hudi: what is the difference?"
 - "How do you get ACID on object storage?"
-
 A: Raw Parquet on S3 has no transaction guarantees. A failed write corrupts the table. Table formats like Delta Lake and Apache Iceberg add a metadata layer that provides ACID transactions, time travel, and schema enforcement on top of Parquet files. Then the cheat sheet: Delta if you use Databricks, Iceberg if you want engine-agnostic, Hudi if you need fast upserts.
 
 ---
