@@ -1,13 +1,14 @@
 ---
-name: table-patterns
-description: Shapes a lesson-page table can take and the card to draft for each.
+name: table-and-code-patterns
+description: Shapes a lesson-page table or code block can take and the card to draft for each.
 ---
 
-# Table patterns
+# Table and code patterns
 
-Reached from `SKILL.md` step 2.3, only when the current section has a table
-or comparison grid. Two shapes show up; tell them apart by whether the page
-gave you a real table or a **broken pair**.
+Reached from `SKILL.md` step 2.3, only when the current section has a table,
+comparison grid, or code block between "What They Want to Hear" and "The
+Curveball Follow-ups". Three shapes show up: a real table, a **broken pair**,
+or a code block.
 
 ## Real data table
 
@@ -32,7 +33,22 @@ A:
 
 The question phrasing mirrors the header row's own words — "for each
 [column 1], give [column 2] and [column 3]" — so it reads like something a
-person would actually ask, not a literal column dump.
+person would actually ask, not a literal column dump. The rule is the same
+regardless of what the columns are — a second worked example, with entirely
+different columns, to make that explicit:
+
+> Source columns: `WINDOW TYPE | BEHAVIOR | USE CASE`
+
+```
+Q: For each window type, describe its behavior and give a use case.
+
+A:
+| Window type | Behavior | Use case |
+|---|---|---|
+| Tumbling | Fixed size, no overlap (e.g., every hour) | Hourly revenue, daily active users |
+| Sliding | Fixed size, overlaps (e.g., 1 hour window, 5 min slide) | Rolling averages, trending topics |
+| Session | Dynamic size, grouped by activity gaps | User sessions, conversation threads |
+```
 
 ## Broken-pair comparison (the missing-header bug)
 
@@ -74,3 +90,33 @@ If you can't confidently infer the missing header from the paired content,
 say so when you propose the draft rather than guessing silently — flag it as
 a reconstructed label for the user to confirm, the same way you'd flag any
 other ambiguity before writing.
+
+## Code block
+
+A code snippet sitting in the same slot as a table (after "What They Want to
+Hear", before "The Curveball Follow-ups") demonstrates the concept the
+section just described. Card it in that same position: front asks for the
+implementation, back is the snippet verbatim in a fenced code block with no
+language tag (the app renders plain code blocks, not syntax highlighting).
+
+Build the question from the snippet's own leading comment when it has one;
+otherwise describe what the snippet demonstrates.
+
+> Snippet comment: `# Spark Structured Streaming: tumbling window with watermark`
+
+~~~
+Q: How do you implement a tumbling window with a watermark in Spark Structured Streaming?
+
+A:
+```
+# Spark Structured Streaming: tumbling window with watermark
+from pyspark.sql.functions import window, col
+events \
+  .withWatermark("event_time", "10 minutes") \
+  .groupBy(
+    window(col("event_time"), "1 hour"),
+    col("page_id")
+  ) \
+  .count()
+```
+~~~

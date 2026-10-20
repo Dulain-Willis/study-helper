@@ -6,10 +6,29 @@ description: Convert a pasted datadriven.io lesson page into flashcard source. U
 # Import lesson cards
 
 Datadriven.io lesson pages repeat one layout per concept **section**. This
-skill turns that layout into card source using the same Q/A convention as
-`draft-cards`, then hands off to it for approval and write-out.
+skill turns that layout into card source, gets it approved, then writes it
+both to `cards_source/` and into the app via the `study-helper` MCP tools.
+Never call `add_card` before the user has approved the drafted markdown —
+that's the one hard gate in this flow.
 
-## 1. Find the sections
+## Card source convention
+
+One pair per card:
+
+```
+Q: <question>
+
+A: <answer>
+
+---
+```
+
+Blank line between Q and A, `---` on its own line between cards, no `---`
+after the last card.
+
+## Steps
+
+### 1. Find the sections
 
 A section is any heading immediately followed by an "Interview Trigger
 Phrases" block. Everything else on the page is noise — skip it without
@@ -34,10 +53,10 @@ asking:
 Section done: you have the ordered list of section headings (e.g. "Spark
 Execution Model", "Distributed Primitives") with their four live blocks —
 Interview Trigger Phrases, What They Want to Hear, The Curveball Follow-ups,
-KEY TAKEAWAYS — and, when present, one comparison/data table between "What
-They Want to Hear" and "The Curveball Follow-ups".
+KEY TAKEAWAYS — and, when present, one comparison/data table or code block
+between "What They Want to Hear" and "The Curveball Follow-ups".
 
-## 2. Draft cards per section, in page order
+### 2. Draft cards per section, in page order
 
 Each section yields the same fixed run of cards. Follow it exactly — the
 duplication in steps 1 and 2 below is intentional, not a bug to fix:
@@ -51,10 +70,10 @@ duplication in steps 1 and 2 below is intentional, not a bug to fix:
    with no intro sentence — just the bullets. Back: the "What They Want to
    Hear" paragraph, word for word, dropping only the outer quote marks.
 
-3. **Table card(s)**, if the section has a table or comparison grid between
-   "What They Want to Hear" and "The Curveball Follow-ups". See
-   `TABLE-PATTERNS.md` for how to turn each shape into a question + markdown
-   table — load it now if this section has one.
+3. **Table or code card(s)**, if the section has a table, comparison grid,
+   or code block between "What They Want to Hear" and "The Curveball
+   Follow-ups". See `TABLE-AND-CODE-PATTERNS.md` for how to turn each shape
+   into a card — load it now if this section has one.
 
 4. **One follow-up card per Curveball bullet.** Front: "When asked about
    [section topic, lowercased], a common follow-up is: [the quoted
@@ -70,31 +89,43 @@ Carry transcription fixes a human dictation pass would also make: expand
 `.filter()`-style calls in backticks, keep code terms exact, fix nothing else
 — the source text is already clean prose, so no ASR cleanup is needed here.
 
-## 3. Hand off
+Once every section is drafted, concatenate all of it into one piece of card
+source in the convention above, in page order.
 
-Once every section is drafted, you have one long piece of card source in the
-standard
+### 3. Show and get approval
 
-```
-Q: <question>
+Post the full drafted markdown in a code block in chat. Treat this as a
+draft, not a done deal — stop and wait for the user to confirm or edit it.
+Apply any requested edits and re-show before moving on. Do not proceed to
+step 4 on an implicit go-ahead; get an explicit one.
 
-A: <answer>
+### 4. Find or create the destination set
 
----
-```
-
-format. From here, **follow the `draft-cards` skill starting at its step 2**
-(show the full draft in chat, get explicit approval, find/create the
-group/set, write the archive file, optionally push via MCP) — do not
-duplicate that logic here.
-
-For the archive path, derive the folder from the page title, which is
-`<Topic>: <Difficulty>` (e.g. "Distributed Compute: Beginner"):
+Derive the folder from the page title, which is `<Topic>: <Difficulty>`
+(e.g. "Distributed Compute: Beginner"):
 
 - slug = snake_case(Topic) → `distributed_compute`
 - prefix = first 3 letters of Difficulty, lowercased, + `__` → `beg__`,
   `int__`, `adv__`
-- path = `cards_source/interview/<slug>/<prefix><slug>.md`
+- archive path = `cards_source/interview/<slug>/<prefix><slug>.md`
+- set name = slug (e.g. `distributed_compute`)
 
-If a file already exists at that path, append — don't overwrite — matching
-`draft-cards`' own rule.
+Use `list_groups` / `list_sets` to find an existing `interview` group/`slug`
+set; if neither exists, create the group with `create_group` then the set
+with `create_set`.
+
+### 5. Write the archive file
+
+Save the approved markdown to the archive path above — this is the
+human-readable record, independent of the app. If a file already exists
+there, append to it rather than overwriting.
+
+### 6. Push to the app
+
+Call `add_card` once per pair with the approved `set_id`, `front` =
+question, `back` = answer.
+
+### 7. Report
+
+State how many cards were added, to which set, and the archive path, so the
+user can go check the UI.
