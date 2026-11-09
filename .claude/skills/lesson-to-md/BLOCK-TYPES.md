@@ -1,39 +1,27 @@
-# Block types and gotchas
+# Block types
 
-The site builds a lesson from blocks, each tagged `data-note-block-type="<type>"`. The converter keys its rules on that tag. The code is the source of truth for what is handled; this file holds the reasons the code cannot show.
+The site builds a lesson from blocks tagged `data-note-block-type="<type>"`, and the converter keys its rules on that tag. Types in `GENERIC_BLOCKS` have real HTML tags and need no rule. The reason behind each rule sits in the comment beside it in `tools/lesson_to_md.py`; this file records what each block's HTML looks like, so a new type can be matched to a solved one.
 
-## Block types seen so far
+## Types with a rule
 
-| Type | Handling | Why |
+| Type | HTML shape | Handling |
 |---|---|---|
-| `h3`, `h4`, `body_text`, `rich_text`, `note_text`, `static_table`, `side_by_side_tables`, `comparison`, `rich_info_list`, `best_practices`, `learning_objectives`, `lesson_title`, `section_header` | generic markdownify | Real HTML tags; markdownify renders them as they stand |
-| `info_list` | rule: `**label** *tag*`, description on its own line | Rows are 1 to 3 sibling spans (label, gray tag, description) with no whitespace and no bold tags, so generic conversion fused them. One-span rows stay plain |
-| `static_code` | rule: code fence | Code arrives as a table, one row per line, code in the last cell |
-| `big_number` | rule: bullets pairing figure and caption | Stat cards are two divs with no list semantics |
-| `tip`, `callout`, `fun_fact` | rule: blockquote | The box is a styled div; `tip` already prints its own TIP label, so the rule bolds it |
-| `key_takeaways`, `synthesis` | rule: `##` heading plus bullets | Bullets are drawn on a canvas, so the HTML holds plain divs and no `li` |
-| `icon_list` | rule: bullets | Rows of a decorative icon plus a sentence; the HTML has no list tags, so generic conversion left plain lines |
-| `pipeline_diagram`, `schema_diagram` | screenshot | HTML boxes layered with SVG arrows; no text structure survives conversion |
+| `info_list` | Rows of 1 to 3 sibling spans (label, gray tag, description) with no whitespace between them. The label looks bold through styling, with no `<strong>`, so a search for `**` finds nothing wrong; count spans per `li` instead. | Rows with 2 or more spans become `**label** *tag*` plus the description on its own line. One-span rows stay plain. |
+| `rich_info_list` | Like `info_list`, but the label is a real `<strong>`. | None needed. |
+| `icon_list` | Rows of a decorative icon plus a sentence in nested divs, with no list tags. | One bullet per row. |
+| `static_code` | A table, one row per line, code in the last cell. | Code fence. |
+| `big_number` | Stat cards, two divs each: figure, then caption. | Bullets pairing figure and caption. |
+| `tip`, `callout`, `fun_fact` | A styled div. `tip` prints its own TIP label. | Blockquote; `tip` bolds its label. |
+| `key_takeaways`, `synthesis` | Plain divs with canvas-drawn bullets and no `li`. | `##` heading plus bullets. |
+| `pipeline_diagram`, `schema_diagram` | HTML boxes layered with SVG, no text structure. | 2x screenshot. |
 
-## Gotchas and their causes
+## Left out on purpose
 
-- **Indentation vanished from code.** The site indents with a whitespace-only `<span>` and CSS `white-space: pre`. BeautifulSoup collapses whitespace-only strings to one space outside `<pre>`. `parse()` keeps whitespace inside `td`.
-- **Italics.** The site uses an inline `font-style: italic` on the element, never `<em>`. The converter follows the style, so any lesson using it is handled.
-- **`fare\_amount`.** markdownify escapes underscores by default. `escape_underscores=False` keeps column names readable.
-- **Diagram images overwrote each other.** Images were once one shared filename. They are now `<slug>_diagram_<n>.png`, numbered in page order across all diagram kinds.
-- **Blurry images.** Screenshots render at `device_scale_factor=2`, the same layout with 4x the pixels.
-- **Star ratings (Daily Life, Interviews).** Drawn on a canvas by JavaScript, so the page source holds no values. Omitted.
-- **The interactive pipeline-architecture exercise.** A live drag-and-drop widget; a screenshot shows an empty canvas. Omitted.
-- **`//` beside headings.** A decorative span. The converter drops it outside table cells.
-- **Fused label, tag and description** (`Schedulinga run per intervalCreates…`). Labels in `info_list` rows look bold through styling, not `<strong>`, so a search for `**` markers finds nothing wrong. Check shapes instead: count the text spans per `li` (3 means label, tag, description; 2 means label, description). `rich_info_list` rows use a real `<strong>` and come out fine.
-- **Hard line breaks.** The converter uses backslash breaks (`newline_style="BACKSLASH"`), because the per-line `rstrip` in `add_section_breaks` would erase the default two trailing spaces.
-
-## Spacing
-
-Blank lines collapse in Markdown, so breaks are explicit: `<br>` plus `---` above each `##`, `<br>` above each `###`, and nothing below a `##`. Lines inside code fences are left alone.
+- **Star ratings (Daily Life, Interviews):** drawn on a canvas by JavaScript, so the page source holds no values.
+- **The interactive pipeline-architecture exercise:** a live drag-and-drop widget; a screenshot shows an empty canvas.
 
 ## Repo facts
 
-- `lesson_preview/` is tracked and committed on purpose. The user has said DataDriven's people gave permission for this copy.
-- Tooling lives in `.venv/` (markdownify, beautifulsoup4, playwright). Playwright's Chromium sits in `~/.cache/ms-playwright`.
-- `tools/__pycache__/*.pyc` is tracked and shows as modified after every run. Leave it out of commits.
+- `lesson_preview/` is tracked and committed on purpose; per the user, DataDriven's people approved this copy.
+- Python tooling lives in `.venv/`; Playwright's Chromium sits in `~/.cache/ms-playwright`.
+- `tools/__pycache__/*.pyc` is tracked and changes on every run, so `git add` files by path.
