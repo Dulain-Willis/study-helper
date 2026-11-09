@@ -30,11 +30,11 @@ NOISE = ["script", "style", "nav", "footer", "button", "svg", "canvas", "head"]
 # Anything else triggers a warning so a new rule can be added.
 CUSTOM_BLOCKS = {
     "static_code", "big_number", "tip", "callout", "fun_fact", "key_takeaways",
-    "synthesis", "icon_list", *DIAGRAM_LABELS,
+    "synthesis", "icon_list", "info_list", *DIAGRAM_LABELS,
 }
 GENERIC_BLOCKS = {
     "lesson_title", "learning_objectives", "section_header", "h3", "body_text",
-    "rich_text", "static_table", "side_by_side_tables", "comparison", "info_list",
+    "rich_text", "static_table", "side_by_side_tables", "comparison",
     "best_practices", "note_text", "rich_info_list", "h4",
 }
 
@@ -143,6 +143,32 @@ def bullet_section(soup, block):
     block.replace_with(section)
 
 
+def info_list(soup, block):
+    """Rows of label, optional gray tag, description, as sibling spans.
+
+    The site makes the label bold and the tag gray with styling alone, so the
+    spans fuse into one run of text. Rebuild each row as: **label** *tag*, then
+    the description on its own line. One-span rows are plain text and stay as is.
+    """
+    for li in block.find_all("li"):
+        parts = [s.get_text(" ", strip=True) for s in li.find_all("span")
+                 if s.get_text(strip=True) and not s.find("span")]
+        if len(parts) < 2:
+            continue
+        label, *tag, description = parts
+        strong = soup.new_tag("strong")
+        strong.string = label
+        li.clear()
+        li.append(strong)
+        if tag:
+            em = soup.new_tag("em")
+            em.string = " ".join(tag)
+            li.append(" ")
+            li.append(em)
+        li.append(soup.new_tag("br"))
+        li.append(description)
+
+
 def icon_list(soup, block):
     """Rows of a decorative icon plus a sentence: the icon is dropped (clean()
     removes it), and each row's text becomes a bullet. The HTML has no list tags."""
@@ -190,6 +216,8 @@ def convert(html, diagram_images=()):
             bullet_section(soup, block)
         elif kind == "icon_list":
             icon_list(soup, block)
+        elif kind == "info_list":
+            info_list(soup, block)
         elif kind in DIAGRAM_LABELS:
             name = diagram_images[diagrams_seen] if diagrams_seen < len(diagram_images) else None
             diagrams_seen += 1
@@ -208,8 +236,10 @@ def convert(html, diagram_images=()):
         if div.get_text(strip=True) in ("Daily Life", "Interviews") and not div.find("div"):
             div.decompose()
     # escape_underscores=False keeps names like fare_amount readable
+    # BACKSLASH line breaks survive the per-line rstrip in add_section_breaks;
+    # the default two trailing spaces would not
     md = markdownify(str(soup), heading_style="ATX", bullets="-", code_language="sql",
-                     escape_underscores=False)
+                     escape_underscores=False, newline_style="BACKSLASH")
     return add_section_breaks(md)
 
 

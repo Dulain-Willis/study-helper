@@ -75,9 +75,12 @@ GROUP BY country
 
 ### What else the layout buys
 
-- Compression works betterA column's values, side by sideValues of the same type and meaning sit together, which hands a codec long stretches of repeats to shrink. The next section works through how much that saves.
-- Whole blocks get skippedMin and max per row groupParquet splits a file into row groups and stores each column's minimum and maximum for every group. A filter like watch_seconds > 3600 skips any group whose maximum is at or below 3600 without reading its data.
-- The schema travels with the fileNames and types in the footerColumn names and types live in the file's footer, so no reader has to guess whether 0012 is a string or the number 12, a guess CSV forces on every consumer.
+- **Compression works better** *A column's values, side by side*\
+  Values of the same type and meaning sit together, which hands a codec long stretches of repeats to shrink. The next section works through how much that saves.
+- **Whole blocks get skipped** *Min and max per row group*\
+  Parquet splits a file into row groups and stores each column's minimum and maximum for every group. A filter like watch_seconds > 3600 skips any group whose maximum is at or below 3600 without reading its data.
+- **The schema travels with the file** *Names and types in the footer*\
+  Column names and types live in the file's footer, so no reader has to guess whether 0012 is a string or the number 12, a guess CSV forces on every consumer.
 
 | row group | min watch_seconds | max watch_seconds | for watch_seconds > 3600 |
 | --- | --- | --- | --- |
@@ -359,9 +362,12 @@ Order date: around 1,826 partitions of 2 million rows each, matching how dashboa
 
 A lake is a set of files any engine can read, which is both its strength and its exposure. Three failures come up in interviews, each tied to a pipeline event.
 
-- A reader during a writePartial resultsA job writes 96 files for October 1. A dashboard query runs when 40 have landed and reports 40/96 of the day's watch time, with no error.
-- A retry after a crashDuplicatesThe job dies after writing 60 files and is retried. Unless it clears its own output first, the directory holds 60 stale files plus 96 new ones, and the day's totals come out about 1.6 times too high.
-- A schema change upstreamSilent nulls or failed readsThe source renames watch_seconds to watch_ms. New files carry the new name, and a query reading by name sees nulls for new rows or fails, depending on the engine.
+- **A reader during a write** *Partial results*\
+  A job writes 96 files for October 1. A dashboard query runs when 40 have landed and reports 40/96 of the day's watch time, with no error.
+- **A retry after a crash** *Duplicates*\
+  The job dies after writing 60 files and is retried. Unless it clears its own output first, the directory holds 60 stale files plus 96 new ones, and the day's totals come out about 1.6 times too high.
+- **A schema change upstream** *Silent nulls or failed reads*\
+  The source renames watch_seconds to watch_ms. New files carry the new name, and a query reading by name sees nulls for new rows or fails, depending on the engine.
 
 A warehouse prevents all 3 by owning the write path. A load is a transaction, so readers see the table before it or after it. A failed load rolls back, so its retry inserts the rows once. A file whose columns do not match the table's schema is rejected at load. The price: data has to be loaded into the warehouse's storage before anything can query it, and other engines reach it only through that warehouse.
 
@@ -425,10 +431,14 @@ Run the plain-lake failures through this table. A dashboard query during the cra
 
 ### What the metadata buys
 
-- Atomic commitsNo partial reads, safe retriesShown above: a writer's files count only once its commit lands.
-- Time travelQuery an older versionOlder metadata still names older file sets, so a query can read v2 to compare against v3, and a bad load can be rolled back by making v2 current again.
-- Schema evolutionChanges without rewriting filesWhen the format tracks each column by an ID as well as a name, renaming watch_seconds changes metadata only, and old files still map to the right column.
-- Planning without listingFile paths and statistics in metadataThe metadata already holds each file's path and partition values, plus column statistics for it, so the engine plans a query from metadata instead of listing directories.
+- **Atomic commits** *No partial reads, safe retries*\
+  Shown above: a writer's files count only once its commit lands.
+- **Time travel** *Query an older version*\
+  Older metadata still names older file sets, so a query can read v2 to compare against v3, and a bad load can be rolled back by making v2 current again.
+- **Schema evolution** *Changes without rewriting files*\
+  When the format tracks each column by an ID as well as a name, renaming watch_seconds changes metadata only, and old files still map to the right column.
+- **Planning without listing** *File paths and statistics in metadata*\
+  The metadata already holds each file's path and partition values, plus column statistics for it, so the engine plans a query from metadata instead of listing directories.
 
 ```sql
 SELECT

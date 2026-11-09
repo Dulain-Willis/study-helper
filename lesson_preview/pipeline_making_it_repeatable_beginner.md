@@ -41,11 +41,16 @@ A cron schedule encodes a guess about duration. It bets the load finishes within
 
 Responsibilities you should be able to list
 
-- Schedulinga run per intervalCreates a run for each day or hour and stamps it with the interval it covers.
-- Dependency resolutionwho may start nowStarts a task only when its upstream tasks are in states its trigger rule accepts.
-- State trackingper task, per runRecords every task's state in every run, so a rerun skips work that already succeeded.
-- Retriesbounded and spaced outReruns a failed task after a wait, up to a set number of attempts, then marks it failed.
-- Backfillruns for past datesCreates runs for a range of earlier intervals so history can be rebuilt with current code.
+- **Scheduling** *a run per interval*\
+  Creates a run for each day or hour and stamps it with the interval it covers.
+- **Dependency resolution** *who may start now*\
+  Starts a task only when its upstream tasks are in states its trigger rule accepts.
+- **State tracking** *per task, per run*\
+  Records every task's state in every run, so a rerun skips work that already succeeded.
+- **Retries** *bounded and spaced out*\
+  Reruns a failed task after a wait, up to a set number of attempts, then marks it failed.
+- **Backfill** *runs for past dates*\
+  Creates runs for a range of earlier intervals so history can be rebuilt with current code.
 
 
 <br>

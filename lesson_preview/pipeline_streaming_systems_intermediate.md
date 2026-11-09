@@ -77,9 +77,12 @@ Lag per partition is the log end offset minus the committed offset. If partition
 
 No protocol can promise that a record reaches your code exactly once across crashes, because a sender cannot tell a lost acknowledgement from a lost message. Pipelines aim for an exactly-once effect instead: at-least-once delivery into a sink that absorbs repeats.
 
-- Idempotent writesA repeat overwrites itselfUpsert the absolute count keyed by city_id and window_start, or dedupe on an event_id the producer assigns. Replaying offsets 1000 to 1499 rewrites identical rows. An increment such as count = count + n breaks this, because it doubles on replay.
-- Offsets stored with the outputOne transaction covers bothWrite results and the partition's next offset to the sink database in a single transaction, and on startup read the offset from that table instead of from the broker. The commit and the side effect can no longer diverge.
-- Transactional read-process-writeFor log-to-log pipelinesThe producer writes output records and the consumed offsets in a single log transaction, and downstream readers use read-committed isolation so aborted output stays invisible. It covers only effects that land in the log.
+- **Idempotent writes** *A repeat overwrites itself*\
+  Upsert the absolute count keyed by city_id and window_start, or dedupe on an event_id the producer assigns. Replaying offsets 1000 to 1499 rewrites identical rows. An increment such as count = count + n breaks this, because it doubles on replay.
+- **Offsets stored with the output** *One transaction covers both*\
+  Write results and the partition's next offset to the sink database in a single transaction, and on startup read the offset from that table instead of from the broker. The commit and the side effect can no longer diverge.
+- **Transactional read-process-write** *For log-to-log pipelines*\
+  The producer writes output records and the consumed offsets in a single log transaction, and downstream readers use read-committed isolation so aborted output stays invisible. It covers only effects that land in the log.
 
 ```sql
 def run(consumer, db, partition):
@@ -237,9 +240,12 @@ A watermark W asserts that no more events with `event_time` below W are expected
 
 Row 3 is why the bound exists: out-of-order events within 10 seconds of the newest are absorbed. Rows 5 and 6 arrive after their windows fired, and what happens to them is a separate decision with 3 options.
 
-- DropCheapestCount them in a late-events metric and discard them. Acceptable when a correction would land after the surge multiplier it fixes has already expired.
-- Allowed latenessKeep window state open longerKeep each window's state for 2 minutes after it fires and emit an updated count for each late event. Row 5 joins the 12:00 window, held until the watermark passes 12:03:00. Row 6 joins the 11:59 window, held until 12:02:00, and the watermark is only 12:01:02. The sink must accept updates, so it needs the idempotent upsert on city_id and window_start.
-- Side outputRoute to a late streamSend late events to their own topic and let an hourly batch job fold them into a corrected table. The stream stays fast and the corrected total arrives later.
+- **Drop** *Cheapest*\
+  Count them in a late-events metric and discard them. Acceptable when a correction would land after the surge multiplier it fixes has already expired.
+- **Allowed lateness** *Keep window state open longer*\
+  Keep each window's state for 2 minutes after it fires and emit an updated count for each late event. Row 5 joins the 12:00 window, held until the watermark passes 12:03:00. Row 6 joins the 11:59 window, held until 12:02:00, and the watermark is only 12:01:02. The sink must accept updates, so it needs the idempotent upsert on city_id and window_start.
+- **Side output** *Route to a late stream*\
+  Send late events to their own topic and let an hourly batch job fold them into a corrected table. The stream stays fast and the corrected total arrives later.
 
 
 <br>

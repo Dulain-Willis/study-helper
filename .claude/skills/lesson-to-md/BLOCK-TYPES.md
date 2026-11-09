@@ -6,7 +6,8 @@ The site builds a lesson from blocks, each tagged `data-note-block-type="<type>"
 
 | Type | Handling | Why |
 |---|---|---|
-| `h3`, `h4`, `body_text`, `rich_text`, `note_text`, `static_table`, `side_by_side_tables`, `comparison`, `info_list`, `rich_info_list`, `best_practices`, `learning_objectives`, `lesson_title`, `section_header` | generic markdownify | Real HTML tags; markdownify renders them as they stand |
+| `h3`, `h4`, `body_text`, `rich_text`, `note_text`, `static_table`, `side_by_side_tables`, `comparison`, `rich_info_list`, `best_practices`, `learning_objectives`, `lesson_title`, `section_header` | generic markdownify | Real HTML tags; markdownify renders them as they stand |
+| `info_list` | rule: `**label** *tag*`, description on its own line | Rows are 1 to 3 sibling spans (label, gray tag, description) with no whitespace and no bold tags, so generic conversion fused them. One-span rows stay plain |
 | `static_code` | rule: code fence | Code arrives as a table, one row per line, code in the last cell |
 | `big_number` | rule: bullets pairing figure and caption | Stat cards are two divs with no list semantics |
 | `tip`, `callout`, `fun_fact` | rule: blockquote | The box is a styled div; `tip` already prints its own TIP label, so the rule bolds it |
@@ -24,7 +25,8 @@ The site builds a lesson from blocks, each tagged `data-note-block-type="<type>"
 - **Star ratings (Daily Life, Interviews).** Drawn on a canvas by JavaScript, so the page source holds no values. Omitted.
 - **The interactive pipeline-architecture exercise.** A live drag-and-drop widget; a screenshot shows an empty canvas. Omitted.
 - **`//` beside headings.** A decorative span. The converter drops it outside table cells.
-- **Label glued to description** (`**Label**Body`). Appeared only in synthetic tests. Real lessons separate them with whitespace, so no rule exists.
+- **Fused label, tag and description** (`Schedulinga run per intervalCreates…`). Labels in `info_list` rows look bold through styling, not `<strong>`, so a search for `**` markers finds nothing wrong. Check shapes instead: count the text spans per `li` (3 means label, tag, description; 2 means label, description). `rich_info_list` rows use a real `<strong>` and come out fine.
+- **Hard line breaks.** The converter uses backslash breaks (`newline_style="BACKSLASH"`), because the per-line `rstrip` in `add_section_breaks` would erase the default two trailing spaces.
 
 ## Spacing
 

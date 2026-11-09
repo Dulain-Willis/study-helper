@@ -66,10 +66,14 @@ After the run, the new watermark is 09:47:02, the largest updated_at the run act
 
 ### Where incremental loads break
 
-- Late commitsLate dataA row whose updated_at is earlier than its commit time can land below the watermark. A lookback window re-reads recent rows so the next run catches it.
-- Half-finished runsRetryA run that fails after writing part of its batch is retried with the same watermark. Appending would duplicate those rows; an upsert keyed on trip_id leaves 1 copy of each.
-- Hard deletesInvisible changeA deleted row has no updated_at left to match, so the warehouse keeps it indefinitely. A full load or change data capture, the next section, is needed to see it.
-- Writers that skip the columnTrustA one-off fix script that runs an UPDATE without setting updated_at changes data the watermark never sees. The pattern works only if every writer sets updated_at.
+- **Late commits** *Late data*\
+  A row whose updated_at is earlier than its commit time can land below the watermark. A lookback window re-reads recent rows so the next run catches it.
+- **Half-finished runs** *Retry*\
+  A run that fails after writing part of its batch is retried with the same watermark. Appending would duplicate those rows; an upsert keyed on trip_id leaves 1 copy of each.
+- **Hard deletes** *Invisible change*\
+  A deleted row has no updated_at left to match, so the warehouse keeps it indefinitely. A full load or change data capture, the next section, is needed to see it.
+- **Writers that skip the column** *Trust*\
+  A one-off fix script that runs an UPDATE without setting updated_at changes data the watermark never sees. The pattern works only if every writer sets updated_at.
 
 
 <br>
@@ -265,9 +269,12 @@ Trip A joins 9001, Austin: it falls before the boundary. Trip B joins 9377, Denv
 
 ### Where Type 2 loads break
 
-- Reruns create phantom versionsRetryA load that opens a new version every time it sees a driver adds a duplicate on rerun. Compare the attributes, or a hash of them, with the current version and insert only on a real change.
-- Changes arrive lateLate dataA move effective 2026-03-01 that reaches the warehouse on 2026-03-09 must close Austin at 03-01. The range join then re-resolves those 8 days; stamped surrogate keys keep the old key until reloaded.
-- New attributes need a policySchema changeA column added to a Type 2 dimension forces a decision on whether its changes open a version. Choose per column: a phone number fix can be Type 1, a city change Type 2.
+- **Reruns create phantom versions** *Retry*\
+  A load that opens a new version every time it sees a driver adds a duplicate on rerun. Compare the attributes, or a hash of them, with the current version and insert only on a real change.
+- **Changes arrive late** *Late data*\
+  A move effective 2026-03-01 that reaches the warehouse on 2026-03-09 must close Austin at 03-01. The range join then re-resolves those 8 days; stamped surrogate keys keep the old key until reloaded.
+- **New attributes need a policy** *Schema change*\
+  A column added to a Type 2 dimension forces a decision on whether its changes open a version. Choose per column: a phone number fix can be Type 1, a city change Type 2.
 
 > **TIP**
 >
@@ -432,9 +439,12 @@ Today's daily job still has to meet its deadline while the backfill runs. Cap th
 
 Ordering rules, strongest first
 
-- Upstream before downstreamdaily_city_revenue reads trip_fares. Rebuilding it first recomputes from still-broken data and has to be redone. Repair tables in dependency order.
-- Oldest first when state carries forwardRunning totals, SCD Type 2 dimensions and anything built from the previous day's output need day N correct before day N+1 can be.
-- Newest first when partitions stand aloneIndependent days can go from 2026-09-30 back to 2026-09-01, because recent days are queried most and matter most to the people waiting.
+- **Upstream before downstream**\
+  daily_city_revenue reads trip_fares. Rebuilding it first recomputes from still-broken data and has to be redone. Repair tables in dependency order.
+- **Oldest first when state carries forward**\
+  Running totals, SCD Type 2 dimensions and anything built from the previous day's output need day N correct before day N+1 can be.
+- **Newest first when partitions stand alone**\
+  Independent days can go from 2026-09-30 back to 2026-09-01, because recent days are queried most and matter most to the people waiting.
 
 The rules only appear to conflict. Dependency order is never optional. Within a single table, state decides the direction: independent partitions go newest first for the fastest relief, and stateful ones go oldest first for correctness. Late data follows the same logic: a day that receives late trips is reprocessed like any other damaged partition, and so is everything downstream of it.
 

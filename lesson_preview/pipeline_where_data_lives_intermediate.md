@@ -139,9 +139,12 @@ A 1 TB table can be stored as about 8,000 files or about 1,000,000 files, and th
 
 Common sources of small files
 
-- Streaming micro-batchesfiles per day = writer tasks x commits per dayA job with 50 writer tasks committing every 60 seconds adds 50 files a minute, 72,000 a day, each holding a minute of 1 task's slice.
-- Shuffle fan-outfiles = tasks x partitions each task touchesA backfill where 200 tasks each hold rows for 365 date partitions writes 73,000 files, about 2 MB each for a 140 GB load.
-- Over-partitioningpartition count outruns data volumePartitioning by date and customer splits a 5 GB day into 40,000 partitions, so the average file holds about 125 KB.
+- **Streaming micro-batches** *files per day = writer tasks x commits per day*\
+  A job with 50 writer tasks committing every 60 seconds adds 50 files a minute, 72,000 a day, each holding a minute of 1 task's slice.
+- **Shuffle fan-out** *files = tasks x partitions each task touches*\
+  A backfill where 200 tasks each hold rows for 365 date partitions writes 73,000 files, about 2 MB each for a 140 GB load.
+- **Over-partitioning** *partition count outruns data volume*\
+  Partitioning by date and customer splits a 5 GB day into 40,000 partitions, so the average file holds about 125 KB.
 
 
 <br>

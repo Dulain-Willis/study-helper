@@ -41,6 +41,7 @@ Check the file by structure, so lesson text stays out of the chat:
 - Every `![...](images/...)` points to a file that exists; `not captured` appears 0 times.
 - Escaped underscores (`\_`) 0; stray lone `//` lines 0.
 - Indented code lines inside fences, where the lesson has Python.
+- Row shapes: in the page's `info_list` blocks, count the `li` rows with 2 or more text spans. Each should appear in the Markdown as a two-line bullet (`- **label** *tag*\` then the description).
 
 Done when every check has a number beside it. Name each failure with its count.
 
