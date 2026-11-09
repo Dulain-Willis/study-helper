@@ -50,11 +50,11 @@ Columnar layout, as in Parquet
 
 | order in file | values written |
 | --- | --- |
-| first | event\_id: e1, e2, e3, e4 |
-| second | account\_id: a77, a12, a77, a40 |
+| first | event_id: e1, e2, e3, e4 |
+| second | account_id: a77, a12, a77, a40 |
 | third | country: BR, US, BR, US |
-| fourth | device\_type: mobile, tv, mobile, tv |
-| fifth | watch\_seconds: 312, 1840, 95, 2210 |
+| fourth | device_type: mobile, tv, mobile, tv |
+| fifth | watch_seconds: 312, 1840, 95, 2210 |
 
 Now run the query analysts send most: total watch time by country for a single day. It needs `country` and `watch_seconds` along with `event_date`, which is 3 of the 40 columns. In the row layout those values are interleaved with 37 other fields, so the reader pulls every byte of every row off storage to reach them. In the columnar layout each needed column sits in its own contiguous run, and the reader fetches those runs and skips the rest. That skip is column pruning, and it's the first reason in any answer.
 
@@ -76,10 +76,10 @@ GROUP BY country
 ### What else the layout buys
 
 - Compression works betterA column's values, side by sideValues of the same type and meaning sit together, which hands a codec long stretches of repeats to shrink. The next section works through how much that saves.
-- Whole blocks get skippedMin and max per row groupParquet splits a file into row groups and stores each column's minimum and maximum for every group. A filter like watch\_seconds > 3600 skips any group whose maximum is at or below 3600 without reading its data.
+- Whole blocks get skippedMin and max per row groupParquet splits a file into row groups and stores each column's minimum and maximum for every group. A filter like watch_seconds > 3600 skips any group whose maximum is at or below 3600 without reading its data.
 - The schema travels with the fileNames and types in the footerColumn names and types live in the file's footer, so no reader has to guess whether 0012 is a string or the number 12, a guess CSV forces on every consumer.
 
-| row group | min watch\_seconds | max watch\_seconds | for watch\_seconds > 3600 |
+| row group | min watch_seconds | max watch_seconds | for watch_seconds > 3600 |
 | --- | --- | --- | --- |
 | 1 | 0 | 2900 | skipped |
 | 2 | 4 | 7200 | read |
@@ -202,7 +202,7 @@ The codec stayed the same and the container changed. Parquet compresses inside i
 | data | how often it is read | pick |
 | --- | --- | --- |
 | Raw files landed from a source and kept for replay | Rarely, during a rerun or backfill | Gzip or high-level Zstd, written as many files so workers share the load |
-| Curated playback\_events queried all day | Thousands of times a day | Snappy or low-level Zstd |
+| Curated playback_events queried all day | Thousands of times a day | Snappy or low-level Zstd |
 | Intermediate data passed between stages of a job | Once, seconds after it is written | LZ4 or Snappy |
 | Compliance archive kept for 7 years | Almost never | The highest-ratio setting the write budget allows |
 
@@ -237,12 +237,12 @@ Partitioning splits a table into directories by the value of a column, so a quer
 
 Partitioned by `event_date`, `playback_events` keeps a directory per day, and each directory's name carries its date. The engine compares the query's filter with those names and never lists or opens a directory that can't match. Inside a directory it does open, column pruning still applies, and so do the row group statistics. With Zstd, each day holds 75 GB in 96 files of about 780 MB.
 
-| directory | files | opened for event\_date = 2026-10-01 |
+| directory | files | opened for event_date = 2026-10-01 |
 | --- | --- | --- |
-| playback\_events/event\_date=2026-09-29/ | 96 | no |
-| playback\_events/event\_date=2026-09-30/ | 96 | no |
-| playback\_events/event\_date=2026-10-01/ | 96 | yes |
-| playback\_events/event\_date=2026-10-02/ | 96 | no |
+| playback_events/event_date=2026-09-29/ | 96 | no |
+| playback_events/event_date=2026-09-30/ | 96 | no |
+| playback_events/event_date=2026-10-01/ | 96 | yes |
+| playback_events/event_date=2026-10-02/ | 96 | no |
 | 361 more directories | 34,656 | no |
 
 - **1 of 365** — directories a 1-day query opens
@@ -280,9 +280,9 @@ Adding `account_id` under `event_date` sounds selective, since a query roughly 1
 
 | partition by | partitions per year | data per partition |
 | --- | --- | --- |
-| event\_date | 365 | 75 GB |
-| event\_date, country | about 69,000 | tens of GB for the largest country, a few KB for the smallest |
-| event\_date, account\_id | about 18 billion | about 1.5 KB |
+| event_date | 365 | 75 GB |
+| event_date, country | about 69,000 | tens of GB for the largest country, a few KB for the smallest |
+| event_date, account_id | about 18 billion | about 1.5 KB |
 
 
 <br>
@@ -361,7 +361,7 @@ A lake is a set of files any engine can read, which is both its strength and its
 
 - A reader during a writePartial resultsA job writes 96 files for October 1. A dashboard query runs when 40 have landed and reports 40/96 of the day's watch time, with no error.
 - A retry after a crashDuplicatesThe job dies after writing 60 files and is retried. Unless it clears its own output first, the directory holds 60 stale files plus 96 new ones, and the day's totals come out about 1.6 times too high.
-- A schema change upstreamSilent nulls or failed readsThe source renames watch\_seconds to watch\_ms. New files carry the new name, and a query reading by name sees nulls for new rows or fails, depending on the engine.
+- A schema change upstreamSilent nulls or failed readsThe source renames watch_seconds to watch_ms. New files carry the new name, and a query reading by name sees nulls for new rows or fails, depending on the engine.
 
 A warehouse prevents all 3 by owning the write path. A load is a transaction, so readers see the table before it or after it. A failed load rolls back, so its retry inserts the rows once. A file whose columns do not match the table's schema is rejected at load. The price: data has to be loaded into the warehouse's storage before anything can query it, and other engines reach it only through that warehouse.
 
@@ -427,7 +427,7 @@ Run the plain-lake failures through this table. A dashboard query during the cra
 
 - Atomic commitsNo partial reads, safe retriesShown above: a writer's files count only once its commit lands.
 - Time travelQuery an older versionOlder metadata still names older file sets, so a query can read v2 to compare against v3, and a bad load can be rolled back by making v2 current again.
-- Schema evolutionChanges without rewriting filesWhen the format tracks each column by an ID as well as a name, renaming watch\_seconds changes metadata only, and old files still map to the right column.
+- Schema evolutionChanges without rewriting filesWhen the format tracks each column by an ID as well as a name, renaming watch_seconds changes metadata only, and old files still map to the right column.
 - Planning without listingFile paths and statistics in metadataThe metadata already holds each file's path and partition values, plus column statistics for it, so the engine plans a query from metadata instead of listing directories.
 
 ```sql
@@ -440,7 +440,7 @@ ORDER BY committed_at DESC
 LIMIT 3
 ```
 
-| snapshot\_id | committed\_at | operation |
+| snapshot_id | committed_at | operation |
 | --- | --- | --- |
 | 7310259846612833005 | 2026-10-03 03:20:41 | append |
 | 5126604783913204198 | 2026-10-02 02:11:05 | append |

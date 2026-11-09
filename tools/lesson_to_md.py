@@ -163,7 +163,9 @@ def convert(html, diagram_images=()):
     for div in soup.find_all("div"):
         if div.get_text(strip=True) in ("Daily Life", "Interviews") and not div.find("div"):
             div.decompose()
-    md = markdownify(str(soup), heading_style="ATX", bullets="-", code_language="sql")
+    # escape_underscores=False keeps names like fare_amount readable
+    md = markdownify(str(soup), heading_style="ATX", bullets="-", code_language="sql",
+                     escape_underscores=False)
     return add_section_breaks(md)
 
 
@@ -205,7 +207,9 @@ def screenshot_diagrams(url, out_dir, slug):
     names = []
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        page = browser.new_page(viewport={"width": 1000, "height": 900}, color_scheme="light")
+        # same layout, 2x the pixels: sharper images without changing the page
+        page = browser.new_page(viewport={"width": 1000, "height": 900},
+                                color_scheme="light", device_scale_factor=2)
         page.goto(url, wait_until="domcontentloaded")
         page.wait_for_timeout(4000)
         blocks = page.locator(f'[data-note-block-type="{DIAGRAM_BLOCK}"]')

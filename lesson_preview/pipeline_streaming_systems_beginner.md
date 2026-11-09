@@ -39,10 +39,10 @@ An event platform is a durable, append-only log that sits between the services t
 | --- | --- | --- |
 | Event | An immutable record of something that happened, stamped with when it happened | Trip 1002 completed at 08:04:30 with a fare of 14.20 |
 | Producer | A process that appends events to a topic | The driver app's backend |
-| Topic | A named log holding one kind of event | `trip\_events` |
-| Partition | One ordered, append-only slice of a topic, and the unit of both ordering and parallelism | `trip\_events` has 3: partitions 0, 1 and 2 |
+| Topic | A named log holding one kind of event | `trip_events` |
+| Partition | One ordered, append-only slice of a topic, and the unit of both ordering and parallelism | `trip_events` has 3: partitions 0, 1 and 2 |
 | Offset | A record's position inside its partition, counting up from 0 | Partition 2, offset 1 |
-| Consumer group | Consumers sharing one subscription, where each partition is read by exactly one member | `city\_dashboard`, with 3 members |
+| Consumer group | Consumers sharing one subscription, where each partition is read by exactly one member | `city_dashboard`, with 3 members |
 | Retention | How long records stay in the log, read or unread | Seven days, then the oldest records are deleted |
 | Broker | A server that stores partitions and answers reads and writes | Three brokers, each holding copies of partitions |
 
@@ -94,7 +94,7 @@ Group billing
 | 1 | 3 |
 | 2 | 3 |
 
-Group city\_dashboard
+Group city_dashboard
 
 | Partition | Next offset to read |
 | --- | --- |
@@ -171,9 +171,9 @@ Decoupling gives each failure a new place to happen. Each row below is a follow-
 
 | What happens | What breaks | Property that prevents it |
 | --- | --- | --- |
-| A consumer crashes after writing but before committing | The same `TripCompleted` is processed twice and the driver is paid twice | Idempotent consumer: upsert or dedupe on `event\_id` |
-| The producer renames `fare` to `fare\_amount` | Every consumer reading `fare` gets nulls or fails | Schema contract: add fields, never rename or remove them in place |
-| `FareAdjusted` is published to a different topic than `TripCompleted` | Billing can read an adjustment before the trip it adjusts | Put both in one topic keyed by `trip\_id` |
+| A consumer crashes after writing but before committing | The same `TripCompleted` is processed twice and the driver is paid twice | Idempotent consumer: upsert or dedupe on `event_id` |
+| The producer renames `fare` to `fare_amount` | Every consumer reading `fare` gets nulls or fails | Schema contract: add fields, never rename or remove them in place |
+| `FareAdjusted` is published to a different topic than `TripCompleted` | Billing can read an adjustment before the trip it adjusts | Put both in one topic keyed by `trip_id` |
 | Receipts falls 2 hours behind | Riders get receipts late, and no error is raised anywhere | An alert on consumer lag: how far each group trails the newest offset |
 
 
@@ -320,7 +320,7 @@ The decision turns on one question: would the same record succeed if you tried a
 | HTTP 429: too many requests | Transient | Retry with a longer backoff |
 | JSON fails to parse | Permanent | DLQ on first failure |
 | `fare` is text where the schema says number | Permanent | DLQ on first failure |
-| `schema\_version` 3 when the consumer knows only up to 2 | Permanent for this code version | DLQ, replay after upgrading the consumer |
+| `schema_version` 3 when the consumer knows only up to 2 | Permanent for this code version | DLQ, replay after upgrading the consumer |
 | `city` missing from the lookup table | Permanent until the lookup is loaded | DLQ, replay after loading the lookup |
 | A transient error still failing after the last retry | Treated as permanent | DLQ |
 
@@ -351,13 +351,13 @@ Bounded retries put a ceiling on how long a record can hold up its partition. Re
 
 | Field | Example | Why it is needed |
 | --- | --- | --- |
-| `original\_payload` | The exact bytes the consumer read | Replay needs the input byte for byte, including the bad field |
-| `source\_topic`, `source\_partition`, `source\_offset` | `trip\_events`, 1, 41 | Locates the record in the log and the events after it |
-| `error\_class` | `permanent\_parse\_error` | Lets you count and route failures by kind |
-| `error\_message` | could not convert '14,20' to number | Tells the engineer what to fix |
-| `consumer\_version` | 2.8.1 | Shows whether a deploy started the failures |
-| `attempt\_count` | 1 | Separates exhausted retries from first-failure rejects |
-| `failed\_at` | 2026-03-14 08:04:31 | Measures how long records have waited for replay |
+| `original_payload` | The exact bytes the consumer read | Replay needs the input byte for byte, including the bad field |
+| `source_topic`, `source_partition`, `source_offset` | `trip_events`, 1, 41 | Locates the record in the log and the events after it |
+| `error_class` | `permanent_parse_error` | Lets you count and route failures by kind |
+| `error_message` | could not convert '14,20' to number | Tells the engineer what to fix |
+| `consumer_version` | 2.8.1 | Shows whether a deploy started the failures |
+| `attempt_count` | 1 | Separates exhausted retries from first-failure rejects |
+| `failed_at` | 2026-03-14 08:04:31 | Measures how long records have waited for replay |
 
 
 <br>
@@ -489,11 +489,11 @@ Retries look different in the 2 models but demand the same property. When a micr
 
 A food delivery marketplace shows its operations team orders delivered per restaurant in 5-minute windows, and the team accepts numbers up to a minute old. A fraud check must approve each new order within 300 ms. Courier phones drop signal in elevators and parking garages, a weekly courier-app release occasionally changes the event format, and the payments team must never pay a courier twice for one delivery.
 
-- Key order\_events by order\_id , so each order's events share a partition and every consumer group reads them in order.
+- Key order_events by order_id , so each order's events share a partition and every consumer group reads them in order.
 - Courier payouts and the operations panel each read with their own consumer group, and the restaurant rating model has a separate one, which is why a slow model never delays the panel.
-- Payouts upsert on event\_id , so a consumer that crashes before committing replays events without paying a courier twice.
+- Payouts upsert on event_id , so a consumer that crashes before committing replays events without paying a courier twice.
 - Windows group by event time with allowed lateness set from the measured courier delays; elevator events that miss their window go to a late table the nightly job folds back in.
-- A release that sends order\_total as text fails parsing, goes to the DLQ on its first failure with its source offset, and is replayed through the same idempotent consumer after the fix.
+- A release that sends order_total as text fails parsing, goes to the DLQ on its first failure with its source offset, and is replayed through the same idempotent consumer after the fix.
 - The panel tolerates a minute, so a 30-second micro-batch serves it, while the fraud check's 300 ms budget on new orders requires true streaming.
 
 
@@ -504,7 +504,7 @@ A food delivery marketplace shows its operations team orders delivered per resta
 ## Key Takeaways
 
 - A topic is ordered only within each partition, and the key picks the partition, so the key you choose decides which events stay in order.
-- Committing offsets after writing gives at-least-once delivery; idempotent writes keyed on event\_id make the resulting duplicates harmless.
+- Committing offsets after writing gives at-least-once delivery; idempotent writes keyed on event_id make the resulting duplicates harmless.
 - Publish past-tense events when several consumers react to one fact and can lag by seconds; keep a direct call when the caller needs the answer to continue.
 - A watermark is the largest event time seen minus the allowed lateness; an event is late only when its window has already closed.
 - Retry transient errors a bounded number of times and send permanent errors to the DLQ on the first failure. Each DLQ record keeps its payload, tagged with its source offset and error class.
