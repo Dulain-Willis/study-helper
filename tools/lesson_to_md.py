@@ -12,6 +12,7 @@ pipeline diagram as an image next to the Markdown.
 For personal study use. Output defaults to ./lesson_preview/.
 """
 import os
+import re
 import sys
 import urllib.request
 
@@ -159,6 +160,15 @@ def convert(html, diagram_images=()):
             name = diagram_images[diagrams_seen] if diagrams_seen < len(diagram_images) else None
             diagrams_seen += 1
             diagram(soup, block, name, diagrams_seen)
+    # the site italicizes with an inline style, not <em>; follow the style so any
+    # lesson that uses it is handled, not just specific paragraphs
+    for tag in soup.find_all(style=re.compile(r"font-style:\s*italic")):
+        if tag.find_parent("em") or not tag.get_text(strip=True):
+            continue
+        em = soup.new_tag("em")
+        for child in list(tag.contents):
+            em.append(child.extract())
+        tag.append(em)
     # star ratings are canvas-drawn by JS; the bare labels carry no content
     for div in soup.find_all("div"):
         if div.get_text(strip=True) in ("Daily Life", "Interviews") and not div.find("div"):

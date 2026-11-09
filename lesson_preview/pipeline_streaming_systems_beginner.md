@@ -109,7 +109,7 @@ Group city_dashboard
 
 The order of 2 steps decides what a crash costs. A consumer that writes its result and then commits the offset, and crashes between the 2 steps, restarts from the old offset and processes those records a second time. A consumer that commits first and writes second, and crashes in between, skips records that were never written. Most pipelines take the first order, known as at-least-once delivery, and accept that duplicates will arrive. The property that makes duplicates harmless is idempotency: writing the same event twice leaves the same result as writing it once, as an upsert keyed on `event_id` does.
 
-Retention is also the replay budget. With 7 days kept, a bug discovered on day 8 can no longer be fixed by rewinding the log, and the missing events must be rebuilt from an archive.
+*Retention is also the replay budget. With 7 days kept, a bug discovered on day 8 can no longer be fixed by rewinding the log, and the missing events must be rebuilt from an archive.*
 
 > **TIP**
 >
@@ -244,7 +244,7 @@ A watermark is a timestamp the pipeline moves forward as events arrive, and it m
 
 Compare rows 5 and 6. The tunnel event in row 5 reached the pipeline 3 minutes 40 seconds after it happened and was late. The event in row 6 took 2 minutes 25 seconds and was counted. Lateness is decided by comparing the watermark with the end of the event's window, so a long delay only loses an event once that window has closed.
 
-The watermark moves only when events arrive. Pipelines usually take the minimum watermark across partitions, so if partition 1 receives nothing for 10 minutes, no window closes until an event reaches it or the pipeline marks the partition idle.
+*The watermark moves only when events arrive. Pipelines usually take the minimum watermark across partitions, so if partition 1 receives nothing for 10 minutes, no window closes until an event reaches it or the pipeline marks the partition idle.*
 
 > Try it
 >
@@ -252,7 +252,7 @@ The watermark moves only when events arrive. Pipelines usually take the minimum 
 > - An event stamped 08:03:40 arrives. Late or on time?
 > - Right after it, an event stamped 08:04:20 arrives. Late or on time?
 
-Answers: the watermark is 08:04:30. The 08:03 window ended at 08:04:00 and has closed, so the first event is late. The 08:04 window ends at 08:05:00 and is still open, so the second event is counted.
+*Answers: the watermark is 08:04:30. The 08:03 window ended at 08:04:00 and has closed, so the first event is late. The 08:04 window ends at 08:05:00 and is still open, so the second event is counted.*
 
 
 <br>
