@@ -28,7 +28,7 @@ Pick micro-batch or true streaming from a stated freshness requirement
 
 An event platform is a durable, append-only log that sits between the services that produce events and the jobs that consume them. Producers add records to the end of the log, consumers read from any position they choose, and the log keeps every record for a fixed retention period whether or not anyone has read it. Retention is what separates the log from a work queue, where a message disappears once a worker takes it. Here, 5 teams can each read the same trip event, and a team that ships a bug on Tuesday can rewind and read Monday's events again.
 
-![Pipeline diagram](images/pipeline_diagram.png)
+![Pipeline diagram 1](images/pipeline_streaming_systems_beginner_diagram_1.png)
 
 
 <br>
@@ -138,7 +138,7 @@ In a request-driven design, the service where something happens calls every serv
 - A 5th consumer subscribes with a new group, and the trip service never changes
 - The trip service cannot know when, or whether, each consumer finished
 
-![Pipeline diagram](images/pipeline_diagram.png)
+![Pipeline diagram 2](images/pipeline_streaming_systems_beginner_diagram_2.png)
 
 Replay is a benefit request-driven designs cannot offer. Because the log keeps 7 days of trip events, a new fraud model can start by reading the full week and building its features before it scores its first live trip. A service fed by direct calls has no history to read: it sees only the calls made after it goes live.
 
@@ -335,7 +335,7 @@ def next_action(error_class: str, attempt: int) -> str:
  return "dlq"
 ```
 
-![Pipeline diagram](images/pipeline_diagram.png)
+![Pipeline diagram 3](images/pipeline_streaming_systems_beginner_diagram_3.png)
 
 In the diagram, the consumer retries a transient failure 3 times, waiting 1 second, then 2, then 4, before it gives up.
 

@@ -372,7 +372,7 @@ A warehouse prevents all 3 by owning the write path. A load is a transaction, so
 
 A lakehouse keeps data as open files in object storage and adds a metadata layer recording which files make up the table at each moment. Writes become commits to that metadata, so readers never see half a write and a retry of a failed write cannot double a day. Lakehouse is the name of an architecture: a lake with a table format on top, read by whichever engines support that format. The next section opens that layer up.
 
-![Pipeline diagram](images/pipeline_diagram.png)
+![Pipeline diagram 1](images/pipeline_where_data_lives_beginner_diagram_1.png)
 
 Each layer answers a failure from the list above. Raw landing keeps source data unchanged, so a bad transform can be rerun from it. The quality check runs before the commit, so a renamed column stops the load instead of reaching dashboards. Curated tables commit atomically, so the dashboard never reads 40 of 96 files. Two kinds of consumer read the same curated files, which is why teams keep data in open formats instead of loading it into a single engine.
 

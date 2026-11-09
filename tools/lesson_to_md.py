@@ -31,7 +31,7 @@ CUSTOM_BLOCKS = {
 GENERIC_BLOCKS = {
     "lesson_title", "learning_objectives", "section_header", "h3", "body_text",
     "rich_text", "static_table", "side_by_side_tables", "comparison", "info_list",
-    "best_practices",
+    "best_practices", "note_text",
 }
 
 
@@ -124,10 +124,10 @@ def bullet_section(soup, block):
     block.replace_with(section)
 
 
-def diagram(soup, block, image_name):
+def diagram(soup, block, image_name, number):
     if image_name:
         p = soup.new_tag("p")
-        p.append(soup.new_tag("img", src=f"images/{image_name}", alt="Pipeline diagram"))
+        p.append(soup.new_tag("img", src=f"images/{image_name}", alt=f"Pipeline diagram {number}"))
         block.replace_with(p)
     else:
         note = soup.new_tag("p")
@@ -135,9 +135,11 @@ def diagram(soup, block, image_name):
         block.replace_with(note)
 
 
-def convert(html, diagram_image=None):
+def convert(html, diagram_images=()):
+    """diagram_images: screenshot file names, in page order, one per diagram block."""
     soup = BeautifulSoup(html, "html.parser")
     clean(soup)
+    diagrams_seen = 0
     for block in soup.find_all(attrs={"data-note-block-type": True}):
         kind = block_type(block)
         if kind not in CUSTOM_BLOCKS | GENERIC_BLOCKS:
@@ -154,7 +156,9 @@ def convert(html, diagram_image=None):
         elif kind in ("key_takeaways", "synthesis"):
             bullet_section(soup, block)
         elif kind == DIAGRAM_BLOCK:
-            diagram(soup, block, diagram_image)
+            name = diagram_images[diagrams_seen] if diagrams_seen < len(diagram_images) else None
+            diagrams_seen += 1
+            diagram(soup, block, name, diagrams_seen)
     # star ratings are canvas-drawn by JS; the bare labels carry no content
     for div in soup.find_all("div"):
         if div.get_text(strip=True) in ("Daily Life", "Interviews") and not div.find("div"):
@@ -184,30 +188,34 @@ def add_section_breaks(md):
     return "\n".join(out).strip() + "\n"
 
 
-def screenshot_diagrams(url, out_dir):
-    """Save the pipeline diagram block as a PNG. Returns the file name or None."""
+def screenshot_diagrams(url, out_dir, slug):
+    """Save every pipeline diagram block as <slug>_diagram_<n>.png.
+
+    Returns the file names in page order (empty if none or playwright is missing).
+    Names include the lesson slug so lessons never overwrite each other's images.
+    """
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
         print("playwright not installed: .venv/bin/pip install playwright && "
               ".venv/bin/playwright install chromium", file=sys.stderr)
-        return None
+        return []
     img_dir = os.path.join(out_dir, "images")
     os.makedirs(img_dir, exist_ok=True)
-    name = "pipeline_diagram.png"
+    names = []
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={"width": 1000, "height": 900}, color_scheme="light")
         page.goto(url, wait_until="domcontentloaded")
         page.wait_for_timeout(4000)
-        target = page.locator(f'[data-note-block-type="{DIAGRAM_BLOCK}"]').first
-        if target.count() == 0:
-            browser.close()
-            return None
-        target.scroll_into_view_if_needed()
-        target.screenshot(path=os.path.join(img_dir, name))
+        blocks = page.locator(f'[data-note-block-type="{DIAGRAM_BLOCK}"]')
+        for i in range(blocks.count()):
+            name = f"{slug}_diagram_{i + 1}.png"
+            blocks.nth(i).scroll_into_view_if_needed()
+            blocks.nth(i).screenshot(path=os.path.join(img_dir, name))
+            names.append(name)
         browser.close()
-    return name
+    return names
 
 
 def main():
@@ -219,10 +227,11 @@ def main():
     req = urllib.request.Request(url, headers={"User-Agent": "lesson-to-md/1.0"})
     html = urllib.request.urlopen(req, timeout=30).read().decode("utf-8", "ignore")
     os.makedirs(out_dir, exist_ok=True)
-    image = screenshot_diagrams(url, out_dir) if "--screenshots" in sys.argv else None
-    path = os.path.join(out_dir, url.rstrip("/").rsplit("/", 1)[-1] + ".md")
+    slug = url.rstrip("/").rsplit("/", 1)[-1]
+    images = screenshot_diagrams(url, out_dir, slug) if "--screenshots" in sys.argv else []
+    path = os.path.join(out_dir, slug + ".md")
     with open(path, "w", encoding="utf-8") as f:
-        f.write(convert(html, image))
+        f.write(convert(html, images))
     print(path)
 
 
