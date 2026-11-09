@@ -12,7 +12,7 @@ import urllib.request
 from html.parser import HTMLParser
 
 BASE = "https://datadriven.io/learn/"
-SKIP_TAGS = {"script", "style", "nav", "head", "footer"}
+SKIP_TAGS = {"script", "style", "nav", "head", "footer", "button"}
 
 
 class Converter(HTMLParser):
@@ -27,9 +27,26 @@ class Converter(HTMLParser):
         self.cell = None
         self.lvl = 0
         self.in_li = 0
+        self.mode = None
+        self.pending_num = None
 
     def flush(self):
         text = re.sub(r"\s+", " ", self.buf).strip()
+        mode, self.mode = self.mode, None
+        # star ratings are canvas-drawn by JS; the bare labels carry no content
+        if text in ("Daily Life", "Interviews"):
+            text = ""
+        # big-number callouts: pair the figure with its caption on one line
+        if text and mode == "num":
+            self.pending_num = text
+            text = ""
+        elif text and mode == "cap" and self.pending_num:
+            text = f"- **{self.pending_num}** — {text}"
+            self.pending_num = None
+            self.buf = ""
+            self.lvl = 0
+            self.out.append(text)
+            return
         if text:
             if self.lvl:
                 text = "#" * self.lvl + " " + text
@@ -63,6 +80,15 @@ class Converter(HTMLParser):
                 self.flush()
             self.in_li = 1
         elif tag in ("p", "div", "section", "ul", "ol", "pre"):
+            cls = a.get("class", "") or ""
+            if tag == "div" and "text-2xl" in cls and self.cell is None:
+                self.flush()
+                self.mode = "num"
+                return
+            if tag == "div" and "uppercase" in cls and self.pending_num and self.cell is None:
+                self.flush()
+                self.mode = "cap"
+                return
             if self.cell is None:
                 # inside a list item, a nested block is a label/body split
                 if self.in_li and self.buf.strip():
@@ -130,6 +156,8 @@ class Converter(HTMLParser):
 
 
 def convert(html):
+    # hidden screen-reader block at the end repeats the section names as links
+    html = re.sub(r'<section class="sr-only">.*?</section>', "", html, flags=re.S)
     c = Converter()
     c.feed(html)
     c.flush()
