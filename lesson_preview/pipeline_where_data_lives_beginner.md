@@ -20,12 +20,11 @@ Tell a data lake from a warehouse by storage and schema checks, and say which wr
 Explain how a table format turns a directory of Parquet files into a transactional table, and what upkeep it needs
 
 
+<br>
+
 ---
 
 ## Columnar vs Row
-
-
-<br>
 
 ### What the screen is checking
 
@@ -138,6 +137,8 @@ Row, columnar, row, columnar. The profile and the heartbeats are complete record
 > 'Parquet stores each column's values together, so a query that touches 3 of 40 columns reads roughly 3/40 of the bytes. Similar values side by side compress well. Each row group also stores min and max statistics, so the engine can skip any block a filter rules out. The schema is stored in the file. The cost is on the write side: rows have to be batched, and changing a row means rewriting its file, so I keep a row format wherever records are written or read individually.'
 
 
+<br>
+
 ---
 
 ## Compression
@@ -220,6 +221,8 @@ A nightly job runs for 3 hours. Its input is one 60 GB file, `clicks_2026-10-01.
 >
 > Check how many tasks read the input. A single Gzip stream yields 1 task, so 199 workers sit idle. Either have the source write the day as many smaller compressed files, or add a step that converts the landed file to Parquet once, after which every downstream job reads it in parallel. Swapping Gzip for Zstd on the same single stream leaves it unsplittable and the job still serial.
 
+
+<br>
 
 ---
 
@@ -332,6 +335,8 @@ Partitioning by event date has a pipeline consequence. An event from October 1 t
 Order date: around 1,826 partitions of 2 million rows each, matching how dashboards filter. Adding store would make about 55 million partitions averaging around 67 orders, far below any healthy file size. Store filters still benefit if files within each day are sorted by store, since row group statistics then skip most of every file.
 
 
+<br>
+
 ---
 
 ## Lake vs Warehouse
@@ -390,6 +395,8 @@ Each layer answers a failure from the list above. Raw landing keeps source data 
 
 Lake for the images: they have no tabular schema and no SQL query reads them. Warehouse for the revenue tables: only one engine reads them, and they need a strict schema and transactional loads with an audit trail. Lakehouse for the event tables: 2 kinds of engine need the same files, and the dashboards need commits no reader can catch halfway.
 
+
+<br>
 
 ---
 
@@ -487,28 +494,30 @@ A colleague loads yesterday's data by copying valid Parquet files straight into 
 >
 > The query returns nothing for yesterday, because the copied files appear in no metadata version, so no reader sees them, and the next orphan-file cleanup may delete them. Data enters a table-format table only through a commit.
 
-❯❯❯PUTTING IT ALL TOGETHER
 
-> A video streaming service ingests about 1 billion playback events a day as gzip-compressed JSON from its devices. Analysts query a year of history by date and country, a recommendations team trains models on the same events in Python, and the nightly load sometimes fails halfway and gets retried.
+<br>
 
-The raw gzip JSON lands unchanged for replay, and the first transform rewrites it as Parquet so every later job reads it in parallel.
+---
 
-Low-level Zstd keeps the curated table small without slowing the dashboards that scan it all day.
+## Putting It All Together
 
-Partitioning by event date lets a 1-day query open 1 of 365 directories, while late events make the daily job rewrite old dates with every row that belongs to them.
+A video streaming service ingests about 1 billion playback events a day as gzip-compressed JSON from its devices. Analysts query a year of history by date and country, a recommendations team trains models on the same events in Python, and the nightly load sometimes fails halfway and gets retried.
 
-Because both a SQL engine and a Python job read the events, they stay as open files in the lake instead of inside a warehouse.
+- The raw gzip JSON lands unchanged for replay, and the first transform rewrites it as Parquet so every later job reads it in parallel.
+- Low-level Zstd keeps the curated table small without slowing the dashboards that scan it all day.
+- Partitioning by event date lets a 1-day query open 1 of 365 directories, while late events make the daily job rewrite old dates with every row that belongs to them.
+- Because both a SQL engine and a Python job read the events, they stay as open files in the lake instead of inside a warehouse.
+- A table format makes each nightly load a single commit, so a failed run leaves the last good version visible and its retry counts the day once.
 
-A table format makes each nightly load a single commit, so a failed run leaves the last good version visible and its retry counts the day once.
 
-KEY TAKEAWAYS
+<br>
 
-Columnar files read only the columns a query names and compress well. Min/max statistics let them skip row groups. They cost batched writes and whole-file rewrites.
+---
 
-Codec choice follows the access pattern: decompression speed for data read often, ratio for data read rarely, and a container that stays splittable.
+## Key Takeaways
 
-Partition on the column most queries filter by, keep partitions large enough to hold full-size files, and filter on that column itself.
-
-A lake is open files read by any engine, a warehouse owns storage and enforces transactions, and a lakehouse adds a table format to the lake.
-
-A table format defines the table as the files its current metadata names, so commits are atomic and a retry is safe. In exchange, expiry and cleanup become routine jobs, along with compaction.
+- Columnar files read only the columns a query names and compress well. Min/max statistics let them skip row groups. They cost batched writes and whole-file rewrites.
+- Codec choice follows the access pattern: decompression speed for data read often, ratio for data read rarely, and a container that stays splittable.
+- Partition on the column most queries filter by, keep partitions large enough to hold full-size files, and filter on that column itself.
+- A lake is open files read by any engine, a warehouse owns storage and enforces transactions, and a lakehouse adds a table format to the lake.
+- A table format defines the table as the files its current metadata names, so commits are atomic and a retry is safe. In exchange, expiry and cleanup become routine jobs, along with compaction.
