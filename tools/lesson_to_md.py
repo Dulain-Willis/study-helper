@@ -17,22 +17,25 @@ import sys
 import urllib.request
 
 from bs4 import BeautifulSoup
+from bs4.builder import HTMLParserTreeBuilder
 from markdownify import markdownify
 
 BASE = "https://datadriven.io/learn/"
-DIAGRAM_BLOCK = "pipeline_diagram"
+# Visual blocks that plain text can't represent; each is saved as a screenshot.
+DIAGRAM_LABELS = {"pipeline_diagram": "Pipeline diagram", "schema_diagram": "Schema diagram"}
+DIAGRAM_SELECTOR = ", ".join(f'[data-note-block-type="{k}"]' for k in DIAGRAM_LABELS)
 NOISE = ["script", "style", "nav", "footer", "button", "svg", "canvas", "head"]
 
 # Block types with a custom rule below, plus ones markdownify handles well as-is.
 # Anything else triggers a warning so a new rule can be added.
 CUSTOM_BLOCKS = {
     "static_code", "big_number", "tip", "callout", "fun_fact", "key_takeaways",
-    "synthesis", DIAGRAM_BLOCK,
+    "synthesis", *DIAGRAM_LABELS,
 }
 GENERIC_BLOCKS = {
     "lesson_title", "learning_objectives", "section_header", "h3", "body_text",
     "rich_text", "static_table", "side_by_side_tables", "comparison", "info_list",
-    "best_practices", "note_text",
+    "best_practices", "note_text", "rich_info_list", "h4",
 }
 
 
@@ -40,9 +43,24 @@ def block_type(tag):
     return tag.get("data-note-block-type")
 
 
+def parse(html):
+    """Parse HTML, keeping whitespace inside table cells.
+
+    The site indents code with a whitespace-only <span> and CSS (white-space: pre),
+    not a <pre> tag, and BeautifulSoup would collapse those spans to one space.
+    """
+    builder = HTMLParserTreeBuilder()
+    builder.preserve_whitespace_tags = set(builder.preserve_whitespace_tags) | {"td"}
+    return BeautifulSoup(html, builder=builder)
+
+
 def clean(soup):
     for t in soup.select(".sr-only"):
         t.decompose()
+    # decorative "//" that sits beside some headings
+    for span in soup.find_all("span"):
+        if span.get_text(strip=True) == "//" and not span.find_parent("td"):
+            span.decompose()
     for t in soup(NOISE):
         t.decompose()
     # decorative icons and logos carry no content
@@ -126,19 +144,20 @@ def bullet_section(soup, block):
 
 
 def diagram(soup, block, image_name, number):
+    label = DIAGRAM_LABELS[block_type(block)]
     if image_name:
         p = soup.new_tag("p")
-        p.append(soup.new_tag("img", src=f"images/{image_name}", alt=f"Pipeline diagram {number}"))
+        p.append(soup.new_tag("img", src=f"images/{image_name}", alt=f"{label} {number}"))
         block.replace_with(p)
     else:
         note = soup.new_tag("p")
-        note.string = "[Pipeline diagram: not captured. Re-run with --screenshots]"
+        note.string = f"[{label}: not captured. Re-run with --screenshots]"
         block.replace_with(note)
 
 
 def convert(html, diagram_images=()):
     """diagram_images: screenshot file names, in page order, one per diagram block."""
-    soup = BeautifulSoup(html, "html.parser")
+    soup = parse(html)
     clean(soup)
     diagrams_seen = 0
     for block in soup.find_all(attrs={"data-note-block-type": True}):
@@ -156,7 +175,7 @@ def convert(html, diagram_images=()):
             callout(soup, block)
         elif kind in ("key_takeaways", "synthesis"):
             bullet_section(soup, block)
-        elif kind == DIAGRAM_BLOCK:
+        elif kind in DIAGRAM_LABELS:
             name = diagram_images[diagrams_seen] if diagrams_seen < len(diagram_images) else None
             diagrams_seen += 1
             diagram(soup, block, name, diagrams_seen)
@@ -222,7 +241,7 @@ def screenshot_diagrams(url, out_dir, slug):
                                 color_scheme="light", device_scale_factor=2)
         page.goto(url, wait_until="domcontentloaded")
         page.wait_for_timeout(4000)
-        blocks = page.locator(f'[data-note-block-type="{DIAGRAM_BLOCK}"]')
+        blocks = page.locator(DIAGRAM_SELECTOR)  # all diagram kinds, in page order
         for i in range(blocks.count()):
             name = f"{slug}_diagram_{i + 1}.png"
             blocks.nth(i).scroll_into_view_if_needed()

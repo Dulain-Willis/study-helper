@@ -58,11 +58,11 @@ NUM_PARTITIONS = 3
 
 
 def partition_for(trip_id: int) -> int:
- return trip_id % NUM_PARTITIONS
+    return trip_id % NUM_PARTITIONS
 
 
 for trip_id in [1001, 1002, 1003, 1004]:
- print(trip_id, partition_for(trip_id))
+    print(trip_id, partition_for(trip_id))
 ```
 
 | Partition | Offset 0 | Offset 1 | Offset 2 |
@@ -151,14 +151,14 @@ Name events for what already happened: `TripCompleted`, `FareAdjusted`, `DriverW
 
 ```sql
 {
- "event_id": "9f1c2e7a-3b4d-4e8f-a1c2-5d6e7f809a1b",
- "event_type": "TripCompleted",
- "schema_version": 2,
- "event_time": "2026-03-14T08:04:30Z",
- "trip_id": 1002,
- "city": "Lisbon",
- "fare": 14.2,
- "currency": "EUR"
+  "event_id": "9f1c2e7a-3b4d-4e8f-a1c2-5d6e7f809a1b",
+  "event_type": "TripCompleted",
+  "schema_version": 2,
+  "event_time": "2026-03-14T08:04:30Z",
+  "trip_id": 1002,
+  "city": "Lisbon",
+  "fare": 14.2,
+  "currency": "EUR"
 }
 ```
 
@@ -270,13 +270,13 @@ Allowed lateness is a dial with a cost on each side. Raising it from 2 minutes t
 
 ```sql
 SELECT
- city,
- DATE_TRUNC('minute', event_time) AS event_minute,
- COUNT(*) AS completed_trips
+  city,
+  DATE_TRUNC('minute', event_time) AS event_minute,
+  COUNT(*) AS completed_trips
 FROM trip_events_raw
 WHERE event_type = 'TripCompleted'
- AND event_time >= TIMESTAMP '2026-03-14 08:00:00'
- AND event_time < TIMESTAMP '2026-03-14 09:00:00'
+  AND event_time >= TIMESTAMP '2026-03-14 08:00:00'
+  AND event_time < TIMESTAMP '2026-03-14 09:00:00'
 GROUP BY city, DATE_TRUNC('minute', event_time)
 ORDER BY city, event_minute
 ```
@@ -285,8 +285,8 @@ Allowed lateness should come from measured delays. The query below reads one day
 
 ```sql
 SELECT
- APPROX_PERCENTILE(DATE_DIFF('second', event_time, arrived_at), 0.99) AS p99_delay_seconds,
- MAX(DATE_DIFF('second', event_time, arrived_at)) AS max_delay_seconds
+  APPROX_PERCENTILE(DATE_DIFF('second', event_time, arrived_at), 0.99) AS p99_delay_seconds,
+  MAX(DATE_DIFF('second', event_time, arrived_at)) AS max_delay_seconds
 FROM trip_events_raw
 WHERE event_date = DATE '2026-03-13'
 ```
@@ -330,9 +330,9 @@ MAX_RETRIES = 3
 
 
 def next_action(error_class: str, attempt: int) -> str:
- if error_class in TRANSIENT and attempt <= MAX_RETRIES:
- return "retry"
- return "dlq"
+    if error_class in TRANSIENT and attempt <= MAX_RETRIES:
+        return "retry"
+    return "dlq"
 ```
 
 ![Pipeline diagram 3](images/pipeline_streaming_systems_beginner_diagram_3.png)
@@ -368,10 +368,10 @@ A DLQ that nobody reads is data loss with extra storage. Alert on its arrival ra
 
 ```sql
 SELECT
- error_class,
- consumer_version,
- COUNT(*) AS failed_records,
- MIN(failed_at) AS first_seen
+  error_class,
+  consumer_version,
+  COUNT(*) AS failed_records,
+  MIN(failed_at) AS first_seen
 FROM trip_events_dlq
 WHERE failed_at >= CURRENT_TIMESTAMP - INTERVAL '1' HOUR
 GROUP BY error_class, consumer_version

@@ -58,29 +58,29 @@ The writer builds the dictionary as rows arrive, and common writers cap the dict
 
 ```sql
 {
- "row_group": 0,
- "num_rows": 1048576,
- "columns": [
- {
- "path_in_schema": "device_type",
- "encodings": [
- "RLE",
- "RLE_DICTIONARY"
- ],
- "total_uncompressed_size": 412318,
- "total_compressed_size": 287104
- },
- {
- "path_in_schema": "session_id",
- "encodings": [
- "RLE",
- "RLE_DICTIONARY",
- "PLAIN"
- ],
- "total_uncompressed_size": 41943040,
- "total_compressed_size": 25165824
- }
- ]
+  "row_group": 0,
+  "num_rows": 1048576,
+  "columns": [
+    {
+      "path_in_schema": "device_type",
+      "encodings": [
+        "RLE",
+        "RLE_DICTIONARY"
+      ],
+      "total_uncompressed_size": 412318,
+      "total_compressed_size": 287104
+    },
+    {
+      "path_in_schema": "session_id",
+      "encodings": [
+        "RLE",
+        "RLE_DICTIONARY",
+        "PLAIN"
+      ],
+      "total_uncompressed_size": 41943040,
+      "total_compressed_size": 25165824
+    }
+  ]
 }
 ```
 
@@ -179,9 +179,9 @@ Ask for 2 numbers per partition: how many files, and their average size. Table f
 
 ```sql
 SELECT
- "partition",
- COUNT(*) AS file_count,
- ROUND(SUM(file_size_in_bytes) / 1048576.0 / COUNT(*), 1) AS avg_file_mb
+  "partition",
+  COUNT(*) AS file_count,
+  ROUND(SUM(file_size_in_bytes) / 1048576.0 / COUNT(*), 1) AS avg_file_mb
 FROM "orders$files"
 GROUP BY "partition"
 ORDER BY file_count DESC
@@ -400,61 +400,7 @@ A query names `analytics.orders`. The engine has to turn that name into a schema
 
 Catalogs come in 2 designs. The older, directory-based design stores the schema and every partition with its directory, so a table with 500,000 partitions means 500,000 catalog rows to read during planning and a directory to list for each partition scanned. The table-format design keeps almost nothing in the catalog itself: the pointer leads to a metadata file holding schema, partition spec and the snapshot list; each snapshot leads to manifests; manifests list data files with row counts and per-column minimums and maximums.
 
-catalog_entry
-
-table_idPKbigint
-
-namespacevarchar
-
-table_namevarchar
-
-metadata_locationFKvarchar
-
-previous_metadata_locationvarchar
-
-table_metadata
-
-metadata_locationPKvarchar
-
-schema_jsonvarchar
-
-partition_specvarchar
-
-current_snapshot_idbigint
-
-snapshot
-
-snapshot_idPKbigint
-
-metadata_locationFKvarchar
-
-parent_snapshot_idbigint
-
-manifest_listFKvarchar
-
-committed_attimestamp
-
-manifest
-
-manifest_pathPKvarchar
-
-added_snapshot_idbigint
-
-partition_summaryvarchar
-
-data_file_countbigint
-
-data_file
-
-file_pathPKvarchar
-
-manifest_pathFKvarchar
-
-record_countbigint
-
-customer_id_minvarchar
-
-customer_id_maxvarchar
+![Schema diagram 3](images/pipeline_where_data_lives_intermediate_diagram_3.png)
 
 Only the first hop of that chain lives in the catalog. Everything after it is files in the table's own location, so history, statistics and the file list travel with the data, and any engine that reads the same pointer plans against the same snapshot. One metadata file holds the whole snapshot list, and `current_snapshot_id` marks which one readers get. A manifest written by one commit stays in the manifest list of every later snapshot until a rewrite replaces it, so a single data file is reachable from many snapshots at once.
 
@@ -493,10 +439,10 @@ Every successful swap leaves a row in the table's snapshot history, which the sa
 
 ```sql
 SELECT
- snapshot_id,
- parent_id,
- committed_at,
- operation
+  snapshot_id,
+  parent_id,
+  committed_at,
+  operation
 FROM "orders$snapshots"
 ORDER BY committed_at DESC
 LIMIT 5

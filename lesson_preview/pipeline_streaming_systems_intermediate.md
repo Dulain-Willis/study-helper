@@ -44,8 +44,6 @@ A consumer group is a set of processes sharing a group name, and the broker assi
 
 Every record in a partition has an offset that grows by 1 per record. The group stores a committed offset per partition: the next offset to read after a restart. The consumer decides when that commit happens, and its delivery guarantee follows from where the commit sits relative to the side effect.
 
-//
-
 #### Worked crash: offsets 1000 to 1499
 
 Consumer C2 owns partition 7 and has committed offset 1000. It polls 500 records, offsets 1000 through 1499, adds them to per-city counters, writes the counters to the pricing store, and commits offset 1500. Kill it between 2 of those steps and restart it.
@@ -85,16 +83,16 @@ No protocol can promise that a record reaches your code exactly once across cras
 
 ```sql
 def run(consumer, db, partition):
- consumer.seek(partition, db.read_offset(partition))
- while True:
- batch = consumer.poll(partition, max_records=500)
- if not batch:
- continue
- counts = count_by_city_minute(batch)
- with db.transaction() as tx:
- for (city_id, window_start), n in counts.items():
- tx.increment_count(city_id, window_start, n)
- tx.save_offset(partition, batch[-1].offset + 1)
+    consumer.seek(partition, db.read_offset(partition))
+    while True:
+        batch = consumer.poll(partition, max_records=500)
+        if not batch:
+            continue
+        counts = count_by_city_minute(batch)
+        with db.transaction() as tx:
+            for (city_id, window_start), n in counts.items():
+                tx.increment_count(city_id, window_start, n)
+            tx.save_offset(partition, batch[-1].offset + 1)
 ```
 
 The counter write here is an increment, which pattern 1 forbids. Pattern 2 makes it safe because the offset update shares its transaction: a crash rolls back both, and the batch replays against the old counts. Move `save_offset` outside the `with` block and the same line double-counts on every rebalance.
@@ -136,10 +134,10 @@ Folding trip 5521's 5 events gives status completed and a fare of 1,850 cents. A
 
 ```sql
 SELECT
- trip_id,
- MAX_BY(event_type, event_seq) AS last_event,
- SUM(COALESCE(fare_cents, 0) + COALESCE(delta_cents, 0)) AS fare_cents_as_of,
- MAX(occurred_at) AS last_changed_at
+  trip_id,
+  MAX_BY(event_type, event_seq) AS last_event,
+  SUM(COALESCE(fare_cents, 0) + COALESCE(delta_cents, 0)) AS fare_cents_as_of,
+  MAX(occurred_at) AS last_changed_at
 FROM trip_events
 WHERE occurred_at <= TIMESTAMP '2026-10-24 13:00:00'
 GROUP BY trip_id
@@ -266,12 +264,12 @@ Whatever the late-data choice, keep a batch query over the stored events that re
 
 ```sql
 SELECT
- city_id,
- DATE_TRUNC('minute', event_time) AS window_start,
- COUNT(*) AS requests
+  city_id,
+  DATE_TRUNC('minute', event_time) AS window_start,
+  COUNT(*) AS requests
 FROM ride_events_raw
 WHERE event_time >= TIMESTAMP '2026-10-24 12:00:00'
- AND event_time < TIMESTAMP '2026-10-24 13:00:00'
+  AND event_time < TIMESTAMP '2026-10-24 13:00:00'
 GROUP BY city_id, DATE_TRUNC('minute', event_time)
 ```
 
@@ -319,17 +317,17 @@ A DLQ record holding only the payload is useless a week later: nobody knows whic
 
 ```sql
 {
- "source_topic": "ride_events",
- "source_partition": 7,
- "source_offset": 1041,
- "key": "5521",
- "payload_base64": "eyJ0cmlwX2lkIjo1NTIxfQ==",
- "error_class": "PERMANENT_DATA",
- "error_message": "missing required field city_id",
- "app_version": "surge-pricer 4.17.2",
- "attempts": 1,
- "first_failed_at": "2026-10-24T12:00:59Z",
- "redrive_count": 0
+  "source_topic": "ride_events",
+  "source_partition": 7,
+  "source_offset": 1041,
+  "key": "5521",
+  "payload_base64": "eyJ0cmlwX2lkIjo1NTIxfQ==",
+  "error_class": "PERMANENT_DATA",
+  "error_message": "missing required field city_id",
+  "app_version": "surge-pricer 4.17.2",
+  "attempts": 1,
+  "first_failed_at": "2026-10-24T12:00:59Z",
+  "redrive_count": 0
 }
 ```
 
@@ -342,10 +340,10 @@ Say surge-pricer 4.18.0 ships a parser that rejects a new optional field, and 40
 
 ```sql
 SELECT
- error_class,
- app_version,
- COUNT(*) AS failed_events,
- MIN(first_failed_at) AS first_seen
+  error_class,
+  app_version,
+  COUNT(*) AS failed_events,
+  MIN(first_failed_at) AS first_seen
 FROM ride_events_dlq
 WHERE first_failed_at >= CURRENT_TIMESTAMP - INTERVAL '1' DAY
 GROUP BY error_class, app_version

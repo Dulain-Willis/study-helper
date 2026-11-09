@@ -60,8 +60,8 @@ Now run the query analysts send most: total watch time by country for a single d
 
 ```sql
 SELECT
- country,
- SUM(watch_seconds) AS total_watch_seconds
+  country,
+  SUM(watch_seconds) AS total_watch_seconds
 FROM playback_events
 WHERE event_date = DATE '2026-10-01'
 GROUP BY country
@@ -250,17 +250,17 @@ Partitioned by `event_date`, `playback_events` keeps a directory per day, and ea
 
 ```sql
 CREATE TABLE playback_events (
- event_id VARCHAR,
- account_id BIGINT,
- country VARCHAR,
- device_type VARCHAR,
- watch_seconds INTEGER,
- event_ts TIMESTAMP,
- event_date DATE
+  event_id VARCHAR,
+  account_id BIGINT,
+  country VARCHAR,
+  device_type VARCHAR,
+  watch_seconds INTEGER,
+  event_ts TIMESTAMP,
+  event_date DATE
 )
 WITH (
- format = 'PARQUET',
- partitioned_by = ARRAY['event_date']
+  format = 'PARQUET',
+  partitioned_by = ARRAY['event_date']
 )
 ```
 
@@ -293,22 +293,22 @@ The table is partitioned by `event_date`, and an analyst filters on `event_ts`, 
 
 ```sql
 SELECT
- country,
- SUM(watch_seconds) AS total_watch_seconds
+  country,
+  SUM(watch_seconds) AS total_watch_seconds
 FROM playback_events
 WHERE event_ts >= TIMESTAMP '2026-10-01 18:00:00'
- AND event_ts < TIMESTAMP '2026-10-01 22:00:00'
+  AND event_ts < TIMESTAMP '2026-10-01 22:00:00'
 GROUP BY country
 ```
 
 ```sql
 SELECT
- country,
- SUM(watch_seconds) AS total_watch_seconds
+  country,
+  SUM(watch_seconds) AS total_watch_seconds
 FROM playback_events
 WHERE event_date = DATE '2026-10-01'
- AND event_ts >= TIMESTAMP '2026-10-01 18:00:00'
- AND event_ts < TIMESTAMP '2026-10-01 22:00:00'
+  AND event_ts >= TIMESTAMP '2026-10-01 18:00:00'
+  AND event_ts < TIMESTAMP '2026-10-01 22:00:00'
 GROUP BY country
 ```
 
@@ -432,9 +432,9 @@ Run the plain-lake failures through this table. A dashboard query during the cra
 
 ```sql
 SELECT
- snapshot_id,
- committed_at,
- operation
+  snapshot_id,
+  committed_at,
+  operation
 FROM "playback_events$snapshots"
 ORDER BY committed_at DESC
 LIMIT 3
