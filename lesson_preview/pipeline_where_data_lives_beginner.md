@@ -4,6 +4,9 @@ Beginner·Pipeline Architecture · 20 min · 4 challenges
 
 Dalia is 40 minutes into a data engineering interview at Netflix, the company whose engineers created one of the open table formats this lesson covers. The interviewer pastes a schema: playback events, a row for every press of play or pause and another when the viewer stops, 40 columns wide and roughly 1 billion rows a day. 'These land as CSV today. Why would you store them as Parquet, and what would you partition by?' Dalia says Parquet is columnar, and stops. The interviewer waits for the rest: which bytes a query gets to skip, what compression does to the storage bill, what breaks if the table is partitioned by account, and what stops a dashboard from reading half a write. Each of those follow-ups has a reason behind it, and this lesson builds them decision by decision.
 
+
+<br>
+
 ### What you will be able to do
 
 Explain why a columnar file suits analytic queries, and name the write patterns it makes expensive
@@ -16,11 +19,20 @@ Tell a data lake from a warehouse by storage and schema checks, and say which wr
 
 Explain how a table format turns a directory of Parquet files into a transactional table, and what upkeep it needs
 
+
+---
+
 ## Columnar vs Row
+
+
+<br>
 
 ### What the screen is checking
 
 'Why Parquet?' works as a screening question because the answer shows whether a candidate knows where bytes sit on disk. A full answer names the layout, the reads it makes cheaper, and the writes it makes expensive. Every section of this lesson uses the same table, `playback_events`: 40 columns, roughly 10 bytes per value, around 1 billion rows landing each day.
+
+
+<br>
 
 ### Same 4 rows, 2 layouts
 
@@ -59,6 +71,9 @@ GROUP BY country
 - **400 GB** — scanned per day, row layout
 - **30 GB** — scanned per day, columnar layout
 
+
+<br>
+
 ### What else the layout buys
 
 - Compression works betterA column's values, side by sideValues of the same type and meaning sit together, which hands a codec long stretches of repeats to shrink. The next section works through how much that saves.
@@ -73,6 +88,9 @@ GROUP BY country
 | 4 | 12 | 9800 | read |
 
 Here the filter reads 2 of 4 row groups. The skip depends on clustering: if long sessions are scattered across every group, every maximum sits above 3600 and nothing is skipped. Sorting rows by the filtered column before writing is what makes these statistics pay off.
+
+
+<br>
 
 ### What columnar costs
 
@@ -94,20 +112,24 @@ The layout that speeds up reads slows down some writes, and a full answer says w
 
 > **TIP**
 >
-> TIP
->
 > Name the write cost before you are asked. 'Columnar is faster' leaves the interviewer to probe; 'columnar is faster for reads of a few columns, and costs me batched writes and no in-place edits' shows you know where the format stops fitting.
+
+
+<br>
 
 ### Try it: pick the layout
 
 > For each workload, row or columnar?
 >
-> - ▸A mobile app saves each user's profile and reads the whole profile back at login.
-> - ▸Finance sums revenue by month over 3 years of orders.
-> - ▸Devices send a playback heartbeat every 10 seconds into a message queue.
-> - ▸A nightly job writes yesterday's events once, and analysts query them for a year.
+> - A mobile app saves each user's profile and reads the whole profile back at login.
+> - Finance sums revenue by month over 3 years of orders.
+> - Devices send a playback heartbeat every 10 seconds into a message queue.
+> - A nightly job writes yesterday's events once, and analysts query them for a year.
 
 Row, columnar, row, columnar. The profile and the heartbeats are complete records written and read individually. The revenue sum touches 2 or 3 columns over millions of rows. The nightly job is the shape Parquet was built for: written in a batch, read many times by column. Pipelines often use both, landing heartbeats in a row format and rewriting them into Parquet in a later batch step.
+
+
+<br>
 
 ### The answer in 30 seconds
 
@@ -115,9 +137,15 @@ Row, columnar, row, columnar. The profile and the heartbeats are complete record
 >
 > 'Parquet stores each column's values together, so a query that touches 3 of 40 columns reads roughly 3/40 of the bytes. Similar values side by side compress well. Each row group also stores min and max statistics, so the engine can skip any block a filter rules out. The schema is stored in the file. The cost is on the write side: rows have to be batched, and changing a row means rewriting its file, so I keep a row format wherever records are written or read individually.'
 
+
+---
+
 ## Compression
 
 Compression questions arrive in 2 forms: 'which codec would you use?' and 'why is this job so slow?' Both turn on 3 properties of a codec: how small it makes the data, how much CPU it spends getting there, and whether the compressed file can still be shared among many workers.
+
+
+<br>
 
 ### Ratio against speed
 
@@ -132,9 +160,15 @@ Every codec trades ratio against speed. A higher ratio means fewer bytes stored 
 
 Ratio depends on the data more than on the codec, so a quoted ratio is a measurement on someone's data. Suppose a day of `playback_events` as Parquet holds 400 GB of uncompressed column data, Snappy writes it as 100 GB, and Zstd at a moderate level writes it as 75 GB. Kept for a year, that difference is about 9 TB of storage, and every query scanning the year pulls a quarter fewer bytes.
 
+
+<br>
+
 ### Why columns give a codec more to work with
 
 A codec shrinks data by finding byte patterns it has seen recently and replacing each repeat with a short reference back. A Parquet page of the `country` column holds thousands of 2-letter codes, and the same handful of countries make up most of them, so references are short and frequent. A CSV row puts an event ID that never repeats next to a timestamp, then a device name and a number, so matching patterns sit far apart. Parquet records a codec for each column chunk, which lets a writer vary it by column, though most tables use a single codec throughout.
+
+
+<br>
 
 ### The pitfall: a file only 1 worker can read
 
@@ -159,6 +193,9 @@ The codec stayed the same and the container changed. Parquet compresses inside i
 - **1** — read range in the 40 GB gzip CSV
 - **320** — row groups in the 40 GB Parquet file
 
+
+<br>
+
 ### Matching the codec to the data
 
 | data | how often it is read | pick |
@@ -170,9 +207,10 @@ The codec stayed the same and the container changed. Parquet compresses inside i
 
 > **TIP**
 >
-> TIP
->
 > Answer 'which codec?' with the access pattern first: how often the data is read, and by how many workers at once. The codec follows from that, so the interviewer hears a reason before a name.
+
+
+<br>
 
 ### Try it: the 3-hour job
 
@@ -182,9 +220,15 @@ A nightly job runs for 3 hours. Its input is one 60 GB file, `clicks_2026-10-01.
 >
 > Check how many tasks read the input. A single Gzip stream yields 1 task, so 199 workers sit idle. Either have the source write the day as many smaller compressed files, or add a step that converts the landed file to Parquet once, after which every downstream job reads it in parallel. Swapping Gzip for Zstd on the same single stream leaves it unsplittable and the job still serial.
 
+
+---
+
 ## Partitioning
 
 Partitioning splits a table into directories by the value of a column, so a query that filters on that column opens only the directories that match. It's the cheapest speedup a file-based table offers and the most common way to slow one down. Interviewers ask you to choose a partition column, then probe whether you can name what makes that choice backfire.
+
+
+<br>
 
 ### What the engine does with a partition filter
 
@@ -217,9 +261,15 @@ WITH (
 )
 ```
 
+
+<br>
+
 ### Choosing the partition column
 
 A good partition column has 3 traits. Most queries filter on it, or the pruning never fires. It has few enough values that each partition holds real volume: a common target is data files of 128 MB to 1 GB, so each partition should fill at least 1 such file. And its value is fixed when the row is written, so a row never has to move between directories. For an events table, the event date meets all 3, which is why it is the default answer.
+
+
+<br>
 
 ### Pitfall 1: too many partitions
 
@@ -230,6 +280,9 @@ Adding `account_id` under `event_date` sounds selective, since a query roughly 1
 | event\_date | 365 | 75 GB |
 | event\_date, country | about 69,000 | tens of GB for the largest country, a few KB for the smallest |
 | event\_date, account\_id | about 18 billion | about 1.5 KB |
+
+
+<br>
 
 ### Pitfall 2: filtering on the wrong column
 
@@ -258,13 +311,17 @@ GROUP BY country
 
 > **TIP**
 >
-> TIP
->
 > When a query on a partitioned table runs as slowly as on an unpartitioned one, read its WHERE clause for the partition column first. The usual cause is a filter on a related column, such as a timestamp, that the engine can't match to directory names.
+
+
+<br>
 
 ### Late data lands in old partitions
 
 Partitioning by event date has a pipeline consequence. An event from October 1 that arrives on October 3 belongs in the October 1 directory, so a daily job can't assume it only ever writes today's partition. If the job for October 1 is rerun and overwrites its directory, the rerun has to read every event for that date, including the late ones; otherwise it silently drops them. Partitioning by arrival date keeps old partitions closed, at the price of pruning, since analysts filter on when an event happened.
+
+
+<br>
 
 ### Try it: an orders table
 
@@ -273,6 +330,9 @@ Partitioning by event date has a pipeline consequence. An event from October 1 t
 > An `orders` table holds 5 years of history, about 2 million orders a day across 30,000 stores. Dashboards filter by order date and sometimes by store. Which column do you partition by, and why not add store?
 
 Order date: around 1,826 partitions of 2 million rows each, matching how dashboards filter. Adding store would make about 55 million partitions averaging around 67 orders, far below any healthy file size. Store filters still benefit if files within each day are sorted by store, since row group statistics then skip most of every file.
+
+
+---
 
 ## Lake vs Warehouse
 
@@ -287,6 +347,9 @@ Order date: around 1,826 partitions of 2 million rows each, matching how dashboa
 | A write is | Files appearing as each is written | A transaction: all of it or none | A transaction committed through metadata |
 | Cost shape | Cheapest storage; compute rented separately | Storage and compute billed by a single system | Lake storage prices with transactional writes |
 
+
+<br>
+
 ### Where a plain lake breaks
 
 A lake is a set of files any engine can read, which is both its strength and its exposure. Three failures come up in interviews, each tied to a pipeline event.
@@ -296,6 +359,9 @@ A lake is a set of files any engine can read, which is both its strength and its
 - A schema change upstreamSilent nulls or failed readsThe source renames watch\_seconds to watch\_ms. New files carry the new name, and a query reading by name sees nulls for new rows or fails, depending on the engine.
 
 A warehouse prevents all 3 by owning the write path. A load is a transaction, so readers see the table before it or after it. A failed load rolls back, so its retry inserts the rows once. A file whose columns do not match the table's schema is rejected at load. The price: data has to be loaded into the warehouse's storage before anything can query it, and other engines reach it only through that warehouse.
+
+
+<br>
 
 ### The lakehouse: warehouse guarantees on lake files
 
@@ -307,25 +373,32 @@ Each layer answers a failure from the list above. Raw landing keeps source data 
 
 > **TIP**
 >
-> TIP
->
 > Asked 'lake or warehouse?', describe both, then name what decides between them: how many engines need the data, how structured it is on arrival, and what a reader may see while a write is in progress.
 
 
+
+
+<br>
 
 ### Try it: place each dataset
 
 > Lake, warehouse or lakehouse?
 >
-> - ▸Raw camera images kept for a model that may be trained next year
-> - ▸Month-end revenue tables read by a single SQL engine and audited every quarter
-> - ▸Event tables queried by SQL dashboards and read directly by a Python training job
+> - Raw camera images kept for a model that may be trained next year
+> - Month-end revenue tables read by a single SQL engine and audited every quarter
+> - Event tables queried by SQL dashboards and read directly by a Python training job
 
 Lake for the images: they have no tabular schema and no SQL query reads them. Warehouse for the revenue tables: only one engine reads them, and they need a strict schema and transactional loads with an audit trail. Lakehouse for the event tables: 2 kinds of engine need the same files, and the dashboards need commits no reader can catch halfway.
+
+
+---
 
 ## Table Formats
 
 Table format questions run from 'what is it?' through 'why not plain Parquet?' to 'what does it cost to operate?' A single mechanism answers all 3: the table is defined by a list of files kept in metadata, and every change to the table publishes a new list.
+
+
+<br>
 
 ### A table as a list of files
 
@@ -339,6 +412,9 @@ In a plain Parquet directory, the table is whatever files the directory holds ri
 | v3 | retry of October 2 | A1 to A96, B1 to B96, D1 to D96 | 3 complete days, no duplicates |
 
 Run the plain-lake failures through this table. A dashboard query during the crashed write read v2, a complete table. The retry committed 96 fresh files as v3, and the orphans from the crash appear in no version, so October 2 counts once. Atomicity covers a crash before the commit. If a job commits and then dies before reporting success, the orchestrator retries it, and the retry appends October 2 again as v4. The load itself has to be idempotent: it overwrites the October 2 partition instead of appending, or it checks whether that date's commit already exists before writing. The Parquet files themselves never changed; only the definition of the table did.
+
+
+<br>
 
 ### What the metadata buys
 
@@ -365,6 +441,9 @@ LIMIT 3
 
 The 3 rows run newest first, from v3 down to v1. The crashed run on October 3 left no row, because it never committed.
 
+
+<br>
+
 ### What it costs to run
 
 The guarantees come with upkeep, and naming it is the practical awareness interviewers listen for. Every commit leaves metadata behind and keeps replaced data files alive for time travel, so storage grows until old versions are expired on a schedule. Files from failed writes stay in storage until a cleanup job deletes whatever no version names. Frequent small appends pile up small files, which a compaction job rewrites into larger ones. Two writers committing at once race for the atomic step; the first wins, and the other must retry its commit against the new version.
@@ -386,6 +465,9 @@ The guarantees come with upkeep, and naming it is the practical awareness interv
 - Keep every snapshot forever because nobody set a retention
 - Assume a plain Parquet directory gives readers transactional reads
 
+
+<br>
+
 ### Answering 'which table format?'
 
 Three open table formats are in wide use, and all share the mechanism above: metadata that names a set of data files, usually Parquet, and an atomic commit that makes that metadata current. They differ in metadata layout, in how they handle frequent row-level updates, and in which engines read and write them well. A practical answer starts from the team: which engines must read and write the table, whether writes are large daily appends or a steady stream of updates, and which format every one of those engines supports today.
@@ -393,6 +475,9 @@ Three open table formats are in wide use, and all share the mechanism above: met
 > A complete answer, start to finish
 >
 > 'A table format adds metadata over Parquet files that names exactly which files form each version of the table. A commit writes data files and then makes new metadata current in an atomic step, so readers never see a partial write and a job that dies before committing can be retried without double-counting. For a crash after the commit, I make each load overwrite its date partition so a rerun replaces it. The same metadata gives time travel, schema changes without rewrites, and query planning without directory listing. In return I schedule snapshot expiry and orphan cleanup alongside compaction, and I pick the format the team's engines support well.'
+
+
+<br>
 
 ### Try it: the copied files
 
