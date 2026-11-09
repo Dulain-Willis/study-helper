@@ -30,7 +30,7 @@ NOISE = ["script", "style", "nav", "footer", "button", "svg", "canvas", "head"]
 # Anything else triggers a warning so a new rule can be added.
 CUSTOM_BLOCKS = {
     "static_code", "big_number", "tip", "callout", "fun_fact", "key_takeaways",
-    "synthesis", *DIAGRAM_LABELS,
+    "synthesis", "icon_list", *DIAGRAM_LABELS,
 }
 GENERIC_BLOCKS = {
     "lesson_title", "learning_objectives", "section_header", "h3", "body_text",
@@ -143,6 +143,19 @@ def bullet_section(soup, block):
     block.replace_with(section)
 
 
+def icon_list(soup, block):
+    """Rows of a decorative icon plus a sentence: the icon is dropped (clean()
+    removes it), and each row's text becomes a bullet. The HTML has no list tags."""
+    ul = soup.new_tag("ul")
+    for div in block.find_all("div"):
+        text = div.get_text(" ", strip=True)
+        if text and not div.find("div"):
+            li = soup.new_tag("li")
+            li.string = text
+            ul.append(li)
+    block.replace_with(ul)
+
+
 def diagram(soup, block, image_name, number):
     label = DIAGRAM_LABELS[block_type(block)]
     if image_name:
@@ -175,6 +188,8 @@ def convert(html, diagram_images=()):
             callout(soup, block)
         elif kind in ("key_takeaways", "synthesis"):
             bullet_section(soup, block)
+        elif kind == "icon_list":
+            icon_list(soup, block)
         elif kind in DIAGRAM_LABELS:
             name = diagram_images[diagrams_seen] if diagrams_seen < len(diagram_images) else None
             diagrams_seen += 1

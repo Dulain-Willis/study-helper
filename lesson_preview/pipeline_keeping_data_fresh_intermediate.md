@@ -489,15 +489,11 @@ Concurrency 20 finishes far sooner, but 20 backfill slots plus the nightly 24 is
 
 ### Order, isolation and the cascade
 
-Newest first: recent dates carry most dashboard reads, so the first hours of the run fix what people look at.
-
-Do not retry a failed validation: it fails the same way again, and 3 retries would burn 54 task-minutes.
-
-Pin 1 code version for the whole run, or the history ends up computed under 2 different fare rules.
-
-Rerun every downstream table for each swapped date, or gold totals disagree with the silver rows beneath them.
-
-Announce the window: readers of a date mid-rebuild see the old values until its swap, then the new ones.
+- Newest first: recent dates carry most dashboard reads, so the first hours of the run fix what people look at.
+- Do not retry a failed validation: it fails the same way again, and 3 retries would burn 54 task-minutes.
+- Pin 1 code version for the whole run, or the history ends up computed under 2 different fare rules.
+- Rerun every downstream table for each swapped date, or gold totals disagree with the silver rows beneath them.
+- Announce the window: readers of a date mid-rebuild see the old values until its swap, then the new ones.
 
 ```sql
 backfill:

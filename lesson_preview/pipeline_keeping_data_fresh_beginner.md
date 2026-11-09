@@ -121,11 +121,9 @@ The incremental query asks the source what its rows look like now. Change data c
 
 ### What the timestamp query cannot see
 
-Deletes and writers that skip updated_at: the 2 blind spots from the previous section.
-
-Intermediate states: a trip that goes requested, accepted, cancelled between 2 runs arrives as 1 row, its path lost.
-
-Source load: each run queries production while it serves live riders, and indexing updated_at slows every write.
+- Deletes and writers that skip updated_at: the 2 blind spots from the previous section.
+- Intermediate states: a trip that goes requested, accepted, cancelled between 2 runs arrives as 1 row, its path lost.
+- Source load: each run queries production while it serves live riders, and indexing updated_at slows every write.
 
 Missed deletes decide most designs. A pipeline that misses deletes reports success on every run while the warehouse slowly fills with trips that no longer exist, and no error ever points at the cause.
 

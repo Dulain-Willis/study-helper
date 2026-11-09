@@ -242,13 +242,10 @@ Asynchronous replication means the Frankfurt copy lags Virginia by some interval
 
 When the question comes from compliance, the direction reverses: data must stay in the EU, and the global view must be built from what is allowed to leave. The pattern is compute where the data lives and ship only the non-personal result: each region builds its own aggregates with the identifiers stripped out, and a global job unions them. This also answers the cost question, because the aggregates are small, and it sets up the next section, where the identifiers themselves are the subject.
 
-Latency: quote the round trip and multiply by the number of sequential calls
-
-Egress: quote the per-gigabyte rate, then the monthly bytes, then the product
-
-Consistency: quote the lag, the single-writer rule, and the conflict policy if there are 2 writers
-
-Residency: compute in region, ship only aggregates, union globally
+- Latency: quote the round trip and multiply by the number of sequential calls
+- Egress: quote the per-gigabyte rate, then the monthly bytes, then the product
+- Consistency: quote the lag, the single-writer rule, and the conflict policy if there are 2 writers
+- Residency: compute in region, ship only aggregates, union globally
 
 > **TIP**
 >

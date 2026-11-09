@@ -55,13 +55,10 @@ A monotonic id works as the mark too, but only for tables that are append-only. 
 
 ### The 4 breaks the interviewer expects
 
-Clock skew: an app server 90 seconds behind its peers stamps a row before the mark, and that row is never loaded.
-
-Long transactions: a row committed at 03:02 is stamped 02:58, when its transaction opened, so a 03:00 mark skips it.
-
-Hard deletes: a removed row has no timestamp to cross the mark, so the warehouse copy outlives the source row.
-
-Wall-clock marks: storing the run's end time skips rows stamped after the query read but before the run finished.
+- Clock skew: an app server 90 seconds behind its peers stamps a row before the mark, and that row is never loaded.
+- Long transactions: a row committed at 03:02 is stamped 02:58, when its transaction opened, so a 03:00 mark skips it.
+- Hard deletes: a removed row has no timestamp to cross the mark, so the warehouse copy outlives the source row.
+- Wall-clock marks: storing the run's end time skips rows stamped after the query read but before the run finished.
 
 The fix for the first 3 breaks is a lookback: the run subtracts a window from the stored mark before querying, rereading rows it already has in exchange for catching stragglers whose timestamps fell behind. A window longer than the extraction itself also recovers what an end-time mark skipped, though the cleaner fix is to store the largest source value seen. Keeping the run's start time rereads instead of dropping, but only while the extractor's clock agrees with the database's: an extractor 2 minutes ahead opens a 2-minute hole. Deletes are the fourth break, and no window reaches them. Expect to defend the width of that window. It should exceed the longest transaction the source permits plus the worst clock drift between its writers, and every minute you add catches more stragglers but rereads more rows on every run. Say the source caps transactions at 15 minutes and its writers drift up to 90 seconds apart: a 30-minute window clears both, and on hourly runs it means rereading about half of each run's rows, roughly 670,000, to cover those cases. Rereading means duplicates in staging, so the merge step keeps the newest version of each key and discards the rest.
 
@@ -307,13 +304,10 @@ The interviewer scores 2 details in that loop. The generator yields the cursor a
 
 When the interviewer offers webhooks as the alternative, the scored answer treats them as the fast path and keeps a slow path beside them. A webhook arriving during your outage is retried by the vendor for a bounded period and then dropped, and vendors do send the same event twice. The pattern is to accept the webhook, write the raw body, acknowledge immediately, and run a reconciliation poll on a schedule with the change filter set a day back, deduplicating on the vendor's event id. The poll is the batch leg of a small hybrid, which is where the next section begins.
 
-'What if the vendor changes a field type?' Land the raw response first and parse in a separate step you can rerun.
-
-'How do you know you received everything?' Compare against a count endpoint, or run the reconciliation poll.
-
-'The rate limit is shared with 3 other teams.' One central client holds the budget; 4 independent ones fight over it.
-
-'Which time zone is updated_since in?' Send UTC, record what the vendor returns, and keep the overlap window.
+- 'What if the vendor changes a field type?' Land the raw response first and parse in a separate step you can rerun.
+- 'How do you know you received everything?' Compare against a count endpoint, or run the reconciliation poll.
+- 'The rate limit is shared with 3 other teams.' One central client holds the budget; 4 independent ones fight over it.
+- 'Which time zone is updated_since in?' Send UTC, record what the vendor returns, and keep the overlap window.
 
 > **TIP**
 >
@@ -379,13 +373,10 @@ WHERE s.event_date > b.last_batch_date
 
 The serving view is where the paths touch, and the interviewer checks the filters. If both branches could return the same date, totals double for that day. A view that hard-codes `current_date` as the boundary has the opposite bug: between midnight and the 02:00 batch, yesterday belongs to neither branch and drops off the dashboard, and a batch job 3 hours late stretches the hole past 5 hours. Keying the boundary on the latest date the batch table holds lets the stream serve every day batch has not closed, and a day changes owner the moment batch writes it. That answers 'what does the dashboard show while you fix it': the stream's number until batch replaces it, never a blank day and never a doubled one.
 
-A named boundary: which partition, date range or table each path owns.
-
-A tiebreak with a reason: batch wins because it runs later and sees late data.
-
-A correction route with a duration: rerun 3 days of batch, or replay from an offset.
-
-A storage bill: the raw store the batch reads, or the log retention the replay needs.
+- A named boundary: which partition, date range or table each path owns.
+- A tiebreak with a reason: batch wins because it runs later and sees late data.
+- A correction route with a duration: rerun 3 days of batch, or replay from an offset.
+- A storage bill: the raw store the batch reads, or the log retention the replay needs.
 
 > **TIP**
 >

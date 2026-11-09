@@ -11,6 +11,7 @@ The site builds a lesson from blocks, each tagged `data-note-block-type="<type>"
 | `big_number` | rule: bullets pairing figure and caption | Stat cards are two divs with no list semantics |
 | `tip`, `callout`, `fun_fact` | rule: blockquote | The box is a styled div; `tip` already prints its own TIP label, so the rule bolds it |
 | `key_takeaways`, `synthesis` | rule: `##` heading plus bullets | Bullets are drawn on a canvas, so the HTML holds plain divs and no `li` |
+| `icon_list` | rule: bullets | Rows of a decorative icon plus a sentence; the HTML has no list tags, so generic conversion left plain lines |
 | `pipeline_diagram`, `schema_diagram` | screenshot | HTML boxes layered with SVG arrows; no text structure survives conversion |
 
 ## Gotchas and their causes

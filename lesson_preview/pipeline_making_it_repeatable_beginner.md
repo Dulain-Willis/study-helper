@@ -418,15 +418,11 @@ Copying all of prod into staging doubles storage and copies every privacy obliga
 
 ### Where environment setups break
 
-A hardcoded analytics. table name in 1 query sends a dev test run's writes into prod.
-
-Staging shares prod's alert channel, so on-call is paged at 01:30 for a test failure.
-
-Dev credentials can write to prod for convenience, and a test truncates a prod table.
-
-Staging falls weeks behind prod, so a change passes against old schemas and fails on release.
-
-A backfill launched from a laptop with prod credentials skips review and the deploy pipeline.
+- A hardcoded analytics. table name in 1 query sends a dev test run's writes into prod.
+- Staging shares prod's alert channel, so on-call is paged at 01:30 for a test failure.
+- Dev credentials can write to prod for convenience, and a test truncates a prod table.
+- Staging falls weeks behind prod, so a change passes against old schemas and fails on release.
+- A backfill launched from a laptop with prod credentials skips review and the deploy pipeline.
 
 Each failure on that list is a broken isolation boundary. When an interviewer describes an incident like these, name the boundary that leaked, then the control that restores it: a variable for the table name, a separate alert channel, a credential without write access.
 
