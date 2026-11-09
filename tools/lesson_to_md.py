@@ -22,6 +22,15 @@ BASE = "https://datadriven.io/learn/"
 DIAGRAM_BLOCK = "pipeline_diagram"
 NOISE = ["script", "style", "nav", "footer", "button", "svg", "canvas", "head"]
 
+# Block types with a custom rule below, plus ones markdownify handles well as-is.
+# Anything else triggers a warning so a new rule can be added.
+CUSTOM_BLOCKS = {"static_code", "big_number", "tip", "callout", "fun_fact", DIAGRAM_BLOCK}
+GENERIC_BLOCKS = {
+    "lesson_title", "learning_objectives", "section_header", "h3", "body_text",
+    "rich_text", "static_table", "side_by_side_tables", "comparison", "info_list",
+    "best_practices", "synthesis", "key_takeaways",
+}
+
 
 def block_type(tag):
     return tag.get("data-note-block-type")
@@ -37,6 +46,9 @@ def clean(soup):
         src = img.get("src", "")
         if "data_icons" in src or "logo" in src:
             img.decompose()
+    # the site puts a triangle in each list item; markdown adds its own bullet
+    for text in soup.find_all(string=lambda s: s and s.lstrip().startswith("▸")):
+        text.replace_with(text.lstrip().lstrip("▸").lstrip())
 
 
 def code_block(soup, block):
@@ -63,9 +75,14 @@ def big_numbers(soup, block):
 def callout(soup, block, label=None):
     quote = soup.new_tag("blockquote")
     if label:
-        p = soup.new_tag("p")
-        p.append(BeautifulSoup(f"<strong>{label}</strong>", "html.parser"))
-        quote.append(p)
+        # the site already prints the label inside the box; bold it, don't repeat it
+        existing = block.find(string=lambda s: s and s.strip().upper() == label)
+        if existing:
+            existing.replace_with(BeautifulSoup(f"<strong>{label}</strong>", "html.parser"))
+        else:
+            p = soup.new_tag("p")
+            p.append(BeautifulSoup(f"<strong>{label}</strong>", "html.parser"))
+            quote.append(p)
     for child in list(block.children):
         quote.append(child.extract())
     block.replace_with(quote)
@@ -87,6 +104,9 @@ def convert(html, diagram_image=None):
     clean(soup)
     for block in soup.find_all(attrs={"data-note-block-type": True}):
         kind = block_type(block)
+        if kind not in CUSTOM_BLOCKS | GENERIC_BLOCKS:
+            print(f"warning: no rule for block type '{kind}'; used generic conversion",
+                  file=sys.stderr)
         if kind == "static_code":
             code_block(soup, block)
         elif kind == "big_number":
@@ -102,7 +122,25 @@ def convert(html, diagram_image=None):
         if div.get_text(strip=True) in ("Daily Life", "Interviews") and not div.find("div"):
             div.decompose()
     md = markdownify(str(soup), heading_style="ATX", bullets="-", code_language="sql")
-    return "\n".join(line.rstrip() for line in md.splitlines()).strip() + "\n"
+    return add_section_breaks(md)
+
+
+def add_section_breaks(md):
+    """A rule above each section (##) and a gap above each mini header (###).
+
+    Blank lines alone collapse in Markdown, so the breaks must be visible.
+    """
+    out, in_code = [], False
+    for line in (l.rstrip() for l in md.splitlines()):
+        if line.startswith("```"):
+            in_code = not in_code
+        if not in_code and out:
+            if line.startswith("## "):
+                out += ["", "---", ""]
+            elif line.startswith("### "):
+                out += ["", "<br>", ""]
+        out.append(line)
+    return "\n".join(out).strip() + "\n"
 
 
 def screenshot_diagrams(url, out_dir):
