@@ -24,11 +24,14 @@ NOISE = ["script", "style", "nav", "footer", "button", "svg", "canvas", "head"]
 
 # Block types with a custom rule below, plus ones markdownify handles well as-is.
 # Anything else triggers a warning so a new rule can be added.
-CUSTOM_BLOCKS = {"static_code", "big_number", "tip", "callout", "fun_fact", DIAGRAM_BLOCK}
+CUSTOM_BLOCKS = {
+    "static_code", "big_number", "tip", "callout", "fun_fact", "key_takeaways",
+    "synthesis", DIAGRAM_BLOCK,
+}
 GENERIC_BLOCKS = {
     "lesson_title", "learning_objectives", "section_header", "h3", "body_text",
     "rich_text", "static_table", "side_by_side_tables", "comparison", "info_list",
-    "best_practices", "synthesis", "key_takeaways",
+    "best_practices",
 }
 
 
@@ -88,6 +91,39 @@ def callout(soup, block, label=None):
     block.replace_with(quote)
 
 
+def bullet_section(soup, block):
+    """Key takeaways / putting it all together: a titled section of bullets.
+
+    The site draws the bullets on a canvas, so the HTML has plain divs, not
+    list items. Items are the long outermost spans; the title is the short
+    all-caps span (with any decorative arrows removed).
+    """
+    title, items = None, []
+    for span in block.find_all("span"):
+        text = span.get_text(" ", strip=True).replace("❯", "").strip()
+        if span.find_parent("span") or span.find("div") or not text:
+            continue
+        if len(text) >= 40:
+            items.append(text)
+        elif text.isupper() and not title:
+            title = text.title()
+    section = soup.new_tag("div")
+    heading = soup.new_tag("h2")
+    heading.string = title or "Summary"
+    section.append(heading)
+    intro = block.find("p")
+    if intro:
+        intro.string = intro.get_text(strip=True).removeprefix(">").strip()
+        section.append(intro.extract())
+    ul = soup.new_tag("ul")
+    for text in items:
+        li = soup.new_tag("li")
+        li.string = text
+        ul.append(li)
+    section.append(ul)
+    block.replace_with(section)
+
+
 def diagram(soup, block, image_name):
     if image_name:
         p = soup.new_tag("p")
@@ -115,6 +151,8 @@ def convert(html, diagram_image=None):
             callout(soup, block, "TIP")
         elif kind in ("callout", "fun_fact"):
             callout(soup, block)
+        elif kind in ("key_takeaways", "synthesis"):
+            bullet_section(soup, block)
         elif kind == DIAGRAM_BLOCK:
             diagram(soup, block, diagram_image)
     # star ratings are canvas-drawn by JS; the bare labels carry no content
@@ -126,19 +164,22 @@ def convert(html, diagram_image=None):
 
 
 def add_section_breaks(md):
-    """A rule above each section (##) and a gap above each mini header (###).
+    """A gap and a rule above each section (##), a gap above each mini header (###).
 
     Blank lines alone collapse in Markdown, so the breaks must be visible.
+    Nothing goes below a section header: a mini header right after one gets no gap.
     """
-    out, in_code = [], False
+    out, in_code, last_heading = [], False, 0
     for line in (l.rstrip() for l in md.splitlines()):
         if line.startswith("```"):
             in_code = not in_code
         if not in_code and out:
             if line.startswith("## "):
-                out += ["", "---", ""]
-            elif line.startswith("### "):
+                out += ["", "<br>", "", "---", ""]
+            elif line.startswith("### ") and last_heading != 2:
                 out += ["", "<br>", ""]
+        if not in_code and line.strip():
+            last_heading = 2 if line.startswith("## ") else 3 if line.startswith("### ") else 0
         out.append(line)
     return "\n".join(out).strip() + "\n"
 
