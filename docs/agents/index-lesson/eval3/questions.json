@@ -1,0 +1,747 @@
+[
+ {
+  "lesson": "pa_pattern_backpressure_scaling.md",
+  "question": "Our traffic goes to twice normal for about 10 minutes at peak. Will the queue hold it, or do we need extra machines?",
+  "expected_ranges": [
+   [
+    41,
+    41
+   ]
+  ],
+  "key_points": [
+   "A 10-minute burst at 2x fits inside any queue with retention",
+   "A sustained 2x does not fit, because every second adds to a backlog that never shrinks"
+  ],
+  "id": "q1"
+ },
+ {
+  "lesson": "pa_pattern_backpressure_scaling.md",
+  "question": "My worker keeps incoming records in a plain in-memory list while its lookup threads work through them. When lookups slow down, memory climbs until the process dies. Why isn't the list limiting anything?",
+  "expected_ranges": [
+   [
+    130,
+    130
+   ]
+  ],
+  "key_points": [
+   "If the list has no limit, the fetch loop keeps pulling at the arrival rate no matter how fast enrichment drains it"
+  ],
+  "id": "q2"
+ },
+ {
+  "lesson": "pa_pattern_backpressure_scaling.md",
+  "question": "We have 24 slices of our queue and I'm adding a 25th worker to speed up processing. Will the new worker pick up work at all?",
+  "expected_ranges": [
+   [
+    217,
+    217
+   ]
+  ],
+  "key_points": [
+   "With 24 partitions, the 25th consumer receives no assignment and idles",
+   "Partition count is the ceiling on consumer parallelism"
+  ],
+  "id": "q3"
+ },
+ {
+  "lesson": "pa_pattern_backpressure_scaling.md",
+  "question": "Our workers sit around 30 percent processor usage while the backlog keeps climbing, and our rule that adds machines at 70 percent never kicks in. Why is the rule blind?",
+  "expected_ranges": [
+   [
+    299,
+    299
+   ]
+  ],
+  "key_points": [
+   "CPU sits around 30% while lag climbs at 20,000 events per second",
+   "A rule that scales out at 70% CPU never fires"
+  ],
+  "id": "q4"
+ },
+ {
+  "lesson": "pa_pattern_backpressure_scaling.md",
+  "question": "Our pipeline was offline for half an hour at peak. Once it is back, how do I work out how long it takes to get current? Is it the slowest stage's rate minus what keeps arriving?",
+  "expected_ranges": [
+   [
+    392,
+    392
+   ]
+  ],
+  "key_points": [
+   "The drain rate is the smallest stage capacity minus the 80,000 still arriving",
+   "Consumers are only one of the stages in that minimum"
+  ],
+  "id": "q5"
+ },
+ {
+  "lesson": "pa_pattern_batch_or_stream_intermediate.md",
+  "question": "Our hourly run takes 10 minutes. If an order comes in just after a run starts, how long until it shows up, and does a one-hour target allow that?",
+  "expected_ranges": [
+   [
+    47,
+    47
+   ]
+  ],
+  "key_points": [
+   "An hourly job running 10 minutes has a worst case of 70 minutes after the event",
+   "Streaming is worth its cost when the SLA is shorter than the worst case of the fastest batch cadence you can afford"
+  ],
+  "id": "q6"
+ },
+ {
+  "lesson": "pa_pattern_batch_or_stream_intermediate.md",
+  "question": "Our two result tables overlap for recent hours. Merging them for a dashboard, should I keep the fast table's rows for hours the slow table already covered?",
+  "expected_ranges": [
+   [
+    105,
+    105
+   ]
+  ],
+  "key_points": [
+   "The speed view holds every hour the stream has seen, including hours the batch has since recomputed",
+   "The merge must cut the speed view at the batch boundary"
+  ],
+  "id": "q7"
+ },
+ {
+  "lesson": "pa_pattern_batch_or_stream_intermediate.md",
+  "question": "My timing check for windowed counts passes on my laptop, then fails on busy evenings once traffic shape changes. I'm reading the time from the computer clock. Is that the problem?",
+  "expected_ranges": [
+   [
+    207,
+    207
+   ]
+  ],
+  "key_points": [
+   "A test that fixes the clock to the laptop's wall clock passes locally and fails on the first evening the traffic pattern changes",
+   "Replay drives the clock from the fixture, not the machine"
+  ],
+  "id": "q8"
+ },
+ {
+  "lesson": "pa_pattern_batch_or_stream_intermediate.md",
+  "question": "Our rider ETA must refresh within 2 seconds. If the engine wakes up every second to process what arrived, does the 99th percentile still fit under 2 seconds?",
+  "expected_ranges": [
+   [
+    380,
+    380
+   ]
+  ],
+  "key_points": [
+   "A 1 second trigger plus a 1 second run gives a p99 near 2.5 seconds, over the 2 second target",
+   "The micro-batch model fails on the tail while passing on the median"
+  ],
+  "id": "q9"
+ },
+ {
+  "lesson": "pa_pattern_batch_or_stream_intermediate.md",
+  "question": "After our process dies, the saved snapshot of offsets and state is from a few seconds back. Which records get processed a second time, and why are none lost?",
+  "expected_ranges": [
+   [
+    459,
+    459
+   ]
+  ],
+  "key_points": [
+   "Events after the checkpoint are reprocessed, never lost, because the log retains them"
+  ],
+  "id": "q10"
+ },
+ {
+  "lesson": "pa_pattern_cdc_dual_writes.md",
+  "question": "Our nightly reload of the orders table keeps showing test orders that the QA cleanup job already removed. Couldn't we just compare each night's table contents with yesterday's and drop whatever disappeared?",
+  "expected_ranges": [
+   [
+    74,
+    74
+   ]
+  ],
+  "key_points": [
+   "Only the transaction log or an explicit delete event carries a hard delete.",
+   "A comparison of table contents cannot see rows the source removed."
+  ],
+  "id": "q11"
+ },
+ {
+  "lesson": "pa_pattern_cdc_dual_writes.md",
+  "question": "After my connector restarts, some order events arrive a second time. What should the consumer remember so it doesn't apply them twice?",
+  "expected_ranges": [
+   [
+    161,
+    161
+   ]
+  ],
+  "key_points": [
+   "Keep the highest LSN applied per order_id and skip anything at or below it.",
+   "A crash after acknowledgement and before the offset save causes everything in between to be published again."
+  ],
+  "id": "q12"
+ },
+ {
+  "lesson": "pa_pattern_cdc_dual_writes.md",
+  "question": "My incremental job pulls rows whose timestamp is newer than the last run, but an order that a batch process updated a while ago never reaches the target. The timestamps look correct. How wide should the pull window be?",
+  "expected_ranges": [
+   [
+    264,
+    264
+   ]
+  ],
+  "key_points": [
+   "Query from the saved point minus a margin longer than the longest transaction, here 5 minutes.",
+   "A batch job holding a transaction open for 20 minutes defeats a 5-minute lookback without a warning."
+  ],
+  "id": "q13"
+ },
+ {
+  "lesson": "pa_pattern_cdc_dual_writes.md",
+  "question": "Two requests for the same order arrive a moment apart, both succeed, and the search index ends up showing the older status. Nothing errored. What is going on?",
+  "expected_ranges": [
+   [
+    347,
+    347
+   ]
+  ],
+  "key_points": [
+   "Two concurrent requests can reorder the second update even with zero failures."
+  ],
+  "id": "q14"
+ },
+ {
+  "lesson": "pa_pattern_cdc_dual_writes.md",
+  "question": "We re-ran an old historical load and some orders that had already been cancelled flipped back to paid in the final table. Live updates were fine. What rule should the final step enforce?",
+  "expected_ranges": [
+   [
+    412,
+    412
+   ]
+  ],
+  "key_points": [
+   "A backfill can overwrite newer rows unless apply is monotonic.",
+   "Monotonic apply means a row changes only for a higher LSN."
+  ],
+  "id": "q15"
+ },
+ {
+  "lesson": "pa_pattern_idempotency.md",
+  "question": "My job that appends daily charges to the revenue table got killed right after the inserts finished but before it recorded success. The scheduler retried it, and now revenue is doubled. Why didn't the retry notice?",
+  "expected_ranges": [
+   [
+    77,
+    77
+   ]
+  ],
+  "key_points": [
+   "An append cannot tell a retry from new data.",
+   "Safe designs tie the write to an identity the retry can recognize, such as a slice it replaces or a row key it matches."
+  ],
+  "id": "q16"
+ },
+ {
+  "lesson": "pa_pattern_idempotency.md",
+  "question": "A replayed batch of older change records is overwriting a refund that already landed in our revenue table. What condition on the update stops a stale batch from clobbering fresher rows?",
+  "expected_ranges": [
+   [
+    227,
+    227
+   ]
+  ],
+  "key_points": [
+   "The condition s.version > t.version stops a stale batch from overwriting fresher rows."
+  ],
+  "id": "q17"
+ },
+ {
+  "lesson": "pa_pattern_idempotency.md",
+  "question": "After our consumer restarts I'm worried we'll lose records if we save our position before saving the output. Which order keeps records from being lost, and what does the other order cost?",
+  "expected_ranges": [
+   [
+    313,
+    314
+   ]
+  ],
+  "key_points": [
+   "Saving position before writing output skips records for good (at-most-once).",
+   "Writing output before saving position reprocesses records after a restart (at-least-once)."
+  ],
+  "id": "q18"
+ },
+ {
+  "lesson": "pa_pattern_idempotency.md",
+  "question": "After our real-time job restarts, customers get the same payment-failed email twice, though the database rows are correct. Why does that happen, and what should each email request carry?",
+  "expected_ranges": [
+   [
+    433,
+    433
+   ]
+  ],
+  "key_points": [
+   "Payout calls, emails and webhooks cannot share a transaction with your offsets, so a restart sends them again.",
+   "Receiver deduplication needs a key derived from the event, sent with each request."
+  ],
+  "id": "q19"
+ },
+ {
+  "lesson": "pa_pattern_idempotency.md",
+  "question": "How can I confirm that loading the same day's charges twice leaves the table identical, without comparing millions of rows one by one?",
+  "expected_ranges": [
+   [
+    511,
+    511
+   ]
+  ],
+  "key_points": [
+   "An order-insensitive checksum aggregate compares results without sorting rows.",
+   "The checksum must include every column the write sets, or a changed column passes the test."
+  ],
+  "id": "q20"
+ },
+ {
+  "lesson": "pa_pattern_schema_evolution.md",
+  "question": "My staging load copies a whole raw dataset into a typed copy using SELECT *; upstream just added an extra attribute. I assumed the load would line up attributes using their labels. Is that right?",
+  "expected_ranges": [
+   [
+    61,
+    61
+   ]
+  ],
+  "key_points": [
+   "INSERT ... SELECT * matches columns by position",
+   "The load succeeds only while both sides list them in the same order"
+  ],
+  "id": "q21"
+ },
+ {
+  "lesson": "pa_pattern_schema_evolution.md",
+  "question": "Someone insists an extra attribute carrying a fallback value is always safe for downstream pipelines. Our revenue total sums raw figures, each counting pennies. Would any standard review catch an incoming code that quietly shifts those numbers?",
+  "expected_ranges": [
+   [
+    84,
+    84
+   ]
+  ],
+  "key_points": [
+   "No compatibility rule inspects meaning",
+   "Yen has no minor unit, so 125,000 yen is booked as $1,250.00"
+  ],
+  "id": "q22"
+ },
+ {
+  "lesson": "pa_pattern_schema_evolution.md",
+  "question": "Our outbound feed serves an external partner who cannot redeploy quickly. Should that feed pick up freshly added items on its own?",
+  "expected_ranges": [
+   [
+    106,
+    106
+   ]
+  ],
+  "key_points": [
+   "Frozen explicit column list, versioned",
+   "An external reader cannot redeploy on your schedule"
+  ],
+  "id": "q23"
+ },
+ {
+  "lesson": "pa_pattern_schema_evolution.md",
+  "question": "During ingestion, some individual rows get rejected. Should that stop everything flowing through, or what do teams usually do?",
+  "expected_ranges": [
+   [
+    308,
+    308
+   ]
+  ],
+  "key_points": [
+   "Per-event quarantine plus a rate alarm",
+   "Page when more than 0.5% of events fail within 10 minutes"
+  ],
+  "id": "q24"
+ },
+ {
+  "lesson": "pa_pattern_schema_evolution.md",
+  "question": "We moved our bucketing from daily to hourly on this dataset. Do older daily files get rewritten? Do queries need updating?",
+  "expected_ranges": [
+   [
+    491,
+    491
+   ]
+  ],
+  "key_points": [
+   "New files are written hourly, old files keep their daily layout",
+   "Queries filter on created_at itself, so none of them change"
+  ],
+  "id": "q25"
+ },
+ {
+  "lesson": "pa_pattern_small_files.md",
+  "question": "Colleagues disagree about ideal sizes for columnar pieces that get read in large sweeps. Which range is common? Which value would this design choose?",
+  "expected_ranges": [
+   [
+    47,
+    47
+   ]
+  ],
+  "key_points": [
+   "Teams commonly choose between 128 MB and 512 MB",
+   "This lesson uses 256 MB"
+  ],
+  "id": "q26"
+ },
+ {
+  "lesson": "pa_pattern_small_files.md",
+  "question": "If consumers need data within a minute, would a separate maintenance step behind the writer be required?",
+  "expected_ranges": [
+   [
+    81,
+    81
+   ]
+  ],
+  "key_points": [
+   "A 1-minute freshness need forces a compaction step after the writer"
+  ],
+  "id": "q27"
+ },
+ {
+  "lesson": "pa_pattern_small_files.md",
+  "question": "I assumed each request charges about equal whether an object is 110 KB or 256 MB. Was I wrong?",
+  "expected_ranges": [
+   [
+    120,
+    120
+   ]
+  ],
+  "key_points": [
+   "None of these depend on how many bytes the file holds",
+   "A 110 KB file and a 256 MB file each cost 1 footer read"
+  ],
+  "id": "q28"
+ },
+ {
+  "lesson": "pa_pattern_small_files.md",
+  "question": "Pricing GET requests at 0.0004 dollars per thousand, roughly how much would yesterday's scan bill under per-minute writes? How much once merged into large pieces?",
+  "expected_ranges": [
+   [
+    137,
+    137
+   ]
+  ],
+  "key_points": [
+   "$0.23 in the 1-minute layout and $0.0001 compacted",
+   "Based on $0.0004 per 1,000 GET requests"
+  ],
+  "id": "q29"
+ },
+ {
+  "lesson": "pa_pattern_small_files.md",
+  "question": "Should I reorder rows during the rewrite using a single column, or only combine pieces? Which situations justify reordering?",
+  "expected_ranges": [
+   [
+    200,
+    200
+   ]
+  ],
+  "key_points": [
+   "Pick bin-packing by default",
+   "Sorting when a filter on one key is frequent and selective"
+  ],
+  "id": "q30"
+ },
+ {
+  "lesson": "pa_pattern_spark_deep_dive_intermediate.md",
+  "question": "If the main process holding my session crashes halfway through the nightly run, does the whole application die or can it recover? When a worker JVM dies instead, where do the pieces it was handling end up?",
+  "expected_ranges": [
+   [
+    75,
+    75
+   ]
+  ],
+  "key_points": [
+   "A driver crash fails the whole application because it holds the plan and the task bookkeeping",
+   "An executor's lost tasks are rerun elsewhere"
+  ],
+  "id": "q31"
+ },
+ {
+  "lesson": "pa_pattern_spark_deep_dive_intermediate.md",
+  "question": "My nightly run got much longer. In the breakdown, a single piece takes hours while the typical piece finishes in seconds. Which number should I compare to tell a normal spread from a real problem?",
+  "expected_ranges": [
+   [
+    123,
+    123
+   ]
+  ],
+  "key_points": [
+   "Max task duration 10x the median or more means one partition holds far more rows than the rest",
+   "The first change listed is to salt the key or enable adaptive skew join"
+  ],
+  "id": "q32"
+ },
+ {
+  "lesson": "pa_pattern_spark_deep_dive_intermediate.md",
+  "question": "My small lookup set is about 40 MB, yet the planner still sends both sides across the network to combine them and never broadcasts. Why not?",
+  "expected_ranges": [
+   [
+    157,
+    158
+   ]
+  ],
+  "key_points": [
+   "Broadcast needs a side under spark.sql.autoBroadcastJoinThreshold, which is 10 MB by default",
+   "Sort-merge is picked when both sides exceed the threshold"
+  ],
+  "id": "q33"
+ },
+ {
+  "lesson": "pa_pattern_spark_deep_dive_intermediate.md",
+  "question": "I have 16 machines with 16 cores and 64 GB each. Is a single giant process per machine a good idea? If not, pick the core count and heap for each smaller process.",
+  "expected_ranges": [
+   [
+    210,
+    210
+   ]
+  ],
+  "key_points": [
+   "Reserve 1 core and 1 GB per node, leaving 15 cores and 63 GB",
+   "Cap each process at 5 cores, giving 3 per node and 48 across 16 nodes"
+  ],
+  "id": "q34"
+ },
+ {
+  "lesson": "pa_pattern_spark_deep_dive_intermediate.md",
+  "question": "My combine step keeps piling almost everything into a single oversized chunk, and I hoped the engine would break it up on its own. Under which conditions does it do that automatically, and which version turned that on by default?",
+  "expected_ranges": [
+   [
+    293,
+    293
+   ]
+  ],
+  "key_points": [
+   "A chunk is split when it is larger than 5x the median and larger than 256 MB",
+   "Adaptive query execution has been on by default since Spark 3.2"
+  ],
+  "id": "q35"
+ },
+ {
+  "lesson": "pa_pattern_storage_question_intermediate.md",
+  "question": "Someone says the column-oriented storage is just a zipped copy of our CSV. A query that reads 3 columns out of 40 for one day seems to read far fewer bytes. Can the mechanism behind that be explained?",
+  "expected_ranges": [
+   [
+    33,
+    33
+   ]
+  ],
+  "key_points": [
+   "A query touching 3 of 40 columns reads about 3/40 of the bytes",
+   "The footer records the byte offset of every column chunk so the engine seeks straight to them"
+  ],
+  "id": "q36"
+ },
+ {
+  "lesson": "pa_pattern_storage_question_intermediate.md",
+  "question": "My teammate wants to split our activity records by country, which has around 200 values, and each country gets only a few megabytes a day. Which rule decides whether a column is worth splitting on?",
+  "expected_ranges": [
+   [
+    188,
+    189
+   ]
+  ],
+  "key_points": [
+   "Distinct values should stay in the hundreds or low thousands",
+   "Each value should hold at least 1 GB over the lifetime of the table"
+  ],
+  "id": "q37"
+ },
+ {
+  "lesson": "pa_pattern_storage_question_intermediate.md",
+  "question": "Our overwritten rows stick around so we can roll back. Suppose we rewind to last Tuesday. By default, the cleanup job keeps the old versions for a retention window of which length?",
+  "expected_ranges": [
+   [
+    284,
+    284
+   ]
+  ],
+  "key_points": [
+   "VACUUM removes files older than the retention window, which is 7 days by default",
+   "expire_snapshots removes snapshots and the files only they reference"
+  ],
+  "id": "q38"
+ },
+ {
+  "lesson": "pa_pattern_storage_question_intermediate.md",
+  "question": "Our team is weighing keeping everything on cheap object storage with any engine reading it. Which operational chores would we own that a managed service normally handles?",
+  "expected_ranges": [
+   [
+    339,
+    339
+   ]
+  ],
+  "key_points": [
+   "Compaction schedules, statistics collection and retention windows become the team's job",
+   "A warehouse would run those unseen"
+  ],
+  "id": "q39"
+ },
+ {
+  "lesson": "pa_pattern_storage_question_intermediate.md",
+  "question": "Our dashboard fires about 1,000 queries a day. Someone is budgeting from the per-gigabyte storage rate alone. Which charge should we budget for instead, and which per-day total does a full-year columnar scan with no date filter reach at the scan price?",
+  "expected_ranges": [
+   [
+    413,
+    413
+   ]
+  ],
+  "key_points": [
+   "Engines billing per TB scanned list around $5 per TB",
+   "A full-year Parquet scan of 18.25 TB costs $91, so 1,000 queries a day is $91,000 a day"
+  ],
+  "id": "q40"
+ },
+ {
+  "lesson": "pa_pattern_dead_letter_queue.md",
+  "question": "Our reader process crashes every single time it restarts, and it dies at the same spot on each run. What is usually behind a restart loop like that?",
+  "expected_ranges": [
+   [
+    35,
+    35
+   ]
+  ],
+  "key_points": [
+   "A crash on every restart is called the poison pill",
+   "The restart loop is listed as one of the disguises of the bad-record question"
+  ],
+  "id": "q41"
+ },
+ {
+  "lesson": "pa_pattern_dead_letter_queue.md",
+  "question": "When we pull a failing event aside so the rest of our feed keeps flowing, what do we give up?",
+  "expected_ranges": [
+   [
+    54,
+    54
+   ]
+  ],
+  "key_points": [
+   "The diverted record comes out of order relative to its neighbors",
+   "A consumer that depends on per-key ordering needs a plan for when the record returns"
+  ],
+  "id": "q42"
+ },
+ {
+  "lesson": "pa_pattern_dead_letter_queue.md",
+  "question": "My pipeline is reading a failing record and I'm worried about a crash in between. Should I save the failed record's details first, or move my read position forward first?",
+  "expected_ranges": [
+   [
+    110,
+    110
+   ]
+  ],
+  "key_points": [
+   "Write the failed-record envelope before committing the source offset, never after",
+   "If the order is reversed, the record is lost with nothing to show for it"
+  ],
+  "id": "q43"
+ },
+ {
+  "lesson": "pa_pattern_dead_letter_queue.md",
+  "question": "One of our upstream teams suddenly sends ten times its usual share of unusable records, sustained for five minutes. Who should get paged?",
+  "expected_ranges": [
+   [
+    121,
+    121
+   ]
+  ],
+  "key_points": [
+   "A producer above 10x its own baseline for 5 minutes pages the consumer on-call",
+   "The page goes to the consumer on-call because that producer most likely changed"
+  ],
+  "id": "q44"
+ },
+ {
+  "lesson": "pa_pattern_dead_letter_queue.md",
+  "question": "Our team is debating whether a feed that nothing reconciles against, with no payouts or signed reports depending on it, deserves the whole recovery setup or whether we can just drop the invalid events behind a counter.",
+  "expected_ranges": [
+   [
+    333,
+    333
+   ]
+  ],
+  "key_points": [
+   "If none of the three questions is a yes, a drop behind a counter is the correct design",
+   "A yes to any one of the three questions justifies the path"
+  ],
+  "id": "q45"
+ },
+ {
+  "lesson": "pa_pattern_incremental_loading_intermediate.md",
+  "question": "We have a 48,000 product table where only about 300 records get modified each day, and the last-modified timestamp is reliable. A teammate wants to pull only the recently modified records instead of reloading. A complete reload takes 40 seconds. Should we bother?",
+  "expected_ranges": [
+   [
+    71,
+    71
+   ]
+  ],
+  "key_points": [
+   "The 40 seconds of reload is cheaper than any watermark logic, so the table stays on full reloads",
+   "A reliable change column and a small change ratio do not by themselves make the timestamp-pull choice right"
+  ],
+  "id": "q46"
+ },
+ {
+  "lesson": "pa_pattern_incremental_loading_intermediate.md",
+  "question": "Our cleanup job permanently removes cancelled sales records from the upstream database each night. My timestamp-based pull keeps them around in the warehouse and nothing errors. Why does the pull miss the removal?",
+  "expected_ranges": [
+   [
+    117,
+    117
+   ]
+  ],
+  "key_points": [
+   "A removed record fails the existence test before its change column is ever checked",
+   "Nothing logs an error, since from the pipeline's point of view nothing happened"
+  ],
+  "id": "q47"
+ },
+ {
+  "lesson": "pa_pattern_incremental_loading_intermediate.md",
+  "question": "A record we update inside a long transaction gets a timestamp from when the statement ran, but my reader only sees it once the transaction is finalized. Could my saved position already be past it by then?",
+  "expected_ranges": [
+   [
+    224,
+    225
+   ]
+  ],
+  "key_points": [
+   "The timestamp is written when the statement runs, inside the transaction",
+   "The record becomes visible only when the transaction commits, which can be seconds or minutes later"
+  ],
+  "id": "q48"
+ },
+ {
+  "lesson": "pa_pattern_incremental_loading_intermediate.md",
+  "question": "My rerun for last quarter keeps processing today's day, no matter which day I pass in. Where is it going wrong?",
+  "expected_ranges": [
+   [
+    355,
+    355
+   ]
+  ],
+  "key_points": [
+   "The date must arrive from the orchestrator, never from current_date inside the query",
+   "A task that computes its own date processes today every time it runs"
+  ],
+  "id": "q49"
+ },
+ {
+  "lesson": "pa_pattern_incremental_loading_intermediate.md",
+  "question": "We edit our subscriber dimension in place. When an address update for a subscriber arrives out of order, our report sometimes finds two current addresses or a validity period running backwards. What's going wrong?",
+  "expected_ranges": [
+   [
+    516,
+    516
+   ]
+  ],
+  "key_points": [
+   "Editing the dimension in place with an out-of-order version can produce two current rows or an interval running backwards",
+   "An append-only log with intervals derived by LEAD lets a late version slot between its neighbors"
+  ],
+  "id": "q50"
+ }
+]

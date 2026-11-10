@@ -1,0 +1,202 @@
+[
+ {
+  "qid": "q10",
+  "question": "After our process dies, the saved snapshot of offsets and state is from a few seconds back. Which records get processed a second time, and why are none lost?"
+ },
+ {
+  "qid": "q44",
+  "question": "One of our upstream teams suddenly sends ten times its usual share of unusable records, sustained for five minutes. Who should get paged?"
+ },
+ {
+  "qid": "q40",
+  "question": "Our dashboard fires about 1,000 queries a day. Someone is budgeting from the per-gigabyte storage rate alone. Which charge should we budget for instead, and which per-day total does a full-year columnar scan with no date filter reach at the scan price?"
+ },
+ {
+  "qid": "q23",
+  "question": "Our outbound feed serves an external partner who cannot redeploy quickly. Should that feed pick up freshly added items on its own?"
+ },
+ {
+  "qid": "q11",
+  "question": "Our nightly reload of the orders table keeps showing test orders that the QA cleanup job already removed. Couldn't we just compare each night's table contents with yesterday's and drop whatever disappeared?"
+ },
+ {
+  "qid": "q36",
+  "question": "Someone says the column-oriented storage is just a zipped copy of our CSV. A query that reads 3 columns out of 40 for one day seems to read far fewer bytes. Can the mechanism behind that be explained?"
+ },
+ {
+  "qid": "q43",
+  "question": "My pipeline is reading a failing record and I'm worried about a crash in between. Should I save the failed record's details first, or move my read position forward first?"
+ },
+ {
+  "qid": "q39",
+  "question": "Our team is weighing keeping everything on cheap object storage with any engine reading it. Which operational chores would we own that a managed service normally handles?"
+ },
+ {
+  "qid": "q12",
+  "question": "After my connector restarts, some order events arrive a second time. What should the consumer remember so it doesn't apply them twice?"
+ },
+ {
+  "qid": "q25",
+  "question": "We moved our bucketing from daily to hourly on this dataset. Do older daily files get rewritten? Do queries need updating?"
+ },
+ {
+  "qid": "q19",
+  "question": "After our real-time job restarts, customers get the same payment-failed email twice, though the database rows are correct. Why does that happen, and what should each email request carry?"
+ },
+ {
+  "qid": "q28",
+  "question": "I assumed each request charges about equal whether an object is 110 KB or 256 MB. Was I wrong?"
+ },
+ {
+  "qid": "q37",
+  "question": "My teammate wants to split our activity records by country, which has around 200 values, and each country gets only a few megabytes a day. Which rule decides whether a column is worth splitting on?"
+ },
+ {
+  "qid": "q3",
+  "question": "We have 24 slices of our queue and I'm adding a 25th worker to speed up processing. Will the new worker pick up work at all?"
+ },
+ {
+  "qid": "q34",
+  "question": "I have 16 machines with 16 cores and 64 GB each. Is a single giant process per machine a good idea? If not, pick the core count and heap for each smaller process."
+ },
+ {
+  "qid": "q35",
+  "question": "My combine step keeps piling almost everything into a single oversized chunk, and I hoped the engine would break it up on its own. Under which conditions does it do that automatically, and which version turned that on by default?"
+ },
+ {
+  "qid": "q45",
+  "question": "Our team is debating whether a feed that nothing reconciles against, with no payouts or signed reports depending on it, deserves the whole recovery setup or whether we can just drop the invalid events behind a counter."
+ },
+ {
+  "qid": "q42",
+  "question": "When we pull a failing event aside so the rest of our feed keeps flowing, what do we give up?"
+ },
+ {
+  "qid": "q41",
+  "question": "Our reader process crashes every single time it restarts, and it dies at the same spot on each run. What is usually behind a restart loop like that?"
+ },
+ {
+  "qid": "q15",
+  "question": "We re-ran an old historical load and some orders that had already been cancelled flipped back to paid in the final table. Live updates were fine. What rule should the final step enforce?"
+ },
+ {
+  "qid": "q8",
+  "question": "My timing check for windowed counts passes on my laptop, then fails on busy evenings once traffic shape changes. I'm reading the time from the computer clock. Is that the problem?"
+ },
+ {
+  "qid": "q17",
+  "question": "A replayed batch of older change records is overwriting a refund that already landed in our revenue table. What condition on the update stops a stale batch from clobbering fresher rows?"
+ },
+ {
+  "qid": "q5",
+  "question": "Our pipeline was offline for half an hour at peak. Once it is back, how do I work out how long it takes to get current? Is it the slowest stage's rate minus what keeps arriving?"
+ },
+ {
+  "qid": "q38",
+  "question": "Our overwritten rows stick around so we can roll back. Suppose we rewind to last Tuesday. By default, the cleanup job keeps the old versions for a retention window of which length?"
+ },
+ {
+  "qid": "q26",
+  "question": "Colleagues disagree about ideal sizes for columnar pieces that get read in large sweeps. Which range is common? Which value would this design choose?"
+ },
+ {
+  "qid": "q2",
+  "question": "My worker keeps incoming records in a plain in-memory list while its lookup threads work through them. When lookups slow down, memory climbs until the process dies. Why isn't the list limiting anything?"
+ },
+ {
+  "qid": "q47",
+  "question": "Our cleanup job permanently removes cancelled sales records from the upstream database each night. My timestamp-based pull keeps them around in the warehouse and nothing errors. Why does the pull miss the removal?"
+ },
+ {
+  "qid": "q6",
+  "question": "Our hourly run takes 10 minutes. If an order comes in just after a run starts, how long until it shows up, and does a one-hour target allow that?"
+ },
+ {
+  "qid": "q20",
+  "question": "How can I confirm that loading the same day's charges twice leaves the table identical, without comparing millions of rows one by one?"
+ },
+ {
+  "qid": "q48",
+  "question": "A record we update inside a long transaction gets a timestamp from when the statement ran, but my reader only sees it once the transaction is finalized. Could my saved position already be past it by then?"
+ },
+ {
+  "qid": "q31",
+  "question": "If the main process holding my session crashes halfway through the nightly run, does the whole application die or can it recover? When a worker JVM dies instead, where do the pieces it was handling end up?"
+ },
+ {
+  "qid": "q29",
+  "question": "Pricing GET requests at 0.0004 dollars per thousand, roughly how much would yesterday's scan bill under per-minute writes? How much once merged into large pieces?"
+ },
+ {
+  "qid": "q30",
+  "question": "Should I reorder rows during the rewrite using a single column, or only combine pieces? Which situations justify reordering?"
+ },
+ {
+  "qid": "q21",
+  "question": "My staging load copies a whole raw dataset into a typed copy using SELECT *; upstream just added an extra attribute. I assumed the load would line up attributes using their labels. Is that right?"
+ },
+ {
+  "qid": "q49",
+  "question": "My rerun for last quarter keeps processing today's day, no matter which day I pass in. Where is it going wrong?"
+ },
+ {
+  "qid": "q18",
+  "question": "After our consumer restarts I'm worried we'll lose records if we save our position before saving the output. Which order keeps records from being lost, and what does the other order cost?"
+ },
+ {
+  "qid": "q50",
+  "question": "We edit our subscriber dimension in place. When an address update for a subscriber arrives out of order, our report sometimes finds two current addresses or a validity period running backwards. What's going wrong?"
+ },
+ {
+  "qid": "q7",
+  "question": "Our two result tables overlap for recent hours. Merging them for a dashboard, should I keep the fast table's rows for hours the slow table already covered?"
+ },
+ {
+  "qid": "q46",
+  "question": "We have a 48,000 product table where only about 300 records get modified each day, and the last-modified timestamp is reliable. A teammate wants to pull only the recently modified records instead of reloading. A complete reload takes 40 seconds. Should we bother?"
+ },
+ {
+  "qid": "q22",
+  "question": "Someone insists an extra attribute carrying a fallback value is always safe for downstream pipelines. Our revenue total sums raw figures, each counting pennies. Would any standard review catch an incoming code that quietly shifts those numbers?"
+ },
+ {
+  "qid": "q32",
+  "question": "My nightly run got much longer. In the breakdown, a single piece takes hours while the typical piece finishes in seconds. Which number should I compare to tell a normal spread from a real problem?"
+ },
+ {
+  "qid": "q4",
+  "question": "Our workers sit around 30 percent processor usage while the backlog keeps climbing, and our rule that adds machines at 70 percent never kicks in. Why is the rule blind?"
+ },
+ {
+  "qid": "q14",
+  "question": "Two requests for the same order arrive a moment apart, both succeed, and the search index ends up showing the older status. Nothing errored. What is going on?"
+ },
+ {
+  "qid": "q13",
+  "question": "My incremental job pulls rows whose timestamp is newer than the last run, but an order that a batch process updated a while ago never reaches the target. The timestamps look correct. How wide should the pull window be?"
+ },
+ {
+  "qid": "q27",
+  "question": "If consumers need data within a minute, would a separate maintenance step behind the writer be required?"
+ },
+ {
+  "qid": "q9",
+  "question": "Our rider ETA must refresh within 2 seconds. If the engine wakes up every second to process what arrived, does the 99th percentile still fit under 2 seconds?"
+ },
+ {
+  "qid": "q33",
+  "question": "My small lookup set is about 40 MB, yet the planner still sends both sides across the network to combine them and never broadcasts. Why not?"
+ },
+ {
+  "qid": "q24",
+  "question": "During ingestion, some individual rows get rejected. Should that stop everything flowing through, or what do teams usually do?"
+ },
+ {
+  "qid": "q16",
+  "question": "My job that appends daily charges to the revenue table got killed right after the inserts finished but before it recorded success. The scheduler retried it, and now revenue is doubled. Why didn't the retry notice?"
+ },
+ {
+  "qid": "q1",
+  "question": "Our traffic goes to twice normal for about 10 minutes at peak. Will the queue hold it, or do we need extra machines?"
+ }
+]

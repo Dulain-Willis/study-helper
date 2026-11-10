@@ -1,0 +1,1 @@
+{"answer": "About 36 times more. A daily batch run on 20 nodes takes 40 minutes, about 13 node-hours per day. The same 20 nodes running a streaming job for all 24 hours use 480 node-hours per day, so streaming adds roughly 467 node-hours a day (about 36:1), before state store and checkpoint storage costs."}

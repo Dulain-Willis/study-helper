@@ -1,0 +1,1 @@
+{"answer": "About 36 times more compute. A daily batch run on 20 nodes takes 40 minutes, about 13 node-hours for 50M events. The same 20 nodes streaming all day run 24 hours, about 480 node-hours. The ratio is roughly 36 to 1, before adding state store and checkpoint storage costs."}

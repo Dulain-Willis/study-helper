@@ -1,0 +1,90 @@
+[
+  {
+    "id": "q1",
+    "lesson": "pa_pattern_batch_or_stream_intermediate.md",
+    "question": "Our ingestion runs in small cycles, each one planning its work and committing its progress. Roughly how long is the fixed setup and commit overhead per cycle on a typical cluster, and if I set the cycle to 2 s, what share of time goes to that overhead compared with 100 ms?",
+    "expected_ranges": [[345, 345]],
+    "key_points": [
+      "around 1 second on a typical cluster",
+      "a 2 second trigger spends half its time on overhead"
+    ],
+    "type": "buried"
+  },
+  {
+    "id": "q2",
+    "lesson": "pa_pattern_batch_or_stream_intermediate.md",
+    "question": "Our regional fleet dashboard must show each truck's position within 3 minutes of its report. Our operations group already runs the nightly processing cluster. Should I build a record-at-a-time path, and what settles the choice?",
+    "expected_ranges": [[370, 370]],
+    "key_points": [
+      "A trigger needs to be a fraction of the SLA",
+      "when both engines meet the SLA, the team decides"
+    ],
+    "type": "scenario"
+  },
+  {
+    "id": "q3",
+    "lesson": "pa_pattern_backpressure_scaling.md",
+    "question": "My workers finish records in a scrambled sequence across 10 threads. Where should my saved progress point sit, and if I save the highest finished position instead, what do I lose?",
+    "expected_ranges": [[161, 161]],
+    "key_points": [
+      "commit the lowest offset not yet written",
+      "so a crash replays work and loses none"
+    ],
+    "type": "buried"
+  },
+  {
+    "id": "q4",
+    "lesson": "pa_pattern_backpressure_scaling.md",
+    "question": "Our peak is 100,000 messages per second and each worker keeps up with 2,500 per second. I want enough parallel slots that one worker can drop out without falling behind. How many slots should I create, and what fraction of capacity should each worker run at?",
+    "expected_ranges": [[224, 224]],
+    "key_points": [
+      "Divide the peak rate by what one consumer can sustain while running at a target fraction of its capacity",
+      "The 0.7 leaves headroom for losing a consumer without falling behind"
+    ],
+    "type": "scenario"
+  },
+  {
+    "id": "q5",
+    "lesson": "pa_pattern_idempotency.md",
+    "question": "My extract picks up records by their last-modified time, and a long transaction could stamp a record before it commits. What lookback is safe, and what must the load step guarantee?",
+    "expected_ranges": [[358, 358]],
+    "key_points": [
+      "re-read a lookback longer than the longest transaction",
+      "The lookback is safe only because the write is idempotent"
+    ],
+    "type": "buried"
+  },
+  {
+    "id": "q6",
+    "lesson": "pa_pattern_idempotency.md",
+    "question": "Our nightly sales load adds the day's records to a summary table with a plain insert. Last week the job finished its insert but its success flag failed, so the scheduler started a second attempt, and yesterday's totals doubled. What property was missing, and which two designs would be safe?",
+    "expected_ranges": [[75, 75], [77, 77]],
+    "key_points": [
+      "An append has no way to tell a retry from new data",
+      "a slice it replaces, or a row key it matches"
+    ],
+    "type": "scenario"
+  },
+  {
+    "id": "q7",
+    "lesson": "pa_pattern_cdc_dual_writes.md",
+    "question": "My reader takes updates from the upstream store's commit record, publishes them to a topic in batches, and saves its position every 10 seconds. At 2,000 updates per second, if the process fails, how many events could arrive twice, and what should the receiving side remember per key?",
+    "expected_ranges": [[161, 161]],
+    "key_points": [
+      "a single crash resends up to 20,000 events",
+      "keep the highest LSN applied and skip anything at or below it"
+    ],
+    "type": "buried"
+  },
+  {
+    "id": "q8",
+    "lesson": "pa_pattern_cdc_dual_writes.md",
+    "question": "A developer plans to rename the amount field in our customer events to total_amount in one edit and says downstream readers will just adapt. What happens to the next events, and what sequence would I require?",
+    "expected_ranges": [[192, 192], [198, 198]],
+    "key_points": [
+      "removes amount from the next event",
+      "Rename in steps"
+    ],
+    "type": "scenario"
+  }
+]

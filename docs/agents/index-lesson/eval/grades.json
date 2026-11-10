@@ -1,0 +1,202 @@
+{
+ "A_q1": {
+  "hits": 4,
+  "total": 4
+ },
+ "A_q2": {
+  "hits": 3,
+  "total": 4
+ },
+ "A_q3": {
+  "hits": 4,
+  "total": 4
+ },
+ "A_q4": {
+  "hits": 4,
+  "total": 4
+ },
+ "A_q5": {
+  "hits": 3,
+  "total": 3
+ },
+ "A_q6": {
+  "hits": 3,
+  "total": 4
+ },
+ "A_q7": {
+  "hits": 4,
+  "total": 4
+ },
+ "A_q8": {
+  "hits": 3,
+  "total": 4
+ },
+ "A_q9": {
+  "hits": 4,
+  "total": 4
+ },
+ "A_q10": {
+  "hits": 4,
+  "total": 4
+ },
+ "B_q1": {
+  "hits": 4,
+  "total": 4
+ },
+ "B_q2": {
+  "hits": 4,
+  "total": 4
+ },
+ "B_q3": {
+  "hits": 4,
+  "total": 4
+ },
+ "B_q4": {
+  "hits": 4,
+  "total": 4
+ },
+ "B_q5": {
+  "hits": 3,
+  "total": 3
+ },
+ "B_q6": {
+  "hits": 4,
+  "total": 4
+ },
+ "B_q7": {
+  "hits": 4,
+  "total": 4
+ },
+ "B_q8": {
+  "hits": 3,
+  "total": 4
+ },
+ "B_q9": {
+  "hits": 4,
+  "total": 4
+ },
+ "B_q10": {
+  "hits": 4,
+  "total": 4
+ },
+ "C_q1": {
+  "hits": 4,
+  "total": 4
+ },
+ "C_q2": {
+  "hits": 4,
+  "total": 4
+ },
+ "C_q3": {
+  "hits": 4,
+  "total": 4
+ },
+ "C_q4": {
+  "hits": 4,
+  "total": 4
+ },
+ "C_q5": {
+  "hits": 3,
+  "total": 3
+ },
+ "C_q6": {
+  "hits": 4,
+  "total": 4
+ },
+ "C_q7": {
+  "hits": 4,
+  "total": 4
+ },
+ "C_q8": {
+  "hits": 3,
+  "total": 4
+ },
+ "C_q9": {
+  "hits": 4,
+  "total": 4
+ },
+ "C_q10": {
+  "hits": 4,
+  "total": 4
+ },
+ "D_q1": {
+  "hits": 4,
+  "total": 4
+ },
+ "D_q2": {
+  "hits": 3,
+  "total": 4
+ },
+ "D_q3": {
+  "hits": 4,
+  "total": 4
+ },
+ "D_q4": {
+  "hits": 4,
+  "total": 4
+ },
+ "D_q5": {
+  "hits": 3,
+  "total": 3
+ },
+ "D_q6": {
+  "hits": 4,
+  "total": 4
+ },
+ "D_q7": {
+  "hits": 4,
+  "total": 4
+ },
+ "D_q8": {
+  "hits": 3,
+  "total": 4
+ },
+ "D_q9": {
+  "hits": 4,
+  "total": 4
+ },
+ "D_q10": {
+  "hits": 4,
+  "total": 4
+ },
+ "E_q1": {
+  "hits": 3,
+  "total": 4
+ },
+ "E_q2": {
+  "hits": 3,
+  "total": 4
+ },
+ "E_q3": {
+  "hits": 4,
+  "total": 4
+ },
+ "E_q4": {
+  "hits": 4,
+  "total": 4
+ },
+ "E_q5": {
+  "hits": 3,
+  "total": 3
+ },
+ "E_q6": {
+  "hits": 4,
+  "total": 4
+ },
+ "E_q7": {
+  "hits": 4,
+  "total": 4
+ },
+ "E_q8": {
+  "hits": 3,
+  "total": 4
+ },
+ "E_q9": {
+  "hits": 4,
+  "total": 4
+ },
+ "E_q10": {
+  "hits": 4,
+  "total": 4
+ }
+}

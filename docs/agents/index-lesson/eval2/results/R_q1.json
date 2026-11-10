@@ -1,0 +1,1 @@
+{"answer": "About 1 second of fixed planning and offset-commit overhead per micro-batch cycle on a typical cluster. At a 2 second trigger, half the time (about 50%) goes to that overhead; at 100 ms it is almost all of the time (roughly 90% or more). Source: pa_pattern_batch_or_stream_intermediate.md, 'Micro-batch or True Streaming?' section."}
