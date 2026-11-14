@@ -221,19 +221,9 @@ At-most-once commits progress before the effect, or never confirms the effect at
 
 Weigh the cost of a duplicate against the cost of a loss at the volume the pipeline runs. At-most-once wins when a lost record barely moves the result, and a duplicate would either harm someone or cost more to prevent than the loss is worth.
 
-✓Fits at-most-once
-
-- Sampled telemetry, where 1 point in 10,000 missing changes no chart
-- Live dashboard tiles overwritten by the next value seconds later
-- Marketing pushes, where a second copy annoys more than a missed one costs
-- High-volume debug logs that would cost more to retry durably than they are worth
-
-✗Does not fit
-
-- Anything summed into money: charges, refunds, payouts
-- Training labels for a model, where loss becomes invisible bias
-- Audit trails a regulator can ask you to reproduce
-- Any stream whose consumers assume completeness
+| ✓ Fits at-most-once | ✗ Does not fit |
+| --- | --- |
+| • Sampled telemetry, where 1 point in 10,000 missing changes no chart<br><br>• Live dashboard tiles overwritten by the next value seconds later<br><br>• Marketing pushes, where a second copy annoys more than a missed one costs<br><br>• High-volume debug logs that would cost more to retry durably than they are worth | • Anything summed into money: charges, refunds, payouts<br><br>• Training labels for a model, where loss becomes invisible bias<br><br>• Audit trails a regulator can ask you to reproduce<br><br>• Any stream whose consumers assume completeness |
 
 At-most-once also lives at the producer. A producer configured to send without waiting for acknowledgment never retries, so it creates no duplicates, and any record in flight during a broker failover is gone. That setting suits sampled telemetry and is wrong for anything in the right column above.
 
@@ -347,19 +337,9 @@ The timeout row belongs in any complete answer, because it is where exactly-once
 
 The second family is at-least-once delivery into a sink keyed on the origin's event ID, the design from the duplicates section done carefully. Output is visible the moment it is written, with no checkpoint wait and no open transactions. The bill moves to the sink: a uniqueness check or upsert on every write, plus the dedup window for streaming paths. Both families can produce the same final table; they differ in where the cost lands and in what breaks them.
 
-✓Transactional commit
-
-- Output visible at checkpoint commit
-- No dedup state in the sink
-- Breaks when a sink lacks transactions or a timeout fires mid-recovery
-- Side effects outside the transaction still repeat
-
-✗Idempotent sink
-
-- Output visible on write
-- Needs a stable origin key on every event
-- Breaks when keys are regenerated or derived from the payload
-- Works with any sink that can upsert or reject a known key
+| ✓ Transactional commit | ✗ Idempotent sink |
+| --- | --- |
+| • Output visible at checkpoint commit<br><br>• No dedup state in the sink<br><br>• Breaks when a sink lacks transactions or a timeout fires mid-recovery<br><br>• Side effects outside the transaction still repeat | • Output visible on write<br><br>• Needs a stable origin key on every event<br><br>• Breaks when keys are regenerated or derived from the payload<br><br>• Works with any sink that can upsert or reject a known key |
 
 
 <br>
@@ -444,21 +424,9 @@ The last row fails closed, and you should defend that choice aloud. A halted led
 
 Payouts are money: exactly-once, through a transactional write with offsets or a payout table keyed on trip ID. Surge pricing reads demand over the last few minutes. A missed or repeated trip moves its multiplier by a fraction, so at-least-once on the replay the job already has is enough; freshness matters more than either guarantee. The rating prompt is a human-facing side effect where a duplicate annoys and a miss costs little, so at-most-once fits, unless the product team tracks prompt coverage, in which case a keyed send log gives at-least-once with dedup.
 
-✓Do
-
-- Mint the event ID where the event is born and carry it to every sink
-- Size duplicates per crash from throughput times commit interval
-- Fail closed on unparseable records and alert on lag
-- Reconcile source and sink counts for any sink that accepts loss
-- Set sink transaction timeouts above worst checkpoint plus recovery time
-
-✗Don't
-
-- Quote a broker setting as the pipeline's guarantee
-- Derive dedup keys from a hash of the payload
-- Pick 1 guarantee for every consumer of a stream
-- Let consumer lag approach log retention without a page
-- Assume exactly-once covers an external API call, whether it sends an email or fires a webhook
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Mint the event ID where the event is born and carry it to every sink<br><br>• Size duplicates per crash from throughput times commit interval<br><br>• Fail closed on unparseable records and alert on lag<br><br>• Reconcile source and sink counts for any sink that accepts loss<br><br>• Set sink transaction timeouts above worst checkpoint plus recovery time | • Quote a broker setting as the pipeline's guarantee<br><br>• Derive dedup keys from a hash of the payload<br><br>• Pick 1 guarantee for every consumer of a stream<br><br>• Let consumer lag approach log retention without a page<br><br>• Assume exactly-once covers an external API call, whether it sends an email or fires a webhook |
 
 
 <br>
@@ -488,10 +456,8 @@ A food delivery marketplace publishes order-placed events at 20,000 per second. 
 
 Name the delivery guarantee the renewal charge-capture stream needed from the start, and change where its offset commit and its charge write sit so that a consumer crash and restart can never bill a customer twice for the same renewal, nor skip one. In the incident, the consumer read renewal events from a Kafka topic, wrote each charge to the billing ledger database, and crashed after the write but before its offset commit landed, so the restart re-read and re-charged those renewals. Every captured charge is also published to a second topic that receipts and revenue reporting read.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this postmortem really is
 
@@ -569,6 +535,8 @@ flowchart LR
 2. Product analytics wants to read the same renewal topic for a churn dashboard. Does that consumer need exactly-once too?\
    *Tests choosing semantics per consumer: a dashboard can take at-least-once with a `MERGE` on `renewal_id`, avoiding the transaction cost where a duplicate is cheap.*
 
+</details>
+
 
 <br>
 
@@ -578,10 +546,8 @@ flowchart LR
 
 Explain why the shipments-delivered count came out inflated the morning after the warehouse scan-event consumer crashed, name the delivery guarantee the pipeline actually provides, and redesign it so a crash can never double-count a delivery again. The logistics analytics team's timeline shows the consumer writing a batch of about 40,000 scans from the `warehouse_scans` Kafka topic into the `shipment_scans` table in Snowflake, getting killed before it committed its offset, and writing that same batch again after the restart. Every scan carries the `event_id` the handheld stamped at the dock, and a lost delivered scan tells a customer their parcel is still out, so the fix cannot drop events.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What the timeline is really telling you
 
@@ -650,6 +616,8 @@ flowchart LR
    *Tests whether the candidate knows exactly-once stops at the broker boundary and costs throughput, and that the idempotent sink already settles correctness.*
 3. Another team wants a sampled scanner-health feed from the same topic. Which guarantee fits it?\
    *Tests matching a requirement to at-most-once when losing an event is acceptable and simplicity is worth more.*
+
+</details>
 
 
 <br>

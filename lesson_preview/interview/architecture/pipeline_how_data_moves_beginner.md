@@ -156,19 +156,9 @@ Consumers crash. When one restarts it resumes from the last position it saved in
 
 ### Justifying the cost
 
-✓What a stream costs
-
-- Compute that runs around the clock, for an hour of 10 events as much as for an hour of 10 million
-- A broker to operate, where someone has to watch retention and partitions as well as consumer positions
-- Harder debugging: there's no input file to open and rerun, only a log position
-- 2 clocks and late data inside every aggregate
-
-✗What pays for it
-
-- A decision whose value decays in seconds: a fraud block, an oversold item, a surge price
-- An alert that is worthless if it lands an hour late
-- A user-facing feature that reflects the user's own last action
-- Events that are also written to storage, so batch jobs can reuse them later
+| ✓ What a stream costs | ✗ What pays for it |
+| --- | --- |
+| • Compute that runs around the clock, for an hour of 10 events as much as for an hour of 10 million<br><br>• A broker to operate, where someone has to watch retention and partitions as well as consumer positions<br><br>• Harder debugging: there's no input file to open and rerun, only a log position<br><br>• 2 clocks and late data inside every aggregate | • A decision whose value decays in seconds: a fraud block, an oversold item, a surge price<br><br>• An alert that is worthless if it lands an hour late<br><br>• A user-facing feature that reflects the user's own last action<br><br>• Events that are also written to storage, so batch jobs can reuse them later |
 
 - **7 days** — a common broker retention window
 - **16** — partitions in the swipe log above
@@ -203,10 +193,8 @@ A fraud team currently sees transactions only in tomorrow's batch report, which 
 - Nightly batch (too late) (transform, Spark)
 - Fraud dashboard (consumer, Grafana)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The trap: latency is a model, not a knob
 
@@ -263,6 +251,8 @@ Notice the source never changed. `Card transactions` was already landing on `Kaf
    *Checkpointing and offset commits, exactly-once versus at-least-once.*
 3. Traffic spikes 20x on a holiday. What in this design scales, and what becomes the bottleneck?\
    *Partition-level parallelism on the topic and the serving store's write throughput.*
+
+</details>
 
 
 <br>
@@ -343,19 +333,9 @@ Questions to settle before the first load
 | Sender adds a column in the middle | Amounts land in the date column | Load by header name, and reject a file whose headers changed |
 | Retry after a crash mid-load | Partial rows plus a full reload | Load into staging, then move into the target in 1 step |
 
-✓Do
-
-- Tag every row with its source file and load time
-- Alert on a late file as well as a failed one
-- Compare row counts to the manifest and to the last 7 days
-- Keep the original file for 30 days or longer
-
-✗Don't
-
-- Read a file the moment it appears in the bucket
-- Trust column position over column name
-- Delete the raw file once the load succeeds
-- Treat a smaller-than-usual file as a quiet day
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Tag every row with its source file and load time<br><br>• Alert on a late file as well as a failed one<br><br>• Compare row counts to the manifest and to the last 7 days<br><br>• Keep the original file for 30 days or longer | • Read a file the moment it appears in the bucket<br><br>• Trust column position over column name<br><br>• Delete the raw file once the load succeeds<br><br>• Treat a smaller-than-usual file as a quiet day |
 
 
 
@@ -499,10 +479,8 @@ A vendor exposes order data through a paginated REST API, and the analysts who r
 - Vendor Orders API (source, API)
 - Warehouse (storage, Snowflake)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -574,6 +552,8 @@ flowchart LR
 3. You need the last 2 years of orders. Do you page through them with the same hourly job?\
    *Checks the lesson's backfill answer: a bulk export for history, the API for incremental pulls going forward.*
 
+</details>
+
 
 <br>
 
@@ -590,21 +570,9 @@ This is the decision question, and it comes in 1 disguise after another: 'should
 
 'How stale can this data be before someone makes a worse decision because of it?' That question turns a preference into a number. A finance team closing the month tolerates a day. A product manager watching a launch tolerates 15 minutes and would act no differently with 15 seconds. A fraud model tolerates 2 seconds. Once the number exists the choice follows from it, and the second question, 'who or what reads the output?', settles whether the consumer is a human refreshing a page or a system taking an action on its own.
 
-✓Batch fits when
-
-- Freshness of an hour or more is acceptable
-- The consumer is a report, a model training run or an invoice
-- The computation needs the whole day to be correct, like a daily total
-- Input arrives on a schedule anyway, such as a nightly file
-- Correctness and rerunability matter more than speed
-
-✗Streaming fits when
-
-- Freshness under a minute changes a decision
-- The consumer is a system acting automatically
-- The value of each event decays in seconds
-- The source already emits events
-- The team can operate a broker and an always-on consumer
+| ✓ Batch fits when | ✗ Streaming fits when |
+| --- | --- |
+| • Freshness of an hour or more is acceptable<br><br>• The consumer is a report, a model training run or an invoice<br><br>• The computation needs the whole day to be correct, like a daily total<br><br>• Input arrives on a schedule anyway, such as a nightly file<br><br>• Correctness and rerunability matter more than speed | • Freshness under a minute changes a decision<br><br>• The consumer is a system acting automatically<br><br>• The value of each event decays in seconds<br><br>• The source already emits events<br><br>• The team can operate a broker and an always-on consumer |
 
 | Request | Freshness needed | Consumer | Choice | Why |
 | --- | --- | --- | --- | --- |
@@ -680,10 +648,8 @@ A food delivery company's data team runs all 4 flows on a Friday night. Courier 
 
 Design how a vendor's daily CSV, dropped on a cloud bucket, reaches the monthly regulatory report, given that the compliance officer has asked for it to be made real-time. Some days the same file arrives twice and some days a file comes in short of rows, and neither may reach the filing.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What the officer actually asked for
 
@@ -759,6 +725,8 @@ flowchart LR
 2. It's 6am and today's file hasn't landed. Who finds out, and how urgent is it?\
    *Tests matching the alert to the reader: a late file warrants an alert, but with a monthly filing it only becomes urgent as month-end close approaches.*
 
+</details>
+
 
 <br>
 
@@ -773,10 +741,8 @@ A payments company runs every card transaction through a fraud check that has to
 - Card transactions (source, Kafka)
 - Vendor REST API (source, REST API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this is really asking
 
@@ -850,6 +816,8 @@ flowchart LR
    *Tests batch scheduling judgment: run-level locking and idempotent loads.*
 3. The fraud stream processor crashes mid-stream. What do you lose and how do you recover?\
    *Tests awareness of checkpointing, offsets and ordering, the recovery costs streaming carries and batch does not.*
+
+</details>
 
 
 <br>

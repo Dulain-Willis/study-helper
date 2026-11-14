@@ -72,19 +72,9 @@ Consumers in a pull model fetch at their own pace, so overload shows up as lag i
 
 Those figures describe what the earnings table's readers experience. Nothing has crashed and no event is lost, since the lag stays far inside the queue's 24 hours of retention. The broken promise is the one made to drivers: that today's trips appear in their earnings within 5 minutes. State the failure in those terms, naming who reads the data and how stale it is when they do.
 
-✓Fixes named without numbers
-
-- Add consumers: the 25th consumer on a 24-partition queue gets no partition and sits idle.
-- Bigger machines: each consumer waits on 4 ms lookups, so more CPU adds no throughput.
-- Autoscale on CPU: CPU stays low while lag climbs, so the rule never fires.
-- The queue will absorb it: a sustained deficit grows the backlog for as long as the peak lasts.
-
-✗Fixes tied to a stage and a number
-
-- The consumers break first at 133%; raise partitions and consumers to 48.
-- After that fix, the profile service and writers sit at 89% and cap recovery.
-- A 3-hour doubled peak with no fix leaves the table 45 minutes stale.
-- If capacity runs out anyway, sample location pings and keep every trip lifecycle event.
+| ✓ Fixes named without numbers | ✗ Fixes tied to a stage and a number |
+| --- | --- |
+| • Add consumers: the 25th consumer on a 24-partition queue gets no partition and sits idle.<br><br>• Bigger machines: each consumer waits on 4 ms lookups, so more CPU adds no throughput.<br><br>• Autoscale on CPU: CPU stays low while lag climbs, so the rule never fires.<br><br>• The queue will absorb it: a sustained deficit grows the backlog for as long as the peak lasts. | • The consumers break first at 133%; raise partitions and consumers to 48.<br><br>• After that fix, the profile service and writers sit at 89% and cap recovery.<br><br>• A 3-hour doubled peak with no fix leaves the table 45 minutes stale.<br><br>• If capacity runs out anyway, sample location pings and keep every trip lifecycle event. |
 
 > A complete answer in 4 parts
 >
@@ -167,19 +157,9 @@ At 9,500 waiting records, fetch_loop pauses its partitions but keeps calling pol
 
 The trip-events stream carries 2 kinds of event. Location pings, sent every few seconds during a trip, are 60% of volume. Lifecycle events (requested, accepted, started, completed, fare finalized) are the other 40%. At doubled peak that is 48,000 pings and 32,000 lifecycle events per second, and the 2 kinds deserve different treatment.
 
-✓Location pings
-
-- A 50% sample still traces the route on a map.
-- Value decays fast: a position from 30 minutes ago is useless.
-- Shed at the gateway, before the event costs a lookup.
-- Shedding half removes 24,000 events per second at doubled peak.
-
-✗Lifecycle events
-
-- Every event moves money: a lost fare event is a wrong payout.
-- Value survives delay: an earnings row 20 minutes late is still correct.
-- Buffer in the queue and never shed.
-- Order matters per trip, which shapes the partition key.
+| ✓ Location pings | ✗ Lifecycle events |
+| --- | --- |
+| • A 50% sample still traces the route on a map.<br><br>• Value decays fast: a position from 30 minutes ago is useless.<br><br>• Shed at the gateway, before the event costs a lookup.<br><br>• Shedding half removes 24,000 events per second at doubled peak. | • Every event moves money: a lost fare event is a wrong payout.<br><br>• Value survives delay: an earnings row 20 minutes late is still correct.<br><br>• Buffer in the queue and never shed.<br><br>• Order matters per trip, which shapes the partition key. |
 
 Shedding half the pings brings doubled input to 56,000 events per second against 60,000 of consumer capacity. The consumers run at 93% of capacity, so the lag stops growing, but there is almost no room to recover from any blip. Shedding buys the time it takes to add partitions and consumers.
 
@@ -193,19 +173,9 @@ It falls behind. At 8 ms, a thread handles 125 events per second, a consumer han
 >
 > When you throttle external producers, return a retry-after interval and require jittered backoff. Clients that all retry after the same fixed delay arrive together, and the retry wave can exceed the load that triggered the throttle.
 
-✓Do
-
-- Bound every in-memory buffer by count or bytes
-- Commit offsets after the write succeeds
-- Decide shed or buffer per event class, in advance
-- Shed at the earliest stage, before work is spent
-
-✗Don't
-
-- Let a fetch loop outrun the threads that drain it
-- Shed events that drive money or state
-- Retry throttled calls on a fixed schedule
-- Treat a durable queue as unlimited: retention is the bound
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Bound every in-memory buffer by count or bytes<br><br>• Commit offsets after the write succeeds<br><br>• Decide shed or buffer per event class, in advance<br><br>• Shed at the earliest stage, before work is spent | • Let a fetch loop outrun the threads that drain it<br><br>• Shed events that drive money or state<br><br>• Retry throttled calls on a fixed schedule<br><br>• Treat a durable queue as unlimited: retention is the bound |
 
 
 <br>
@@ -266,17 +236,9 @@ Ways to change the count safely
 
 Adding partitions spreads keys across more consumers, but every event for one key still lands in 1 partition. Suppose the events were keyed by `city_id` instead of `trip_id`, and the largest city produces 8% of events. At doubled peak that city sends 6,400 events per second into 1 partition, whose consumer tops out at 2,500. That partition's lag grows by 3,900 events per second whether the queue has 24 partitions or 480.
 
-✓Re-key by trip_id
-
-- Spreads load evenly: no single trip is hot.
-- Keeps order per trip, which is all earnings needs.
-- Loses per-city order, which nothing here uses.
-
-✗Salt the hot key
-
-- Key by city_id plus trip_id mod 4 for the largest city.
-- Spreads 6,400 events per second as 1,600 into each of 4 partitions.
-- Any per-city aggregate must now merge 4 partial results.
+| ✓ Re-key by trip_id | ✗ Salt the hot key |
+| --- | --- |
+| • Spreads load evenly: no single trip is hot.<br><br>• Keeps order per trip, which is all earnings needs.<br><br>• Loses per-city order, which nothing here uses. | • Key by city_id plus trip_id mod 4 for the largest city.<br><br>• Spreads 6,400 events per second as 1,600 into each of 4 partitions.<br><br>• Any per-city aggregate must now merge 4 partial results. |
 
 > **TIP**
 >
@@ -345,19 +307,9 @@ The last row is the cheapest plan because it cuts the work per event instead of 
 
 The cache has a correctness price. A driver promoted to a higher tier at 18:00 can have trips enriched with the old tier until 18:10, and if tier sets the payout rate, those rows pay the wrong amount. The fix belongs in the design: stamp the tier onto the event at the source, or treat cached enrichment as provisional and correct it in a later batch that reads the profile history.
 
-✓Do
-
-- Scale on lag age and lag growth together
-- Cap max consumers at the narrowest downstream quota
-- Pre-scale before peaks you can predict
-- Make scale-in slower than scale-out
-
-✗Don't
-
-- Scale an IO-bound consumer on CPU
-- Set max consumers above the partition count
-- Buy instances before cutting per-event work
-- Cache data that sets money without a correction path
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Scale on lag age and lag growth together<br><br>• Cap max consumers at the narrowest downstream quota<br><br>• Pre-scale before peaks you can predict<br><br>• Make scale-in slower than scale-out | • Scale an IO-bound consumer on CPU<br><br>• Set max consumers above the partition count<br><br>• Buy instances before cutting per-event work<br><br>• Cache data that sets money without a correction path |
 
 
 <br>
@@ -497,10 +449,8 @@ A food delivery platform launches free delivery in a new country on a Friday eve
 
 A connected-vehicle platform ingests device-status telemetry from its fleet over Kafka, keyed by device_id, and a consumer group maintains each vehicle's live status. Overnight a product launch doubled the fleet to about a million vehicles, and this morning the on-call has watched partition lag climb without recovering. Redesign the ingest-to-serving path so it holds at the new sustained and peak rates, add partition-lag monitoring to drive autoscaling, and be explicit about where partitions and consumers have to grow together to clear the lag.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem is really testing
 
@@ -573,6 +523,8 @@ flowchart LR
 2. The serving store is now the bottleneck at 250k/s of upserts. What do you change without touching the consumer count?\
    *Tests whether the candidate follows the binding constraint downstream: batching writes, sharding the store, or relaxing per-record write latency, rather than adding more stalled consumers.*
 
+</details>
+
 
 <br>
 
@@ -582,10 +534,8 @@ flowchart LR
 
 A ride-hailing platform streams vehicle-GPS pings from its driver fleet through Kafka into an analytics warehouse that feeds surge pricing and ETA models. Overnight the platform went live in a new metro and ping volume jumped from roughly 200k to 800k pings per second; on-call is watching consumer lag climb steadily and surge dashboards fall further behind. Design the source-to-warehouse path to absorb the spike: identify which component is the binding constraint using throughput analysis (calculate expected capacity at each stage), show partition count and consumer parallelism in your design for the constraint, and instrument consumer-group lag via Kafka-aware observability (Prometheus with Kafka exporter, Confluent Control Center, Datadog, or CloudWatch) to drive autoscaling.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem is really testing
 
@@ -653,6 +603,8 @@ flowchart LR
 2. The warehouse micro-batch loads start to lag a few weeks later as all metros grow. How do you tell that apart from this incident?\
    *Tests whether they re-run the throughput chain to find the constraint has moved downstream to the sink, rather than reflexively scaling the consumer group again.*
 
+</details>
+
 
 <br>
 
@@ -662,10 +614,8 @@ flowchart LR
 
 A payments team is planning for the year's biggest shopping day. Checkout will emit 8.64 billion events over 24 hours (about 500 bytes each), with traffic cresting near 3 times the daily average during the evening rush. Design the event pipeline from checkout service into the analytics warehouse, sizing the event buffer's partitions, the consumer group, and the lag-driven autoscaling so the pipeline absorbs the peak without manual repartitioning mid-holiday.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why this problem exists in real interviews
 
@@ -727,6 +677,8 @@ flowchart LR
    *Tests whether they see that partition count (a build-time ceiling) may need to be reset off-peak while consumer autoscaling absorbs growth up to that ceiling for free.*
 2. During the rush the warehouse write latency, not the consumer, becomes the bottleneck. How do you find that and what do you do?\
    *Tests whether they can move the binding constraint downstream: micro-batching writes, a staging buffer, or a faster sink, rather than adding consumers that just pile up behind a slow warehouse.*
+
+</details>
 
 
 <br>

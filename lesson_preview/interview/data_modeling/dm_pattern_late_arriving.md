@@ -173,19 +173,9 @@ Option C, a separate late table unioned in a view, is option B with a smaller se
 
 The lookback window is also a restatement schedule. Under option A, Tuesday's count rises each morning from Wednesday through Friday, then freezes, except for the 0.49% that arrives later and is placed by a monthly rebuild of the previous 31 partitions. Every downstream rollup built from the fact must rebuild that window in the same nightly run; otherwise the fact and its rollup disagree for 3 days. The strong answer says that unprompted: the window belongs to the lineage. It is declared once and every job in the lineage reads it, so no job carries its own typed constant.
 
-✓Nightly lookback of 3 partitions
-
-- Rewrites 30 GB to place 1.75 million rows
-- Captures 99.5% of plays
-- Reports freeze after 3 mornings
-- Rollups rebuild the same 3 days
-
-✗Monthly rebuild of 31 partitions
-
-- Rewrites 310 GB once a month
-- Captures the 0.49% offline tail
-- Restates a whole month in one morning
-- Needs a restatement notice to readers
+| ✓ Nightly lookback of 3 partitions | ✗ Monthly rebuild of 31 partitions |
+| --- | --- |
+| • Rewrites 30 GB to place 1.75 million rows<br><br>• Captures 99.5% of plays<br><br>• Reports freeze after 3 mornings<br><br>• Rollups rebuild the same 3 days | • Rewrites 310 GB once a month<br><br>• Captures the 0.49% offline tail<br><br>• Restates a whole month in one morning<br><br>• Needs a restatement notice to readers |
 
 #### Choosing the window from the histogram
 
@@ -353,19 +343,9 @@ The join on `supersedes_version` negates the exact row the source says it is cor
 
 The ledger above puts the reversal in the 9 October arrival partition while keeping `charge_date` of 2 October on the row. That is option B from section 1 applied to one row, with the same consequence: a report filtered on `charge_date` must scan forward through later arrival partitions to see the correction. If the serving table is partitioned by `charge_date`, the reversal lands in the 2 October partition through the lookback rewrite, which works only when the correction arrives inside the window. A correction 3 months late falls outside every window, the strongest argument for keeping `processed_date` on every row: with it, 'in the 3 October report, this charge was 15.49' remains answerable after the row has moved.
 
-✓Do
-
-- Negate the exact row being corrected, by source_version, never the account's running total
-- Carry row_sign and sum it for counts and averages
-- Anti-join on the correction's version before inserting
-- Keep processed_date on reversal rows so as-of reads still work
-
-✗Don't
-
-- Update a closed partition's amount in place
-- Use count(\*) or max() on a ledger of reversals
-- Apply a correction to a row that another correction already superseded
-- Let a retry append a second reversal
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Negate the exact row being corrected, by source_version, never the account's running total<br><br>• Carry row_sign and sum it for counts and averages<br><br>• Anti-join on the correction's version before inserting<br><br>• Keep processed_date on reversal rows so as-of reads still work | • Update a closed partition's amount in place<br><br>• Use count(\*) or max() on a ledger of reversals<br><br>• Apply a correction to a row that another correction already superseded<br><br>• Let a retry append a second reversal |
 
 
 <br>
@@ -467,10 +447,8 @@ An advertising platform bills advertisers monthly for conversions attributed to 
 
 Utility crews save inspections on offline tablets out of signal, syncing them days later; interrupted syncs resend. The analyst who owns the per-region daily and monthly counts published on the operations dashboard needs each inspection to count on its actual date, deduplicated by tablet record ID, with region directly on every fact row; if the asset isn't registered yet, create a placeholder asset marked as inferred so the fact loads without waiting; corrections and voids arrive as new rows with a delta value linked to the original. The sync log captures (region, inspection_date) pairs with a composite key, the aggregates are keyed on (region, inspection_date) and (region, inspection_month) with a rebuild timestamp, and rebuilds overwrite only stale periods so the pipeline is fully replayable from scratch.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### 2 clocks and a number already published
 
@@ -533,6 +511,8 @@ This is the late-arriving data pattern with every branch firing at once: facts t
 3. Finance closes the month on the 3rd. How do June inspections that sync on July 10 get handled?\
    *Tests separating the operational count from a frozen reporting snapshot without editing the fact.*
 
+</details>
+
 
 <br>
 
@@ -542,10 +522,8 @@ This is the late-arriving data pattern with every branch firing at once: facts t
 
 Design the seller dimension and payout fact so that payouts count in today's totals immediately, even when the seller hasn't onboarded yet. The dimension must have a business key (seller_id), a surrogate key the facts reference, and a boolean flag marking inferred placeholders; when onboarding data arrives, populate attributes on that surrogate-keyed row without changing the key. Never update payout amounts; instead, append entries to the fact table using source identifiers (payout_id and entry_sequence) as the natural key, with an entry_type column distinguishing originals, reversals, and restatements. Build every key from source data so replaying from any date produces identical rows.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Paid before the seller exists
 
@@ -601,6 +579,8 @@ Two tables. `dim_seller` holds one row per seller, keyed by `seller_sk`, with `s
    *Deriving the surrogate key deterministically from `seller_id`, the reprocessability rule.*
 3. A payout arrives dated to last week, after that day's totals were published. Where does it land?\
    *Late-arriving facts: `payout_date` versus `loaded_at`, and inserting into a closed partition.*
+
+</details>
 
 
 <br>

@@ -137,10 +137,8 @@ Drill-across also sets a limit. The shared grain is the finest one both fact tab
 
 An online marketplace runs two reporting stacks: the sales team measures completed orders and the returns team measures refunded items, and the two teams report different customer counts for the same month. Model a warehouse where order revenue and return refunds report against a single, shared definition of a customer and of a product, so that one query can compare what a customer bought against what they sent back. Keep orders and returns as separate fact tables at their own grains.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why this problem exists in real interviews
 
@@ -193,6 +191,8 @@ One `dim_customer` and one `dim_product` sit in the center. `fact_sales` and `fa
 3. How do you count distinct customers who both bought and returned in the same month?\
    *Tests the shared-key join path across two facts through `dim_customer`.*
 
+</details>
+
 
 <br>
 
@@ -220,17 +220,9 @@ Every consumer of a conformed dimension inherits its single grain and its histor
 
 The decision an interviewer probes is which columns are tracked, because on a conformed dimension that choice changes the numbers in every fact table on the bus at once. Say ops redraws boundaries on 2026-07-01 and listing 4417 moves from the San Francisco market to Peninsula.
 
-✓market tracked as type 2
-
-- June bookings stay in San Francisco; July onward land in Peninsula.
-- Published quarterly reports reproduce exactly on a re-run.
-- Reporting by today's boundaries needs a join to the current row.
-
-✗market overwritten (type 1)
-
-- Every past booking of 4417 moves to Peninsula on the next build.
-- Last quarter's published finance numbers change without anyone editing them.
-- The table stays at 1 row per listing.
+| ✓ market tracked as type 2 | ✗ market overwritten (type 1) |
+| --- | --- |
+| • June bookings stay in San Francisco; July onward land in Peninsula.<br><br>• Published quarterly reports reproduce exactly on a re-run.<br><br>• Reporting by today's boundaries needs a join to the current row. | • Every past booking of 4417 moves to Peninsula on the next build.<br><br>• Last quarter's published finance numbers change without anyone editing them.<br><br>• The table stays at 1 row per listing. |
 
 Many teams need both views, and the usual answer carries both on the row: `market` tracked as type 2 for as-was reporting, plus `current_market` overwritten on every version of the listing for as-is reporting. Kimball labels that hybrid type 6. Its cost is a rewrite of all of a listing's version rows whenever the current value changes, which is cheap for markets and expensive for anything that changes weekly, a problem the mini-dimension section returns to.
 
@@ -288,10 +280,8 @@ The design artifact for conformance is the bus matrix: 1 row per business proces
 
 An analyst reconciling a music-streaming platform's numbers finds the product team's plays fact and the licensing team's royalties fact both slicing by track and calendar date, each against its own definition. Design conformed track and date dimensions that both facts share, where a track's shared identity is its name, artist, album, ISRC, release date, duration and genre. Product also keeps recommendation weights and mood tags per track, and licensing keeps royalty rates, publisher and rights terms per track.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem is really testing
 
@@ -351,6 +341,8 @@ Two facts, two shared dimensions, and two thin extensions. The core `dim_track` 
    *Tests that a single update to the conformed core propagates to both facts, which is the payoff of conformance.*
 3. Licensing wants `royalty_rate` to vary by territory. Does that still fit the extension?\
    *Tests recognizing that a territory-varying rate is no longer 1:1 with the track and needs its own grain, not a track extension.*
+
+</details>
 
 
 <br>
@@ -426,17 +418,9 @@ Guest and host are both users, and many people are both. A single `dim_user` kee
 
 - **97%** — of user rows null on host-only columns
 
-✓One dim_user, 2 roles
-
-- A person who both hosts and travels is 1 row, with 1 history.
-- Host-only columns sit empty on almost every row.
-- Host status changes version the entire user row.
-
-✗dim_user plus dim_host
-
-- dim_host holds 4 million rows with host columns and their own history.
-- Shared identity still resolves through user_id.
-- One more dimension on the bus, with its own conformance tests and documentation.
+| ✓ One dim_user, 2 roles | ✗ dim_user plus dim_host |
+| --- | --- |
+| • A person who both hosts and travels is 1 row, with 1 history.<br><br>• Host-only columns sit empty on almost every row.<br><br>• Host status changes version the entire user row. | • dim_host holds 4 million rows with host columns and their own history.<br><br>• Shared identity still resolves through user_id.<br><br>• One more dimension on the bus, with its own conformance tests and documentation. |
 
 Roles share a table while they share attributes and change rates, and split when those diverge. When they split, both tables keep the same natural key, so a user who is both guest and host still resolves to one person in any drill-across.
 
@@ -457,10 +441,8 @@ Roles share a table while they share attributes and change rates, and split when
 
 A vacation-rental booking platform needs a warehouse model for its reservations, each of which records when it was booked, when the guest checks in, and when they check out, along with the property, the guest, the nightly rate, and the total charge. Analysts have to report revenue by booking month, room-nights by check-in month, and departures by checkout month, all sliced by the same calendar attributes such as weekday, holiday flag, and fiscal quarter. Design the dimensional model that serves all three time-based views without duplicating the calendar logic.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why this problem exists in real interviews
 
@@ -533,6 +515,8 @@ GROUP BY cd.year, cd.month;
 3. How would you extend this to report against local time when properties span multiple time zones?\
    *Tests whether the candidate separates the calendar date from the time of day and keeps the role-playing calendar shared.*
 
+</details>
+
 
 <br>
 
@@ -546,17 +530,9 @@ GROUP BY cd.year, cd.month;
 
 ![Schema diagram 2](images/dm_pattern_conformed_dims_diagram_2.png)
 
-✓Flatten into dim_listing
-
-- Every cohort query is 1 join from the fact table.
-- Fiscal and holiday logic is copied and can drift from dim_date.
-- Fits when only 1 or 2 columns are needed.
-
-✗Outrigger to dim_date
-
-- Cohort queries reuse every calendar column dim_date already has.
-- Queries take a second join that the fact table cannot reach directly.
-- Fits when another team owns the referenced table, or when that table is wide or shared.
+| ✓ Flatten into dim_listing | ✗ Outrigger to dim_date |
+| --- | --- |
+| • Every cohort query is 1 join from the fact table.<br><br>• Fiscal and holiday logic is copied and can drift from dim_date.<br><br>• Fits when only 1 or 2 columns are needed. | • Cohort queries reuse every calendar column dim_date already has.<br><br>• Queries take a second join that the fact table cannot reach directly.<br><br>• Fits when another team owns the referenced table, or when that table is wide or shared. |
 
 The outrigger is a role too: `first_published_date_key` is the listing-publish role of `dim_date`, and it deserves a role view of its own. Kimball's guidance is to use outriggers sparingly, because each one adds a join an analyst has to know about. Where a fact table is queried by market constantly, give the fact its own `market_id` column so market rollups skip the listing hop, at the cost of one more key to populate on load.
 
@@ -638,10 +614,8 @@ To keep dimensions joinable while preserving point-in-time slicing, extract the 
 
 For sizing context: risk tier has 5 distinct values, credit band has ten, income segment has eight, and delinquency flag has 2 values.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem is really testing
 
@@ -707,6 +681,8 @@ The anchor is that `dim_borrower` stays stable and small in churn, `dim_borrower
    *Tests holding a current `profile_key` on `dim_borrower` for as-of-now reporting, separate from the event-time key on the fact.*
 3. Credit band is a bucketed continuous score. What breaks if the bucket boundaries are redefined next quarter?\
    *Tests awareness that the profile grain depends on stable bucketing, and that re-bucketing is a versioned metadata change, not a silent overwrite.*
+
+</details>
 
 
 <br>
@@ -796,17 +772,9 @@ The owning team runs a release process, and every consumer gives up some autonom
 > - Size the churn, then choose type 2, a mini-dimension or a snapshot.
 > - Name the owner, the checks at the gate and the rule for late arrivals.
 
-✓Do
-
-- Derive every rollup dimension from its base dimension in the same build.
-- Publish a view per role with the role in every column name.
-- Block publishing when an orphan or value-set check fails.
-
-✗Don't
-
-- Let a consuming team rebuild a shared dimension locally.
-- Join 2 fact tables to each other at row level.
-- Give 2 different definitions the same column name.
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Derive every rollup dimension from its base dimension in the same build.<br><br>• Publish a view per role with the role in every column name.<br><br>• Block publishing when an orphan or value-set check fails. | • Let a consuming team rebuild a shared dimension locally.<br><br>• Join 2 fact tables to each other at row level.<br><br>• Give 2 different definitions the same column name. |
 
 
 <br>
@@ -821,10 +789,8 @@ The owning team runs a release process, and every consumer gives up some autonom
 
 A B2B cloud platform runs three independent reporting stacks: finance tracks monthly invoices, the product team tracks daily API usage, and support tracks tickets. Each stack was built on its own, so each one stores its own copy of the customer's name and region alongside its own raw event date, and no 2 stacks agree on how a given customer is identified. Design a warehouse model that lets one executive dashboard report revenue, API volume, and support load for the same customer across the same fiscal quarters.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why this problem exists in real interviews
 
@@ -923,6 +889,8 @@ ORDER BY c.usage_org_name, r.fiscal_year, r.fiscal_quarter
 3. 2 source systems turn out to describe the same company under different names. How does the model absorb that without breaking existing facts?\
    *Tests that the surrogate key, not the natural name, is the stable anchor: the names collapse onto one `customer_key`.*
 
+</details>
+
 
 <br>
 
@@ -951,10 +919,8 @@ A home-sharing marketplace launches long-term stays. A new fact_lease table need
 
 A freight-logistics platform is building one warehouse to serve two reporting teams off the same operational data: the operations team measures shipments, where each shipment records when it was picked up and when it was delivered, and the finance team measures invoices, where each invoice records its issue date and its payment-due date. Both teams analyze metrics by stable shipper attributes like legal name, industry, and region, as well as by each shipper's credit band and service tier as they stood at the time of each event, since the risk team re-rates these roughly every three weeks. Design a dimensional model that lets both teams report on the same shippers without their customer counts drifting apart.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why this problem exists in real interviews
 
@@ -1013,6 +979,8 @@ One conformed customer spine, one calendar playing four roles, one mini-dimensio
 4. How would you stop the ops and finance teams from each redefining `dim_customer` 6 months from now?\
    *Tests governance: single ownership of the conformed grain and a change contract, the section-4 point that conformance fails on process, not schema.*
 
+</details>
+
 
 <br>
 
@@ -1022,10 +990,8 @@ One conformed customer spine, one calendar playing four roles, one mini-dimensio
 
 A regional hospital network runs two reporting stacks where the clinical quality team and the revenue-cycle team each maintain their own patient list and calendar, leading to different active-patient counts reported in the same quarter. Design one warehouse where a single patient dimension and a single date dimension serve 3 facts (encounters, claims, lab results); insurance coverage, eligibility status, and clinical risk tier change frequently, so model them as a separate dimension of their distinct combinations, with each fact carrying the applicable coverage key at event time. Encounters record admission and discharge dates, claims record service, submission, and payment dates, and lab results record collection and result dates.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem really is
 
@@ -1081,6 +1047,8 @@ The spine is `dim_patient` and `dim_date`, shared by all 3 facts; `dim_coverage`
    *Tests the conformance boundary: a dimension shared by a subset of facts is still conformed if the shared attributes agree; it does not have to touch every fact.*
 3. Revenue-cycle wants fiscal quarters that do not align to calendar quarters. How do you avoid re-forking the calendar?\
    *Tests adding fiscal columns to the one `dim_date` rather than letting a team build a second calendar, which is exactly how the dispute started.*
+
+</details>
 
 
 <br>

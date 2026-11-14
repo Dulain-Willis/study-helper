@@ -251,21 +251,9 @@ Without the guard, the replay un-refunds a charge and revenue goes up with no ne
 
 That is roughly 450 to 1, but the cheap path applies only when every change falls inside the slice being rebuilt, and scattered corrections never do. Formats that record deletes in separate files avoid the rewrite and charge every read until compaction runs, so the choice decides who pays: the writer once, or each reader repeatedly.
 
-✓Partition replace
-
-- Identity: the slice
-- Cost scales with the slice size
-- Handles late data only when it lands in the same slice
-- Deletes by omission: absent rows vanish
-- Breaks when DELETE and INSERT predicates disagree
-
-✗MERGE with a version guard
-
-- Identity: the row key plus its version
-- Cost scales with files touched
-- Handles late and out-of-order changes anywhere in history
-- Deletes need tombstones
-- Breaks on duplicate source keys or a missing guard
+| ✓ Partition replace | ✗ MERGE with a version guard |
+| --- | --- |
+| • Identity: the slice<br><br>• Cost scales with the slice size<br><br>• Handles late data only when it lands in the same slice<br><br>• Deletes by omission: absent rows vanish<br><br>• Breaks when DELETE and INSERT predicates disagree | • Identity: the row key plus its version<br><br>• Cost scales with files touched<br><br>• Handles late and out-of-order changes anywhere in history<br><br>• Deletes need tombstones<br><br>• Breaks on duplicate source keys or a missing guard |
 
 > **TIP**
 >
@@ -442,17 +430,9 @@ def payout_key(event_id: str, action: str) -> str:
 
 The key must come from the event. A key generated fresh for each attempt, such as a random UUID, differs on every retry and defeats the receiver's check.
 
-✓Do
-
-- Key window sinks on the grouping columns plus the window start
-- Derive side-effect keys from event fields
-- Back a short dedup window with a batch reconcile
-
-✗Don't
-
-- Append window results to a table that readers sum
-- Generate a new request key on each retry
-- Guess dedup state size; compute rate times window times key size
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Key window sinks on the grouping columns plus the window start<br><br>• Derive side-effect keys from event fields<br><br>• Back a short dedup window with a batch reconcile | • Append window results to a table that readers sum<br><br>• Generate a new request key on each retry<br><br>• Guess dedup state size; compute rate times window times key size |
 
 > Try it: what repeats after a restart?
 >
@@ -544,17 +524,9 @@ The test needs 2 more runs. Replay the 2026-10-20 change batch after 2026-10-23 
 | Why not dedup in a view downstream? | Where the fix belongs | Every reader pays for it, and the first reader who skips the view reports doubled revenue |
 | What does this cost? | Judgement | Partition replace scales with the slice, MERGE with files touched, dedup state with rate times window |
 
-✓Do
-
-- State the unit of work and its parameters first
-- Name each crash point and what is on disk there
-- Give the cost of the write you chose, in bytes or files
-
-✗Don't
-
-- Offer 'we dedup downstream' as the whole design
-- Claim exactly-once without naming the transaction boundary
-- Treat a successful retry as proof; run the fingerprint test
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • State the unit of work and its parameters first<br><br>• Name each crash point and what is on disk there<br><br>• Give the cost of the write you chose, in bytes or files | • Offer 'we dedup downstream' as the whole design<br><br>• Claim exactly-once without naming the transaction boundary<br><br>• Treat a successful retry as proof; run the fingerprint test |
 
 > Try it: critique this design
 >
@@ -595,10 +567,8 @@ A food delivery marketplace pays couriers every Monday from a ledger built out o
 
 Re-running the nightly settlement load must never move a day's revenue, yet after on-call re-triggered a failed run, the finance team's totals for that settlement date doubled. Today the job reads settled payments using a window counted back from whenever it starts and appends them to a reporting table partitioned by settlement date. Redesign how it reads and writes so a replay of any settlement date, tonight or months from now, lands exactly the same rows, and show how you would prove it.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What the doubled night really was
 
@@ -701,6 +671,8 @@ flowchart LR
 3. Settlements move to a stream of events instead of a nightly table. Where does re-run safety live now?\
    *Tests the batch versus streaming split. There is no partition to replace per run, so safety comes from committing consumer offsets together with the output and deduplicating on `payment_id`.*
 
+</details>
+
 
 <br>
 
@@ -710,10 +682,8 @@ flowchart LR
 
 The object-storage folder where partner labs drop lab-result files never stops filling, and last night's load died after writing about half of the day's files into the data warehouse. Design the nightly load so that this morning's re-run leaves that day's result counts on the clinicians' dashboard exactly as one clean run would have: no result counted twice, none missed.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem really is
 
@@ -788,6 +758,8 @@ flowchart LR
    *Tests whether the candidate treats the manifest as the controlled way to change a day: add the file to Tuesday's list on purpose, then re-run Tuesday, which replaces its partition. The change is recorded, not hidden inside a fresh folder listing.*
 2. A parsing bug was live for 3 months. How do you backfill, and can the days run in parallel?\
    *Tests whether the candidate sees that each day is self-contained: its own file list in, its own partition out. Days can run in any order or at the same time, and re-running a failed day is safe.*
+
+</details>
 
 
 <br>

@@ -181,21 +181,9 @@ Compaction reads many small files and commits fewer large ones in their place. Y
 
 ### Bin-packing or sorting the output
 
-✓Bin-pack
-
-- Groups input files by size into output files near 256 MB
-- No shuffle: a task concatenates the rows of its group
-- Per hour of trip_events: read 1.25 GB, write 1.25 GB
-- Fixes request and listing cost, and metadata cost with it
-- Leaves column statistics as wide as the inputs were
-
-✗Sort or cluster
-
-- Shuffles the partition's rows by a key such as city_id, then writes
-- Each output file covers a narrow key range, so min/max pruning works
-- Pays a full shuffle plus sort memory for every partition it rewrites
-- A 1-city filter on a 5-file hour opens 1 file instead of 5
-- Later appends arrive unsorted, so the order decays until the next run
+| ✓ Bin-pack | ✗ Sort or cluster |
+| --- | --- |
+| • Groups input files by size into output files near 256 MB<br><br>• No shuffle: a task concatenates the rows of its group<br><br>• Per hour of trip_events: read 1.25 GB, write 1.25 GB<br><br>• Fixes request and listing cost, and metadata cost with it<br><br>• Leaves column statistics as wide as the inputs were | • Shuffles the partition's rows by a key such as city_id, then writes<br><br>• Each output file covers a narrow key range, so min/max pruning works<br><br>• Pays a full shuffle plus sort memory for every partition it rewrites<br><br>• A 1-city filter on a 5-file hour opens 1 file instead of 5<br><br>• Later appends arrive unsorted, so the order decays until the next run |
 
 Pick bin-packing by default and sorting when a filter on one key is frequent and selective. For filters on 2 or 3 columns at once, a space-filling curve interleaves the bits of each key so files are narrow on all of them, though on any single column they are wider than a single-key sort would make them. Ask which predicates the top queries use, because sorting on a key no query filters on adds a full shuffle with no read benefit.
 
@@ -249,19 +237,9 @@ The hourly bin-pack reads 12,000 files, so the compactor pays the small-file pri
 
 Target size is a tradeoff too. Larger files cut per-file overhead further, but a 1 GB file gives a small query fewer splits to parallelise, and in tables that apply updates by rewriting whole files, deleting 1 row rewrites the full 1 GB. Tables with frequent row-level changes therefore sit nearer 128 MB, while append-only fact tables like trip_events can go higher.
 
-✓Do
-
-- Select files under 75% of target from metadata, whatever their age
-- Require at least 5 candidates before rewriting a partition
-- Sort only on columns the top queries filter on
-- Cap input bytes per run so backlogs drain in bounded chunks
-
-✗Don't
-
-- Rewrite the whole open partition every few minutes
-- Choose partitions to compact by wall-clock hour alone
-- Sort on a key that no predicate uses
-- Run 1 job across a whole backlog and lose it all to a conflict
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Select files under 75% of target from metadata, whatever their age<br><br>• Require at least 5 candidates before rewriting a partition<br><br>• Sort only on columns the top queries filter on<br><br>• Cap input bytes per run so backlogs drain in bounded chunks | • Rewrite the whole open partition every few minutes<br><br>• Choose partitions to compact by wall-clock hour alone<br><br>• Sort on a key that no predicate uses<br><br>• Run 1 job across a whole backlog and lose it all to a conflict |
 
 > **TIP**
 >
@@ -349,19 +327,9 @@ A table format replaces 'the files in this directory' with a log of snapshots. E
 
 ### Directory swap versus commit
 
-✓Compaction on a plain directory
-
-- Writes 5 new files, then deletes 12,000 old ones
-- A reader listing in between sees both and counts every trip twice
-- A retry after a partial delete can't tell which files it already removed
-- Every reader still lists keys to plan
-
-✗Compaction as a table-format commit
-
-- New files stay invisible until the snapshot pointer swaps
-- Readers see the old 12,000 or the new 5, never both
-- A failed or retried job leaves only unreferenced files for cleanup
-- Planning reads file entries from manifests, with no listing
+| ✓ Compaction on a plain directory | ✗ Compaction as a table-format commit |
+| --- | --- |
+| • Writes 5 new files, then deletes 12,000 old ones<br><br>• A reader listing in between sees both and counts every trip twice<br><br>• A retry after a partial delete can't tell which files it already removed<br><br>• Every reader still lists keys to plan | • New files stay invisible until the snapshot pointer swaps<br><br>• Readers see the old 12,000 or the new 5, never both<br><br>• A failed or retried job leaves only unreferenced files for cleanup<br><br>• Planning reads file entries from manifests, with no listing |
 
 Schema change separates them too. A directory compaction that infers its schema from the first file it opens drops a column added at noon if that file came from the morning. A table format that tracks columns by stable ID reads every file through the table's current schema, so morning files surface the new column as null, renamed columns keep their data, and the rewritten files carry the current schema. Formats that resolve columns by name need column mapping enabled before a rename is safe.
 
@@ -438,10 +406,8 @@ A food-delivery company streams order status events (placed, accepted, picked up
 
 The 15-minute freshness bound is non-negotiable for the operations dashboard, yet the Kafka Connect sink committing every 10 seconds into hourly partitions writes 4,300 files per hour, and six months of small-file backlog now slows trend queries. Design the pipeline the analysts need: lengthen the sink's commit interval to minutes-scale, compact the backlog off-peak, and sustain the 15-minute freshness bound.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem really is
 
@@ -509,6 +475,8 @@ flowchart LR
 3. Why not rely on the table format to handle this automatically?\
    *Tests knowing which formats compact on write and which leave it to a scheduled procedure, and that automatic compaction does not clear a backlog written before it was turned on.*
 
+</details>
+
 
 <br>
 
@@ -518,10 +486,8 @@ flowchart LR
 
 Why would a daily engagement dashboard over date-partitioned Parquet on S3 take minutes today when it took seconds last month, if clickstream volume has held flat at about 40 GB a day while a Kafka Connect sink lands those events every 10 seconds? Design the pipeline that stops the damage where the sink writes, repairs the partitions already on S3 on a schedule, and raises an alarm per partition before the dashboard feels it again.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -596,6 +562,8 @@ flowchart LR
    *Tests layering: the file-count alert fires independently of the job's own status, and because the sink is fixed each missed night adds 576 files rather than 207,360, so prevention is what lets the safety net fail gracefully.*
 3. You migrate the lake to Iceberg. Which parts of this design can you delete?\
    *Tests when manual compaction is still needed: auto-compaction covers steady state, but the existing backlog needs a one-time `rewrite_data_files`, the sink cadence still matters, and file count per partition stays a health metric.*
+
+</details>
 
 
 <br>

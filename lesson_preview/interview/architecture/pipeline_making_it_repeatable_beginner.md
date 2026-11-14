@@ -146,10 +146,8 @@ Three jobs (extract, transform, then load into the warehouse) each fire on their
 - Transform (cron) (transform, Spark)
 - Warehouse (storage, Snowflake)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 Strip the costume: this is not a data-quality bug, it is a **race condition** between three schedulers that have never been introduced to each other. Time-based `cron` says 'run `transform` at 02:00' and hopes `extract` finished first. Hope is not a dependency. This is DAG orchestration wearing an ETL-freshness disguise, and the trap is that everyone's instinct is to widen the gap between crons. That is the one move that never converges: the day `extract` runs 40 minutes late, `transform` still reads yesterday's partition and the warehouse ships stale numbers with a green checkmark.
 
@@ -220,6 +218,8 @@ flowchart LR
    *Tests that downstream tasks are marked upstream failed and the re-run resumes from the failed task, not from `extract`.*
 3. Another team's DAG now needs this warehouse table before it can start. How do you express a dependency that crosses 2 DAGs?\
    *Probes the DAG of DAGs problem: cross-DAG dependencies are harder than dependencies inside one DAG.*
+
+</details>
 
 
 <br>
@@ -389,17 +389,9 @@ Between the delete and the insert, a reader sees an empty partition. You can clo
 
 Overwriting protects you only if the retry targets the same partition. A filter on `current_date - INTERVAL '1' DAY` processes March 14 when it runs on March 15, and March 16 when someone retries it on March 17. The retry rebuilds March 16, a date it was never asked to touch, and the broken March 14 partition is never repaired.
 
-✓Filter reads the clock
-
-- ds = CAST(current_date - INTERVAL '1' DAY AS varchar)
-- Retry on March 17 rebuilds March 16
-- Backfill of March 1 to 31 rebuilds yesterday 31 times
-
-✗Filter reads the run
-
-- ds = '{{ logical_date }}', filled in by the orchestrator
-- Retry on March 17 rebuilds March 14
-- Backfill of March 1 to 31 rebuilds each of the 31 days once
+| ✓ Filter reads the clock | ✗ Filter reads the run |
+| --- | --- |
+| • ds = CAST(current_date - INTERVAL '1' DAY AS varchar)<br><br>• Retry on March 17 rebuilds March 16<br><br>• Backfill of March 1 to 31 rebuilds yesterday 31 times | • ds = '{{ logical_date }}', filled in by the orchestrator<br><br>• Retry on March 17 rebuilds March 14<br><br>• Backfill of March 1 to 31 rebuilds each of the 31 days once |
 
 
 <br>
@@ -472,10 +464,8 @@ The nightly load into the warehouse has no real recovery plan: a brief network b
 - Loader (transform, Spark)
 - Target table (storage, Snowflake)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The trap: 2 failures that look the same and aren't
 
@@ -544,6 +534,8 @@ flowchart LR
    *Tests queue-depth alerting and the instinct to stop the load, versus quietly setting aside a tenth of the data.*
 3. The retry succeeds on attempt three, but attempt one had already written half the batch. Show why the target still has correct counts.\
    *Forces a concrete idempotency mechanism (`MERGE` key or partition overwrite), not just a claim that the load is safe.*
+
+</details>
 
 
 <br>
@@ -722,31 +714,13 @@ Merging a new revenue formula changes every partition built from tomorrow on. Th
 
 ### Rolling back
 
-✓Rolling back code
+| ✓ Rolling back code | ✗ Rolling back data |
+| --- | --- |
+| • Revert the commit and redeploy<br><br>• Takes minutes<br><br>• Fixes every run from now on | • Partitions written by the bad version stay wrong<br><br>• Rerun the affected dates on the reverted code<br><br>• Safe only because each task overwrites its partition |
 
-- Revert the commit and redeploy
-- Takes minutes
-- Fixes every run from now on
-
-✗Rolling back data
-
-- Partitions written by the bad version stay wrong
-- Rerun the affected dates on the reverted code
-- Safe only because each task overwrites its partition
-
-✓Do
-
-- Run the whole DAG on fixture data in CI
-- Block promotion on failed staging data tests
-- Diff output schemas against the queries downstream teams run
-- Ship the backfill in the same release as the logic change
-
-✗Don't
-
-- Deploy to prod by copying files by hand
-- Let a failed staging test be overridden without review
-- Rename a column without a deprecation window
-- Assume a code revert fixes data already written
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Run the whole DAG on fixture data in CI<br><br>• Block promotion on failed staging data tests<br><br>• Diff output schemas against the queries downstream teams run<br><br>• Ship the backfill in the same release as the logic change | • Deploy to prod by copying files by hand<br><br>• Let a failed staging test be overridden without review<br><br>• Rename a column without a deprecation window<br><br>• Assume a code revert fixes data already written |
 
 > Try it
 >
@@ -786,10 +760,8 @@ A vacation rental marketplace's finance team closes each month from a daily reve
 
 A clinic network's nightly patient-visit rollup is three crontab entries an hour apart: extract from the scheduling database, clean, then aggregate into daily visit counts. When extract runs long, aggregate still fires on half-loaded data and the counts come out low. Make each step wait for the one before it to succeed, and let a brief connection drop to the scheduling database clear up without anyone stepping in. When a step truly fails, the on-call engineer re-runs from that step, not from extract, and the visit counts must match a clean night.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -869,6 +841,8 @@ flowchart LR
 2. A change to the cleaning rules ships next week. How do you know it will not drop visits before it touches the real counts?\
    *Tests environments and CI: run the change against a recent snapshot in staging and compare its counts with production before release.*
 
+</details>
+
 
 <br>
 
@@ -883,10 +857,8 @@ How would you make the daily PostgreSQL-to-warehouse pipeline repeatable, with e
 - Source (source, PostgreSQL)
 - Orchestrated extract (transform, Airflow)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -956,6 +928,8 @@ flowchart LR
    *Probes a data-quality check as its own task edge, versus treating empty output as success.*
 4. You now need this hourly instead of daily. What in the DAG changes, and what stays exactly the same?\
    *Tests whether the candidate sees the schedule interval and the partition granularity as the only knobs, with dependency ordering and idempotency untouched.*
+
+</details>
 
 
 <br>

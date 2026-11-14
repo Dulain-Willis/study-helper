@@ -196,19 +196,9 @@ The follow-up that tests whether you have done this: "The shipment table carries
 
 ### No-hire and strong-hire answers
 
-✓Answers that lose the round
-
-- Joins fact_order_line to fact_shipment on customer_key and reads the total without checking it
-- Explains the inflation as duplicate rows in the source rather than as a property of the join
-- Fixes the symptom with SUM(DISTINCT order_amount), which breaks the moment 2 orders share an amount
-- Removes duplicates with DISTINCT on the whole row, which hides the grain problem for exactly 1 query
-
-✗Answers that win it
-
-- Says "these are 2 grains" before writing a line and names the product of the counts
-- Aggregates each fact to the shared grain in a named CTE, then joins 1-to-1
-- States the inflation factor as the other side's row count, so the check is per key rather than per total
-- Asks whether the dimension is conformed, because a fan across an unconformed key is 2 bugs at once
+| ✓ Answers that lose the round | ✗ Answers that win it |
+| --- | --- |
+| • Joins fact_order_line to fact_shipment on customer_key and reads the total without checking it<br><br>• Explains the inflation as duplicate rows in the source rather than as a property of the join<br><br>• Fixes the symptom with SUM(DISTINCT order_amount), which breaks the moment 2 orders share an amount<br><br>• Removes duplicates with DISTINCT on the whole row, which hides the grain problem for exactly 1 query | • Says "these are 2 grains" before writing a line and names the product of the counts<br><br>• Aggregates each fact to the shared grain in a named CTE, then joins 1-to-1<br><br>• States the inflation factor as the other side's row count, so the check is per key rather than per total<br><br>• Asks whether the dimension is conformed, because a fan across an unconformed key is 2 bugs at once |
 
 The sentence that names the cost: pre-aggregating to customer answers "spend and shipping per customer" and nothing finer. If the next question is "shipping cost per order line", the customer-level aggregate cannot answer it, and saying so is part of the fix. Every pre-aggregation chooses which questions the result can still answer, and a strong answer says which ones it gave up. At scope, the same choice decides what the semantic layer exposes: a metric defined on the customer aggregate cannot be sliced by product, and a BI user who tries will either get an error or, worse, a silent fan through the product dimension.
 
@@ -269,19 +259,9 @@ FULL OUTER JOIN s
 
 The panel scores 2 details in that query. The first is the COALESCE on the key. Without it, the key column holds NULL for dave, whose row exists only on the shipment side, and the next join downstream drops him again. The second is that COALESCE to 0 on the measures is a decision rather than a reflex: 0 shipping for bob is true, and 0 orders for dave is false, because dave's order exists outside the load window. Saying so, and proposing NULL for dave's orders with a note in the metric definition, is the precision the panel is listening for.
 
-✓Pre-aggregate and FULL OUTER JOIN
-
-- One result with every customer from either side, suited to a single grid a dashboard reads
-- Needs the COALESCE on the key and a decision on 0 versus NULL for each measure
-- Still 1 query: the 2 CTEs each scan 1 fact and the join is 1-to-1 on the dimension key
-- Right when both measures belong on the same row and the consumer wants 1 table
-
-✗Drill-across: separate queries, merged at the consumer
-
-- Each fact is queried alone at its own grain and the results meet in the semantic layer or BI tool
-- Kimball's term is drill-across: 1 query per fact, aligned on the conformed dimension
-- Right when joining the facts would imply a relationship that does not exist, such as shipping cost against orders that never shipped
-- Costs 2 scans and a merge step, which is cheap next to a wrong number
+| ✓ Pre-aggregate and FULL OUTER JOIN | ✗ Drill-across: separate queries, merged at the consumer |
+| --- | --- |
+| • One result with every customer from either side, suited to a single grid a dashboard reads<br><br>• Needs the COALESCE on the key and a decision on 0 versus NULL for each measure<br><br>• Still 1 query: the 2 CTEs each scan 1 fact and the join is 1-to-1 on the dimension key<br><br>• Right when both measures belong on the same row and the consumer wants 1 table | • Each fact is queried alone at its own grain and the results meet in the semantic layer or BI tool<br><br>• Kimball's term is drill-across: 1 query per fact, aligned on the conformed dimension<br><br>• Right when joining the facts would imply a relationship that does not exist, such as shipping cost against orders that never shipped<br><br>• Costs 2 scans and a merge step, which is cheap next to a wrong number |
 
 The judgement the interviewer wants is which fix the situation calls for. A finance report that reconciles shipping invoices to order revenue by customer wants the first: every customer, both measures, 0 where nothing happened. A dashboard that shows order trend and shipping trend as 2 charts wants the second, because joining them invites a reader to divide 1 by the other for customers where the ratio has no meaning. Naming drill-across, and the conformed dimension as the thing that makes it possible, places the answer in the vocabulary the panel uses with each other after you leave the room.
 
@@ -344,21 +324,9 @@ Ask what the panel is really pricing. A fan in a shipping report overstated a ca
 > - "These are 2 grains; aggregate each to the shared dimension, then join 1-to-1." Said before any JOIN.
 > - "This measure is derived under rule R, and changing R restates history." Said about every allocation.
 
-✓Do
-
-- State the grain as 1 row per X, before naming any column
-- Back every grain with a key uniqueness test that fails the build
-- Aggregate each fact to a conformed dimension before combining facts
-- Check result rows against dimension rows after every multi-fact join
-- Write the grain in the model description, metric definition and test
-
-✗Don't
-
-- Add a column from a process with a different count per row
-- Join 2 facts row-to-row when grains differ; bring both to a shared grain first
-- Patch a fan with SUM(DISTINCT) or a whole-row DISTINCT
-- COALESCE a missing measure to 0 without deciding 0 is true
-- Change an allocation rule without a restatement note to consumers
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • State the grain as 1 row per X, before naming any column<br><br>• Back every grain with a key uniqueness test that fails the build<br><br>• Aggregate each fact to a conformed dimension before combining facts<br><br>• Check result rows against dimension rows after every multi-fact join<br><br>• Write the grain in the model description, metric definition and test | • Add a column from a process with a different count per row<br><br>• Join 2 facts row-to-row when grains differ; bring both to a shared grain first<br><br>• Patch a fan with SUM(DISTINCT) or a whole-row DISTINCT<br><br>• COALESCE a missing measure to 0 without deciding 0 is true<br><br>• Change an allocation rule without a restatement note to consumers |
 
 
 <br>
@@ -388,10 +356,8 @@ A grocery delivery company is renegotiating its courier contract and needs couri
 
 Model the monthly cost-per-patient report so encounter cost and lab cost sit side by side and lab cost matches the lab vendor's invoice, instead of the roughly fourfold lab total produced now by combining a fact with one row per visit and a fact with one row per lab test through the patient dimension. Each figure has to reach one row per patient per month, backed by a key that proves it, before the 2 meet. A patient whose tests were ordered by an outside clinic, with no visit that month, still shows their lab cost.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### 2 fans meeting at one patient
 
@@ -469,6 +435,8 @@ GROUP BY 1, 2;
 3. Radiology cost arrives as a third fact, one row per imaging study. What changes?\
    *Whether the candidate adds a third rollup at the same grain instead of a third branch in the query.*
 
+</details>
+
 
 <br>
 
@@ -478,10 +446,8 @@ GROUP BY 1, 2;
 
 Churned revenue in last quarter's churn-against-tickets report for customer success comes out at half the figure finance published. Subscription events and support tickets both hang off the account, many accounts raised no tickets, and some accounts raising tickets are trials with no subscription yet. Model the combined result so every account appears once per quarter with its churned revenue, its ticket count and whether it held a subscription that quarter, because a trial with nothing to churn must never read as an account that stayed.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A chasm trap that hides behind a conservative number
 
@@ -538,6 +504,8 @@ The 2 source facts stay at their natural grain: 1 row per subscription event, 1 
 3. A trial converts in week 6 of the quarter and cancels in week 11. What does its row say?\
    *Whether `had_subscription` is a quarter-level fact rather than a current account attribute, and how that keeps history honest.*
 
+</details>
+
 
 <br>
 
@@ -547,10 +515,8 @@ The 2 source facts stay at their natural grain: 1 row per subscription event, 1 
 
 Completed trips are stored one row per trip with the vehicle and miles driven, and fuel card swipes one row per swipe with the vehicle and amount paid, yet one fill-up powers several trips and some trips burn fuel bought the week before. Cost per mile, first requested as a fuel cost column on each trip, is reported per vehicle per calendar month from stored monthly totals of fuel cost and miles that reconcile exactly to the swipe and trip records. Every table's model description states what one row of it represents.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A column with no row to live in
 
@@ -607,6 +573,8 @@ Both facts keep their native grain and keys and point at `dim_vehicle` and `dim_
 3. A March 30 swipe posts on April 2, after March is published. What does the summary do?\
    *Late-arriving facts: rebuild the affected vehicle-month and say in the description when a month is final.*
 
+</details>
+
 
 <br>
 
@@ -616,10 +584,8 @@ Both facts keep their native grain and keys and point at `dim_vehicle` and `dim_
 
 Design the tables behind an analyst's daily campaign report: every served ad and every click kept as its own event, each naming its campaign and when it happened, plus one row per campaign per day carrying that day's impressions and clicks so click-through comes straight off it. A campaign can be served all day without a single click, and both daily figures must match a straight tally of the raw events.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### 2 facts, one row, no shared grain
 
@@ -673,6 +639,8 @@ This is the fan trap and the chasm trap in ad-tech clothing, and the whole answe
    *Whether a third fact gets counted to the same (campaign, date) grain on its own instead of being matched through clicks.*
 2. An analyst wants impressions and clicks by ad placement too. Does `campaign_daily_performance` absorb that?\
    *Whether the candidate sees a new dimension as a new grain and builds a separate rollup rather than widening this one.*
+
+</details>
 
 
 <br>

@@ -84,21 +84,9 @@ The part of the answer that reads as judgement is the organizational one. A Type
 
 The types trade 4 things against each other: whether history survives, how many rows the dimension carries, how a query has to be written to read the right version, and how much logic the pipeline needs to produce it. The interview scores the comparison under the constraints you were given, so every tradeoff you name should be tied to an attribute on the table in front of you.
 
-✓Type 1: overwrite in place
-
-- One row per entity, so the dimension stays the size of the entity count
-- Old facts read the current value, the same as new ones
-- Pipeline is an upsert on the natural key with no date logic
-- Right for corrections and for attributes no published report groups by
-- Wrong for any attribute in a closed or audited report, because history restates without warning
-
-✗Type 2: new row per version
-
-- One row per entity per version, with a surrogate key per row
-- Each fact reads the value that was current when it happened
-- Pipeline expires the old row and inserts the new one, with effective dates
-- Right for region, tier, owner, anything that attributes revenue or credit
-- Wrong for a high-churn attribute without a growth estimate, because rows multiply
+| ✓ Type 1: overwrite in place | ✗ Type 2: new row per version |
+| --- | --- |
+| • One row per entity, so the dimension stays the size of the entity count<br><br>• Old facts read the current value, the same as new ones<br><br>• Pipeline is an upsert on the natural key with no date logic<br><br>• Right for corrections and for attributes no published report groups by<br><br>• Wrong for any attribute in a closed or audited report, because history restates without warning | • One row per entity per version, with a surrogate key per row<br><br>• Each fact reads the value that was current when it happened<br><br>• Pipeline expires the old row and inserts the new one, with effective dates<br><br>• Right for region, tier, owner, anything that attributes revenue or credit<br><br>• Wrong for a high-churn attribute without a growth estimate, because rows multiply |
 
 Type 1 after the redraw on 2025-07-01
 
@@ -345,21 +333,9 @@ The answer that reads as scope includes the case where Type 2 should not be buil
 
 
 
-✓Do
-
-- For each attribute, pick the type that its report and its churn rate justify
-- Hash only the Type 2 columns, so a Type 1 correction never opens a version
-- Read expiry dates from the snapshot, never from the clock, so reruns and backfills match
-- Gate every load on zero overlaps and exactly 1 current row per entity
-- Estimate dimension growth per year before promising Type 2 on any attribute
-
-✗Don't
-
-- Default to Type 2 on a whole table without naming which attribute needs it
-- Filter a point-in-time join on is_current, which returns today's value for old facts
-- Promise Type 6 without pricing the overwrite across historical rows
-- Version a correction, which manufactures a history that was never true
-- Build a merge when the source already emits an event stream you can project
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • For each attribute, pick the type that its report and its churn rate justify<br><br>• Hash only the Type 2 columns, so a Type 1 correction never opens a version<br><br>• Read expiry dates from the snapshot, never from the clock, so reruns and backfills match<br><br>• Gate every load on zero overlaps and exactly 1 current row per entity<br><br>• Estimate dimension growth per year before promising Type 2 on any attribute | • Default to Type 2 on a whole table without naming which attribute needs it<br><br>• Filter a point-in-time join on is_current, which returns today's value for old facts<br><br>• Promise Type 6 without pricing the overwrite across historical rows<br><br>• Version a correction, which manufactures a history that was never true<br><br>• Build a merge when the source already emits an event stream you can project |
 
 
 <br>
@@ -389,10 +365,8 @@ A payments company keeps a merchant dimension of 40 million accounts. Risk re-ti
 
 A retail company's finance team builds a regional profit-and-loss report, and customers relocate between cities over the years. Every past order must attribute to the region where that customer lived on the day the order was placed, never to where they live now. Design the customer dimension and the orders fact so a relocation never shifts a completed order's region.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why this problem exists in real interviews
 
@@ -455,6 +429,8 @@ A Type 2 customer dimension joined to the orders fact on the version surrogate k
 3. Finance later reorganizes which cities belong to which region. Should that restate historical P&L or not, and how does the model express each choice?\
    *Separates a versioned customer attribute from a conformed region hierarchy, and forces a stance on whether a mapping change is history-preserving.*
 
+</details>
+
 
 <br>
 
@@ -464,10 +440,8 @@ A Type 2 customer dimension joined to the orders fact on the version surrogate k
 
 A regulated utility bills each account on a monthly cycle, but an account's rate and tariff category can change partway through a cycle, and regulators can later demand proof of exactly which rate applied on any given day going back years. Design the schema that stores metered charges alongside rate history so the effective rate for any past date is reconstructable, even when the rate changed mid-cycle.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem really is
 
@@ -532,6 +506,8 @@ This looks like a billing schema, but it is a **point-in-time audit** problem we
 4. At seven years of daily charges across tens of millions of accounts, how do you keep the audit query and the nightly load fast?\
    *Tests date partitioning of the fact and incremental version maintenance versus full rebuild.*
 
+</details>
+
 
 <br>
 
@@ -541,10 +517,8 @@ This looks like a billing schema, but it is a **point-in-time audit** problem we
 
 A large employer just reorganized its departments and redrew reporting lines, and the workforce analytics team needs a headcount model that survives the churn. Design the schema so that for any historical headcount snapshot, a single dim_employee row contains both the department the employee was assigned to when that snapshot was recorded and the department that same employee is assigned to today. Employees move between departments repeatedly; the model must preserve every historical assignment and allow both 'department then' and 'department now' to be read from the same versioned employee row without additional joins.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem is really asking
 
@@ -601,6 +575,8 @@ Beneath the reorg story, this is a **hybrid SCD** (Type 6) forced into the open 
 3. How would you support 'department two moves ago', not just then and now?\
    *Tests the limits of the two-column hybrid and whether the candidate recognizes that arbitrary prior states come from the versioned history, not more overwrite columns.*
 
+</details>
+
 
 <br>
 
@@ -610,10 +586,8 @@ Beneath the reorg story, this is a **hybrid SCD** (Type 6) forced into the open 
 
 With 40 million subscribers and roughly 800k of them changing plan, tier or standing each night, how should the subscriber dimension and its nightly load be shaped so every historical charge attributes to the account version that held the plan and tier on its charge date? Changed subscribers are found from a hash of the tracked attributes, or an equivalent change indicator, on each staged row so nightly work tracks change volume rather than the full base, and corrected billing records that arrive days late carry the real change date, which is what version dates must come from. The design covers the staging snapshot, the versioned subscriber dimension with full history, and the fact table that ties charges to account versions.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why this problem exists in real interviews
 
@@ -681,6 +655,8 @@ One defensible design: a staging snapshot feeding a Type 2 `dim_subscriber`, wit
    *Tests reconciliation reasoning: the rebuild is source-derived truth, so the incremental rows are corrected to match and the gap is investigated.*
 4. At 40M rows, closing out the prior version by setting its `effective_to` is the slow step of the load. How do you keep it cheap?\
    *Tests scale awareness: restrict the update to the current versions of changed keys rather than the whole table.*
+
+</details>
 
 
 <br>
