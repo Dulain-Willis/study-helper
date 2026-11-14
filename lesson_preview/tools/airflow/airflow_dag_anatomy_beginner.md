@@ -272,12 +272,12 @@ with DAG("weekly_payroll", schedule=None):
 
 ```mermaid
 flowchart TB
-    merge["merge<br/>success"]:::success
-    publish["publish<br/>upstream_failed"]:::upstream_failed
-    pull_hr["pull_hr<br/>success"]:::success
-    check_hrs["check_hrs<br/>failed"]:::failed
-    check_pay["check_pay<br/>success"]:::success
-    pull_time["pull_time<br/>success"]:::success
+    merge["merge<br/>BashOperator<br/>success"]:::success
+    publish["publish<br/>BashOperator<br/>upstream_failed"]:::upstream_failed
+    pull_hr["pull_hr<br/>BashOperator<br/>success"]:::success
+    check_hrs["check_hrs<br/>BashOperator<br/>failed"]:::failed
+    check_pay["check_pay<br/>BashOperator<br/>success"]:::success
+    pull_time["pull_time<br/>BashOperator<br/>success"]:::success
     pull_hr --> merge
     pull_time --> merge
     merge --> check_hrs
@@ -796,11 +796,11 @@ with DAG("nightly_retail", schedule="@daily",
 
 ```mermaid
 flowchart TB
-    merge["merge<br/>upstream_failed"]:::upstream_failed
-    publish["publish<br/>upstream_failed"]:::upstream_failed
-    validate["validate<br/>upstream_failed"]:::upstream_failed
-    pull_orders["pull_orders<br/>failed"]:::failed
-    pull_returns["pull_returns<br/>success"]:::success
+    merge["merge<br/>BashOperator<br/>upstream_failed"]:::upstream_failed
+    publish["publish<br/>BashOperator<br/>upstream_failed"]:::upstream_failed
+    validate["validate<br/>BashOperator<br/>upstream_failed"]:::upstream_failed
+    pull_orders["pull_orders<br/>BashOperator<br/>failed"]:::failed
+    pull_returns["pull_returns<br/>BashOperator<br/>success"]:::success
     o --> m
     r --> m
     m --> v
@@ -815,11 +815,11 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    merge["merge<br/>success"]:::success
-    publish["publish<br/>upstream_failed"]:::upstream_failed
-    validate["validate<br/>failed"]:::failed
-    pull_orders["pull_orders<br/>success"]:::success
-    pull_returns["pull_returns<br/>success"]:::success
+    merge["merge<br/>BashOperator<br/>success"]:::success
+    publish["publish<br/>BashOperator<br/>upstream_failed"]:::upstream_failed
+    validate["validate<br/>BashOperator<br/>failed"]:::failed
+    pull_orders["pull_orders<br/>BashOperator<br/>success"]:::success
+    pull_returns["pull_returns<br/>BashOperator<br/>success"]:::success
     o --> m
     r --> m
     m --> v

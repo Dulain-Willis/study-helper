@@ -808,11 +808,19 @@ def solution_graphs(c):
     edges = dag_edges(source)
     if not runs or not edges:
         return None
+    # operator class shown under each task name: from the solution code (BashOperator(task_id="x")),
+    # else from the parsed starter file's task list
+    operators = {t: op for op, t in re.findall(r'(\w+Operator)\(\s*task_id="(\w+)"', source)}
+    for f in (c["config"].get("scenario") or {}).get("files") or []:
+        for dag in (f.get("description") or {}).get("dags") or []:
+            for task in dag.get("tasks") or []:
+                operators.setdefault(task["taskId"], task.get("operator"))
     out = []
     for i, run in enumerate(runs, 1):
         lines = ["```mermaid", "flowchart TB"]
         for t, state in run["tasks"].items():
-            lines.append(f'    {t}["{t}<br/>{state}"]:::{state}')
+            op = f"<br/>{operators[t]}" if operators.get(t) else ""
+            lines.append(f'    {t}["{t}{op}<br/>{state}"]:::{state}')
         lines += [f"    {a} --> {b}" for a, b in edges]
         lines += [f"    classDef {s} {css}" for s, css in GRAPH_STYLES.items()]
         lines.append("```")
