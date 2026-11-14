@@ -428,31 +428,17 @@ flowchart LR
 
 The bounded loop is correct for 1 worker, and pipelines rarely have 1. Picture 100 workers running it, with the wait set to 1 second and a budget of 8 attempts, pulling settlement pages from a payments API that serves 40 calls per second. At the 30 second mark the API restarts and answers nothing for 200 milliseconds. Every call in flight fails, every worker sleeps the same 1 second, and all 100 retries arrive at the same instant. The API is healthy again, but 100 calls land in a window built for 40. The 60 that get a 503 sleep 1 second and arrive together again.
 
-Every worker waits 1 s after a failure, then calls again28 s
+**Retry after 1 s**
 
-100 workers
+![Retry after 1 s](images/pa_failure_modes_beginner_animation_1_retry-after-1-s.gif)
 
-workers
+**Exponential backoff**
 
-RETRYafter 1 s
+![Exponential backoff](images/pa_failure_modes_beginner_animation_1_exponential-backoff.gif)
 
-MAX TRIES8
+**Backoff + jitter**
 
-downstream API
-
-payments_api
-
-CAPACITY40/s
-
-workers0 calls made
-
-0 through0 retrying0 gave up
-
-calls per secondcapacity 40/s
-
-A 200 ms blip and 100 workers
-
-1/20
+![Backoff + jitter](images/pa_failure_modes_beginner_animation_1_backoff-jitter.gif)
 
 Run the first variant and watch the arrivals. The original fault lasted 200 milliseconds. The service is then held at full capacity by retries for several seconds, and some workers are on their third or fourth attempt before the backlog clears. Every one of those extra calls was created by the clients' own retry policy. This is the thundering herd: a group of clients that fail together, wait the same amount, and return together.
 

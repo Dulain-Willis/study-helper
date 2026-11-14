@@ -236,53 +236,13 @@ When an order commits, checkout has 2 jobs: save the order and tell shipping. Th
 
 The transactional outbox moves the second write into the first system. Checkout inserts the event as a row in an outbox table inside the order's own transaction, so both rows commit or neither does. A separate publisher reads committed outbox rows and sends them to the broker, retrying until it accepts. The animation runs 3 orders through both designs during a 2-second broker outage.
 
-checkout writes the order to the database, then publishes the event to the broker0 s
+**Dual write**
 
-service
+![Dual write](images/pa_ingestion_patterns_advanced_animation_1_dual-write.gif)
 
-checkout
+**Transactional outbox**
 
-WRITESdb, then broker
-
-Postgres
-
-orders
-
-Kafka
-
-order_events
-
-shipping
-
-shipping
-
-DEDUPE ONid
-
-shipping db
-
-shipments
-
-orders0 rows
-
-order_id
-
-status
-
-records0 records
-
-#
-
-id
-
-order_id
-
-shipments0 rows
-
-order_id
-
-Three orders and a broker blip
-
-1/14
+![Transactional outbox](images/pa_ingestion_patterns_advanced_animation_1_transactional-outbox.gif)
 
 In the dual-write variant, the order at second 3 arrives while the broker is down: its row commits but its publish fails, so shipping never hears of it. In the outbox variant, rows written during the outage wait in the table. Then the publisher crashes after sending 103 and before marking it, so its next run sends 103 again, and shipping dedupes on the outbox id to create 1 shipment. The outbox turns maybe-never into at-least-once; consumer dedupe makes it effectively-once.
 

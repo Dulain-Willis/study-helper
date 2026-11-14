@@ -27,55 +27,7 @@ A batch pipeline lets records accumulate and processes them together on a schedu
 
 A streaming pipeline keeps the transform running at all times and hands it records one at a time, within seconds of each record being created. The same signups flow into a queue. A consumer process reads the queue continuously, adds 1 to the count for that signup's country, and writes the new count to a serving table. The unit of work is a single record, so the output changes 6 times on a day with 6 signups, and the consumer is still running at midnight waiting for the seventh.
 
-The same signups feed a stream that counts each one as it lands and a batch that counts them once a nightApr 24 · 00:00
-
-Kafka
-
-signups
-
-streaming
-
-stream_counter
-
-COUNT BYcountry
-
-serving table
-
-live_counts
-
-Airflow
-
-nightly_batch
-
-CRON02:00
-
-warehouse
-
-daily_counts
-
-records0 records
-
-#
-
-id
-
-country
-
-live_counts0 rows
-
-country
-
-signups
-
-daily_counts0 rows
-
-country
-
-signups
-
-Signups by country, counted two ways
-
-1/16
+![Animation](images/pa_batch_vs_streaming_beginner_animation_1.gif)
 
 Watch the clock in the animation. At 07:40 the second signup, from Germany, lands in the queue. Within 2 seconds `live_counts` shows DE at 1, while `daily_counts` holds nothing, because its job will not run for another 18 hours. At 02:00 on April 25 the nightly job fires, reads all 6 signups, and 8 minutes later writes US 3, DE 2, IN 1 in a single overwrite. Both tables now hold identical numbers. They arrived on 2 different rhythms, and for most of the day only one of them was right.
 

@@ -300,81 +300,13 @@ Every relational database records each change in a log before applying it to the
 
 The animation runs 4 changes to `orders` between 10:00 and 10:11: order 1001's total rises to 13000 at 10:03, order 1003 is inserted at 10:05, order 1002 is deleted at 10:06, and 1001 rises again to 13500 at 10:08. Play both variants and compare the replica at the end.
 
-A poller asks orders every 10 minutes for rows changed since its last poll10:00
+**Query-based**
 
-Postgres
+![Query-based](images/pa_ingestion_patterns_intermediate_animation_1_query-based.gif)
 
-orders
+**Log-based**
 
-LOGS TOwal
-
-write-ahead log
-
-wal
-
-query-based
-
-poller
-
-EVERY10 min
-
-warehouse
-
-replica
-
-orders2 rows
-
-order_id
-
-total
-
-updated_at
-
-1001
-
-12500
-
-09:58
-
-1002
-
-8000
-
-09:59
-
-records0 records
-
-#
-
-lsn
-
-op
-
-key
-
-replica2 rows
-
-order_id
-
-total
-
-updated_at
-
-1001
-
-12500
-
-09:58
-
-1002
-
-8000
-
-09:59
-
-Four changes to the orders table
-
-1/9
+![Log-based](images/pa_ingestion_patterns_intermediate_animation_1_log-based.gif)
 
 The query-based poller fires at 10:10 with its bookmark at 10:00. It copies 1001 at 13500 and the new 1003, and never learns that 1001 passed through 13000 or that 1002 was deleted, so the replica still shows order 1002 at 8000. The log-based connector applies each change around 2 seconds after it is written, and the replica ends identical to the source.
 

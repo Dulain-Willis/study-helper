@@ -685,83 +685,13 @@ A check that fails has to do something, and there are 2 choices. It can block: t
 
 The animation below runs the same gate both ways. `orders_staging` holds 4 rows for 25 April, and order 5002 appears twice. `check_orders` runs at 06:00 with 2 checks: `order_id` must be unique, and the row count must be at least 3. `publish_orders` overwrites `fct_orders`, and the revenue dashboard sums `amount`. Switch between Block and Warn and watch the dashboard.
 
-A failed check stops the run, so nothing after it publishes05:59
+**Block**
 
-Snowflake
+![Block](images/pa_data_quality_beginner_animation_1_block.gif)
 
-orders_staging
+**Warn**
 
-Airflow
-
-check_orders
-
-ON FAILblock
-
-Airflow
-
-publish_orders
-
-AFTERcheck_orders
-
-Snowflake
-
-fct_orders
-
-Looker
-
-revenue
-
-$480
-
-Apr 254 rows
-
-order_id
-
-amount
-
-5001
-
-200
-
-5002
-
-135
-
-5002
-
-135
-
-×2
-
-5003
-
-80
-
-checks2 checks
-
-unique order_id
-
-row count
-
-no alert
-
-Apr 242 rows
-
-order_id
-
-amount
-
-4991
-
-230
-
-4992
-
-250
-
-One duplicate order_id
-
-1/6
+![Warn](images/pa_data_quality_beginner_animation_1_warn.gif)
 
 Under Block, the uniqueness check fails at 06:01, `publish_orders` never runs, and the dashboard keeps showing $480 from the 24 April partition, with its date. The number is a day old and correct. Under Warn, a message goes to the channel, `publish_orders` overwrites `fct_orders` with all 4 rows, and the dashboard shows $550. The true figure for 25 April is $415. The duplicate added $135 to revenue, and the only trace of it is a message in a channel at 06:01.
 

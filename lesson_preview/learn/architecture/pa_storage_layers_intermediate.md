@@ -695,45 +695,13 @@ Partitions and footer statistics save bytes only when the engine compares the qu
 
 `fct_orders` is partitioned by `event_date` and `country`. 3 days times 2 countries gives 6 partitions. Each partition holds 1 file of 5 row groups of 128MB, and the footer records min and max `order_ts` for each row group. The query asks for orders placed on 2026-04-22 at or after 19:00. Switch between the 2 spellings and watch which row groups the engine opens.
 
-The filter compares the partition and timestamp columns directly
+**Filters on the columns**
 
-S3 Parquet
+![Filters on the columns](images/pa_storage_layers_intermediate_animation_1_filters-on-the-columns.gif)
 
-fct_orders
+**Functions on the columns**
 
-Trino
-
-query
-
-6 files3,840 MB30 row groups
-
-event_date · countryrow groups by order_ts (min to max)
-
-2026-04-21 · US00–06h06–12h12–18h18–21h21–24h
-
-2026-04-21 · DE00–06h06–12h12–18h18–21h21–24h
-
-2026-04-22 · US00–06h06–12h12–18h18–21h21–24h
-
-2026-04-22 · DE00–06h06–12h12–18h18–21h21–24h
-
-2026-04-23 · US00–06h06–12h12–18h18–21h21–24h
-
-2026-04-23 · DE00–06h06–12h12–18h18–21h21–24h
-
-the query
-
-SELECT… FROM fct_orders
-
-WHEREevent_date = '2026-04-22'
-
-ANDorder_ts >= '2026-04-22 19:00:00'
-
-0 MBread of 3,840 MB
-
-What the filter lets the engine skip
-
-1/9
+![Functions on the columns](images/pa_storage_layers_intermediate_animation_1_functions-on-the-columns.gif)
 
 ```sql
 SELECT

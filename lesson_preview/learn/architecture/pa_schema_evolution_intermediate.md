@@ -1016,75 +1016,13 @@ Allowed lateness is the second setting on a window. After the watermark fires a 
 
 The animation replays all 6 events through the `revenue_5m` job in arrival order. Run the 60-minute variant, then the variant with no allowed lateness, and watch where E3 ends up each time.
 
-A window that has fired still takes late events for 60 minutes09:02:00
+**Allowed lateness 60 min**
 
-Kafka
+![Allowed lateness 60 min](images/pa_schema_evolution_intermediate_animation_1_allowed-lateness-60-min.gif)
 
-mobile_events
+**No allowed lateness**
 
-Beam
-
-revenue_5m
-
-LATENESS1 h
-
-BigQuery
-
-revenue_by_window
-
-dead letter
-
-late_events
-
-records0 records
-
-#
-
-id
-
-event_time
-
-amount
-
-event-time windows5 min
-
-09:0009:05…10:0510:10
-
-09:00–09:05
-
-total
-
-09:05–09:10
-
-total
-
-10:05–10:10
-
-total
-
-no watermark yet
-
-revenue_by_window0 rows
-
-window
-
-total
-
-fires
-
-records0 records
-
-#
-
-id
-
-event_time
-
-amount
-
-One window, three kinds of late
-
-1/22
+![No allowed lateness](images/pa_schema_evolution_intermediate_animation_1_no-allowed-lateness.gif)
 
 
 <br>
