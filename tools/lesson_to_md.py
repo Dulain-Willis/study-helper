@@ -39,11 +39,11 @@ NOISE = ["script", "style", "nav", "footer", "button", "svg", "canvas", "head"]
 CUSTOM_BLOCKS = {
     "static_code", "big_number", "tip", "callout", "fun_fact", "key_takeaways",
     "synthesis", "icon_list", "info_list", *DIAGRAM_LABELS,
-    "multiple_choice", "schema_story", "best_practices", "comparison",
+    "multiple_choice", "schema_story", "best_practices", "comparison", "placed_challenge",
 }
 # Interactive exercise with no answers in the page, so what's left is a dangling question.
 # Dropped. (multiple_choice used to be here; its answers ARE in the page's embedded JSON.)
-SKIPPED_BLOCKS = {"schema_story"}
+SKIPPED_BLOCKS = {"schema_story", "placed_challenge"}  # placed_challenge: empty stub for Airflow exercises
 GENERIC_BLOCKS = {
     "lesson_title", "learning_objectives", "section_header", "h3", "body_text",
     "rich_text", "static_table", "side_by_side_tables", "comparison",
@@ -627,6 +627,74 @@ def exercises_markdown(challenges, images=None, start=0):
     return "\n\n".join(out)
 
 
+# --- Airflow exercises (tools/airflow lessons) ----------------------------------------
+# Same endpoint as above, challenge_type "airflow". Two forms: dag_repair (fix the DAG
+# file) and grid_match (edit the DAG until the run grid matches a target). The page's live
+# editor + Airflow UI becomes: task, starter file, what the learner is shown, then a
+# folded solution with the canonical code and walkthrough.
+STATE_LABELS = {
+    "success": "✅ success", "failed": "❌ failed", "upstream_failed": "🟧 upstream_failed",
+    "running": "🔄 running", "none": "⬜ no state", "skipped": "⏭ skipped",
+}
+OUTCOME_TEXT = {"success": "every try succeeds", "fail": "fails", "fail_no_retry": "fails, no retry"}
+
+
+def duration(seconds):
+    return f"{seconds // 3600:02d}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}"
+
+
+def grid_table(runs):
+    """Run grid as a table: one row per task, one column per run (the site's Grid view)."""
+    tasks = list(runs[0]["tasks"])
+    head = "| task | " + " | ".join(r["logicalDate"][5:16].replace("T", " ") for r in runs) + " |"
+    rows = [f"| `{t}` | " + " | ".join(STATE_LABELS.get(r["tasks"].get(t), str(r["tasks"].get(t))) for r in runs) + " |"
+            for t in tasks]
+    return "\n".join([head, "|---" * (len(runs) + 1) + "|"] + rows)
+
+
+def task_lines(behaviors):
+    out = []
+    for b in behaviors:
+        outcome = OUTCOME_TEXT.get((b.get("outcomes") or ["success"])[0], b["outcomes"][0])
+        line = f"- `{b['taskId']}` · runs {duration(b.get('durationSeconds', 0))} · {outcome}"
+        for r in b.get("byRun") or []:
+            what = r.get("raises") or OUTCOME_TEXT.get(r["outcomes"][0], r["outcomes"][0])
+            line += f"\\\n  on {r['logicalDate'][:16].replace('T', ' ')}: {what}"
+        out.append(line)
+    return "\n".join(out)
+
+
+def airflow_exercises_markdown(challenges):
+    out = ["## Airflow"]
+    titles = {"dag_repair": "Repair the DAG", "grid_match": "Match the grid"}
+    for n, c in enumerate(challenges, 1):
+        cfg, sc = c["config"], c["config"].get("scenario") or {}
+        form = cfg.get("form")
+        out += [f"### Exercise {n} of {len(challenges)}: {titles.get(form, form)}",
+                f"**● TASK**\n\n{c['prompt']}"]
+        files = sc.get("files") or []
+        starter = (cfg.get("starter") or {}).get("source") or (files[0]["source"] if files else "")
+        path = sc.get("file") or (files[0]["path"] if files else "dag.py")
+        out.append(f"**Starter** — `{path}`\n\n```python\n{starter}\n```")
+        if form == "grid_match" and sc.get("target"):
+            out.append("**Target grid** (Airflow Grid view; your DAG must draw this):\n\n"
+                       + grid_table(sc["target"]))
+        if sc.get("behaviors"):
+            out.append("**Tasks**\n\n" + task_lines(sc["behaviors"]))
+        if sc.get("config"):
+            cfg_lines = "\n".join(f"{re.sub(r'([A-Z])', lambda m: '_' + m.group(1).lower(), k)} = {v}"
+                                  for k, v in sc["config"].items())
+            out.append(f"**airflow.cfg**\n\n```ini\n[core]\n{cfg_lines}\n```")
+        out.append("<details>\n<summary><strong>Solution</strong></summary>")
+        if form == "dag_repair" and (sc.get("expect") or {}).get("runs"):
+            runs = [{"logicalDate": f"run {i}", "tasks": r["tasks"]}
+                    for i, r in enumerate(sc["expect"]["runs"], 1)]
+            out.append("**Expected grid after the fix**\n\n" + grid_table(runs))
+        out += [m for m in (solution_block(b) for b in (c.get("deep_dive") or {}).get("blocks") or []) if m]
+        out.append("</details>")
+    return "\n\n".join(out)
+
+
 # Taking a solution's schema diagram: it sits in a scrolling box inside a widget (one
 # page can hold several widgets, some with tabs). The diagram is found by its content, the
 # smallest element holding every table and column name, and Playwright scrolls to it.
@@ -873,12 +941,15 @@ def main():
     path = os.path.join(out_dir, slug + ".md")
     with open(path, "w", encoding="utf-8") as f:
         challenges = fetch_challenges(slug)
-        groups = exercise_groups(url, challenges) if challenges else []
+        airflow = bool(challenges) and challenges[0].get("challenge_type") == "airflow"
+        groups = ([(None, challenges)] if airflow
+                  else exercise_groups(url, challenges) if challenges else [])
         shots = (screenshot_schema_diagrams(url, out_dir, slug, challenges)
-                 if challenges and "--screenshots" in sys.argv else {})
+                 if challenges and not airflow and "--screenshots" in sys.argv else {})
         sections, start = [], 0
         for anchor, group in groups:
-            sections.append((anchor, exercises_markdown(group, shots, start)))
+            sections.append((anchor, airflow_exercises_markdown(group) if airflow
+                             else exercises_markdown(group, shots, start)))
             start += len(group)
         f.write(convert(html, images, sections, animations))
     print(path)
