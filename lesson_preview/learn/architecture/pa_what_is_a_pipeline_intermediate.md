@@ -76,10 +76,8 @@ Both consumers read 1 definition of an order, the cleaning is written once, and 
 
 A food-delivery marketplace has 3 sources (PostgreSQL orders, MySQL menus, a promotions API) and 4 teams that each clean their own copy, so order counts disagree and a test-order filter fix reached only 2 teams. Redesign it in bronze, silver and gold layers: land every source raw in object storage, have one job build a curated orders table on the lake that drops test orders, and give each team its own warehouse serving table read from the curated one.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One curated table between three sources and four teams
 
@@ -143,6 +141,8 @@ flowchart LR
 2. Pricing asks for numbers no older than 15 minutes. What does the hourly silver build do to that request?\
    *Checks that each layer's schedule bounds the freshness of everything downstream of it.*
 
+</details>
+
 
 <br>
 
@@ -158,19 +158,9 @@ The ETL default came from the economics of the 2000s warehouse. A Teradata or Or
 
 Cloud warehouses broke the constraint in 2 places. BigQuery (2011) and Snowflake (2015) separated storage from compute, so stored bytes cost object-store prices and compute is sized per workload, with Snowflake billing isolated virtual warehouses by the second. Redshift (2013) made cluster compute rentable and resizable by the hour, and separated storage only with RA3 nodes in 2019. The 2TB transform now runs on its own compute for a few dollars, and the raw copy it reads costs around $46 a month. With storage that cheap and compute that elastic, loading raw first became the default, and dbt (2016) gave SQL transforms the version control and tests ETL tools had kept inside their GUIs.
 
-✓ETL: transform before load
-
-- A separate engine owns the compute; the warehouse holds only finished tables
-- Raw data is gone after load; a new question needs a new extract
-- Masking, parsing and model inference run in general-purpose code
-- Fits data that must be reduced or protected before it lands
-
-✗ELT: transform after load
-
-- Warehouse compute does the work, sized per job
-- Raw tables persist; a new model is a new SQL file over old rows
-- Transforms are SQL, tested and versioned with dbt
-- Fits any transform SQL can express over data allowed to land
+| ✓ ETL: transform before load | ✗ ELT: transform after load |
+| --- | --- |
+| • A separate engine owns the compute; the warehouse holds only finished tables<br><br>• Raw data is gone after load; a new question needs a new extract<br><br>• Masking, parsing and model inference run in general-purpose code<br><br>• Fits data that must be reduced or protected before it lands | • Warehouse compute does the work, sized per job<br><br>• Raw tables persist; a new model is a new SQL file over old rows<br><br>• Transforms are SQL, tested and versioned with dbt<br><br>• Fits any transform SQL can express over data allowed to land |
 
 
 <br>
@@ -234,10 +224,8 @@ Protection is a constraint on what may land, so this transform runs before load.
 
 An ingestion feeds a warehouse from app events (millions an hour, each with a customer email) and product catalog images, which warehouse SQL cannot decode. Its six transforms are type casts, deduplication, email hashing, image feature extraction, sessionizing and a join to the product dimension. Emails may never land unhashed, and sessions must be queryable within 15 minutes. Place each before the load (ETL) or as SQL in the warehouse over a raw copy (ELT).
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Each transform goes where its constraint lives
 
@@ -293,6 +281,8 @@ flowchart LR
 2. Compliance now allows emails in a locked raw schema for 24 hours. Does hashing move?\
    *Whether a changed constraint changes the placement.*
 
+</details>
+
 
 <br>
 
@@ -302,10 +292,8 @@ flowchart LR
 
 An hourly merge step joins 4 inputs into an enriched shipments table: shipments and carrier invoices land hourly, GPS pings every 15 minutes, and a fuel price file daily around 14:00. Have an orchestrator run the merge each hour only after both hourly inputs pass checks for partial input. GPS pings up to an hour old are fine, and a late fuel file must not hold up a run: the run uses the latest price on or before its date.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A merge runs at the pace of the inputs it waits on
 
@@ -367,6 +355,8 @@ The orchestrator owns the schedule and the order: `partition_landed_sensor`, the
    *Trading freshness for a blocking dependency: either the morning runs wait, or they rerun once the file lands.*
 2. A third hourly input usually lands at 50 past the hour. What happens to each run's start time?\
    *The slowest gating input sets when each run can start.*
+
+</details>
 
 
 <br>
@@ -468,10 +458,8 @@ The join keeps its hourly cadence, the staleness is visible in the data, and the
 
 A hotel-booking platform lands three sources in a raw store: bookings by change stream flushed every 15 minutes, clickstream as hourly files, and partner rates once a day. An hourly Airflow DAG merges them, retrying 3 times; a quality gate releases each hour to a revenue dashboard and a pricing model, while a finance export reads the merge output directly. Draw it with each stage's cadence, and page on-call from the one job whose failure stalls all three readers.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Find the job every reader waits on
 
@@ -526,6 +514,8 @@ flowchart LR
    *Recounting blast radius when a reader bypasses the fan-in, and watching freshness where no job failure would fire.*
 2. The partner rates file arrives 6 hours late but nothing errors. Which readers see stale prices, and would the merge's page fire?\
    *Telling lateness apart from failure, and why freshness monitoring sits beside failure alerts.*
+
+</details>
 
 
 <br>
@@ -619,10 +609,8 @@ Each node pages its own owner. The catalog team recreates the slot and re-snapsh
 
 A ride-hailing app publishes trip events to one Kafka topic, read by a finance dashboard of hourly driver earnings and a feature store of per-rider features refreshed every 10 minutes. Land the events raw, keep one curated trips table that both readers agree on, and choose where the pipeline forks and how often curated runs. Then attach a surge-pricing service that must react within 1 second, plus a nightly job reconciling its decisions against curated trips.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Fork after the curated layer, not at the topic
 
@@ -683,6 +671,8 @@ flowchart LR
 2. A city-operations map needs open trips refreshed every minute. Does it fork at curated or at the topic?\
    *Whether a 1-minute need fits a batch curated cadence or belongs on the streaming branch.*
 
+</details>
+
 
 <br>
 
@@ -692,10 +682,8 @@ flowchart LR
 
 A subscription software company's billing events, CRM and product usage logs are read directly by a finance dashboard, sales operations and a churn model, each cleaning its own copy. Redesign it as bronze, silver and gold: every source lands raw in object storage, one curated layer and the gold tables live in the warehouse, and each reader reads its own gold table. Usage logs carry IP addresses that may never be stored and arrive at 2 million events an hour, though readers need usage only per account per day. Run each transform before the warehouse load (ETL) or as SQL inside it (ELT), as its constraint requires.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A constraint decides where each transform runs
 
@@ -774,6 +762,8 @@ flowchart LR
 2. The churn model moves to scoring every 15 minutes. Which jobs change cadence, and does the usage rollup still belong before the load?\
    *Batch versus streaming on the usage path, and whether volume still decides ETL.*
 
+</details>
+
 
 <br>
 
@@ -840,20 +830,9 @@ The requirement forces the fork before the curated layer, and the reconciliation
 
 </details>
 
-✓Do
-
-- Split a pipeline into layers at the second consumer or the second source, before cleaning gets copied
-- Write each layer's promise down: raw is complete and untouched, curated is the one definition
-- Pin every input of a merge step to the run's interval with an as-of rule
-- Run the curated layer at the fastest consumer's cadence and let slower consumers aggregate
-- Put a count and freshness check between curated and serving, and make it block
-
-✗Don't
-
-- Don't let a consumer read another consumer's serving table as if it were curated
-- Don't inner join a late-arriving dimension; keep the rows and make the nulls visible
-- Don't mask PII in a model after the raw rows have landed in the warehouse
-- Don't fork at ingestion for a consumer a 15-minute curated layer would satisfy
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Split a pipeline into layers at the second consumer or the second source, before cleaning gets copied<br><br>• Write each layer's promise down: raw is complete and untouched, curated is the one definition<br><br>• Pin every input of a merge step to the run's interval with an as-of rule<br><br>• Run the curated layer at the fastest consumer's cadence and let slower consumers aggregate<br><br>• Put a count and freshness check between curated and serving, and make it block | • Don't let a consumer read another consumer's serving table as if it were curated<br><br>• Don't inner join a late-arriving dimension; keep the rows and make the nulls visible<br><br>• Don't mask PII in a model after the raw rows have landed in the warehouse<br><br>• Don't fork at ingestion for a consumer a 15-minute curated layer would satisfy |
 
 
 <br>
@@ -868,10 +847,8 @@ The requirement forces the fork before the curated layer, and the reconciliation
 
 A retailer is moving reporting off an on-prem appliance with fixed, shared compute to a cloud warehouse that bills storage and compute separately. Design its ELT pipeline: point-of-sale rows and a nightly mainframe inventory export land raw in the warehouse, and SQL inside it rebuilds curated tables each night for analyst dashboards. The export arrives as EBCDIC fixed-width records the warehouse cannot parse, so one transform still has to run before the load.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Load first, except where the warehouse cannot read it
 
@@ -919,6 +896,8 @@ flowchart LR
 2. If the sales rows carried full card numbers, what would also have to run before the load?\
    *Whether a compliance rule, not just a file format, can keep a transform ahead of the warehouse.*
 
+</details>
+
 
 <br>
 
@@ -947,10 +926,8 @@ A grocery delivery company, 2 years after launch, has 6 jobs reading its order t
 
 A bike-share operator lands Kafka dock events hourly and a membership database change stream every 15 minutes in a raw store, and an orchestrated hourly job builds curated rides once both have landed. A quality check releases each hour to the finance dashboard and the maintenance report together or not at all. The change stream once went silent at 02:10 and finance noticed at 09:00. Draw it so a silent source pages the ingestion team from the raw store.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Catch silence on the side of the boundary that can fix it
 
@@ -1000,6 +977,8 @@ flowchart LR
 2. The membership stream is legitimately empty for an hour most nights. How do you keep the silence alert from paging every night?\
    *Separates a source that is quiet from one that is broken, for example by alerting on missed flushes rather than on zero rows.*
 
+</details>
+
 
 <br>
 
@@ -1009,10 +988,8 @@ flowchart LR
 
 A parcel logistics company's operations dashboard reads a curated shipments table in a warehouse. Land three inputs raw in object storage: depot scan events hourly, a carrier rate file daily, and vehicle telemetry every 5 minutes. An orchestrated hourly job, retrying 3 times, joins them into the curated table once the hour's scans pass a completeness check, using the latest rate file on or before its date and the newest telemetry at or before the hour. When the rate file is 6 hours late, page the rates team from the raw store.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Only one input gets to block the run
 
@@ -1067,6 +1044,8 @@ flowchart LR
 2. One depot's scan export stops arriving. What does the dashboard show, and who should hear about it?\
    *Tests that a gated input stalls the run, so its arrival needs its own owner and alert.*
 
+</details>
+
 
 <br>
 
@@ -1076,10 +1055,8 @@ flowchart LR
 
 Surge pricing needs a decision within 500 milliseconds of each trip event a ride-hailing app publishes to Kafka; a city operations dashboard refreshes hourly and a driver-matching feature store every 5 minutes. Land trips and PostgreSQL driver records raw, build one curated trips table both slower readers share, and choose where each reader forks and how often curated runs. The orchestrated merge joining trips to drivers waits until each trip window has fully landed and uses the driver record in effect at trip time. Each night, reconcile surge decisions against curated trips.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Each reader forks at the latest layer it can afford
 
@@ -1150,6 +1127,8 @@ flowchart LR
 2. A driver record correction arrives 2 days late. What reruns, and how does the as-of join keep that rerun safe?\
    *Tests pinned inputs: rerunning only the affected windows and getting deterministic results.*
 
+</details>
+
 
 <br>
 
@@ -1159,10 +1138,8 @@ flowchart LR
 
 Design a hospital's admissions pipeline in bronze, silver and gold layers. HL7 admission messages, a staffing system and a lab feed land raw in the lake, and patient identifiers in the HL7 and lab data may never land there in clear form. An orchestrated build turns the raw data into one curated admissions table every 15 minutes for a bed-capacity dashboard, and a readmission-risk model is trained from the same curated table nightly. The build runs only once every source has landed, so if the lab feed stops, its owner is paged and the dashboard freezes on its last complete refresh instead of showing nulls.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One hash before the lake, one gate before the build
 
@@ -1231,6 +1208,8 @@ flowchart LR
    *Forking a fast path off the hashed lab data instead of speeding up the whole curated layer.*
 2. The staffing system goes down instead of the lab feed. Should the bed-capacity dashboard still freeze?\
    *Whether every input must block the build, or whether the latest staffing snapshot is an acceptable stale input.*
+
+</details>
 
 
 <br>

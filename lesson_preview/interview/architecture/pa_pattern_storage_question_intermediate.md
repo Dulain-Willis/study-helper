@@ -182,19 +182,9 @@ WITH (
 )
 ```
 
-✓Partition on it when
-
-- Queries filter on it with constants most of the time
-- Distinct values stay in the hundreds or low thousands
-- Each value holds at least 1 GB over the table's life
-- Old values stop receiving writes, so a date or a month
-
-✗Sort or bucket on it when
-
-- Distinct values run to millions, such as user or order ids
-- It is the join key between 2 large tables
-- Lookups need one file rather than one directory
-- The value is spread across all time, so no partition would ever close
+| ✓ Partition on it when | ✗ Sort or bucket on it when |
+| --- | --- |
+| • Queries filter on it with constants most of the time<br><br>• Distinct values stay in the hundreds or low thousands<br><br>• Each value holds at least 1 GB over the table's life<br><br>• Old values stop receiving writes, so a date or a month | • Distinct values run to millions, such as user or order ids<br><br>• It is the join key between 2 large tables<br><br>• Lookups need one file rather than one directory<br><br>• The value is spread across all time, so no partition would ever close |
 
 > **TIP**
 >
@@ -423,19 +413,9 @@ Engines that bill per TB scanned commonly list around $5 per TB. A query that re
 
 Request costs rarely reach dollars but reveal the small-file problem. If the hourly loads from the partition section produced 1 million files over the year, a full scan issues 1 million get requests at about $0.0004 per 1,000, which is $0.40, and spends minutes on footer reads; the money is negligible and the latency is the whole story, which the advanced tier takes up. Time travel from the table format section is a storage line: the 4.5 TB of expired-but-retained versions sits in the standard tier at $103.50 a month, so a retention window is a budget decision as much as a recovery one.
 
-✓Do
-
-- Convert at landing so the 6.7x size ratio applies to every downstream copy
-- Set lifecycle tiers from the longest query window rather than the ingest rate
-- Price a query by bytes scanned, and quote it per day at dashboard volumes
-- Count retained snapshots as storage you pay for
-
-✗Don't
-
-- Quote storage alone when a per-scan engine is in the design
-- Archive data a dashboard still reads
-- Mistake request dollars for the small-file cost; the cost is latency
-- Assume list prices match across providers and regions
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Convert at landing so the 6.7x size ratio applies to every downstream copy<br><br>• Set lifecycle tiers from the longest query window rather than the ingest rate<br><br>• Price a query by bytes scanned, and quote it per day at dashboard volumes<br><br>• Count retained snapshots as storage you pay for | • Quote storage alone when a per-scan engine is in the design<br><br>• Archive data a dashboard still reads<br><br>• Mistake request dollars for the small-file cost; the cost is latency<br><br>• Assume list prices match across providers and regions |
 
 > **TIP**
 >
@@ -469,10 +449,8 @@ A food delivery company lands 60 GB a day of order and courier location events a
 
 Redesign the storage behind the marketing analytics team's clickstream dashboards so that a query for one day and a handful of fields reads only that, and the monthly bill starts falling instead of climbing. Today roughly 400 GB of raw JSON events a day lands unsorted in one object-storage bucket, kept for two years, and every dashboard query scans all of it; carry that data through bronze, silver and gold without moving it off object storage. When the tracking team reissues a day's events after a bug fix, the corrected day must cleanly replace the old one.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -550,6 +528,8 @@ flowchart LR
 2. Two years in, most of `bronze_raw_json` has never been reread. What do you do with it?\
    *Tests storage-tier economics: keep it for reprocessing, but move data older than the reissue window into a colder, cheaper tier and set retention so the raw record stops growing the bill.*
 
+</details>
+
 
 <br>
 
@@ -559,10 +539,8 @@ flowchart LR
 
 A daily job lands about 250 GB of wide JSON exports in one object-storage bucket, every file kept forever in the standard tier, and finance wants to know why that bill climbs every month. Redesign the storage so each day's export costs far less to keep and to scan and aged data drops to cheaper tiers, while the analytics team's dashboards, which read the last 90 days of the same table, keep working unchanged.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -639,6 +617,8 @@ flowchart LR
    *Tests whether the lifecycle thresholds move with the query window and whether the candidate re-costs the standard and infrequent-access slices.*
 3. Analysts start filtering by region as often as by date. Would you change the partition key?\
    *Tests the partitioning trade-off: adding region as a partition level risks small files, and date must stay the outer key for age-based tiering to work.*
+
+</details>
 
 
 <br>

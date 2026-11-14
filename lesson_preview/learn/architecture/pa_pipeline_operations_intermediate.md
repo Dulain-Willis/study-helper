@@ -98,10 +98,8 @@ Bring fct_orders to full observability coverage: wire the curated table into dat
 - fct_orders curated table (storage, warehouse)
 - downstream reports (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The 5 pillars of data observability
 
@@ -155,6 +153,8 @@ flowchart LR
 2. A schema change is sometimes intended, not a bug. How does the schema monitor tell a planned column add from an accidental retype?\
    *Pushes on schema evolution: additive versus breaking changes, and gating alerts on compatibility rather than on any diff.*
 
+</details>
+
 
 <br>
 
@@ -173,10 +173,8 @@ An engineer must rename a column on fct_orders, the Snowflake mart read by 17 db
 - lineage catalog (consumer, DataHub)
 - data quality checks on fct_orders (quality_gate, dbt tests)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Lineage turns "who breaks?" into a query
 
@@ -215,6 +213,8 @@ Lineage tells you what breaks on a schema change; the checks on `fct_orders` cat
 1. Which check catches a silent upstream join that quietly doubled every order's revenue?\
    *Tests that volume and distribution checks catch semantic corruption a schema check passes clean.*
 
+</details>
+
 
 <br>
 
@@ -224,17 +224,9 @@ Lineage tells you what breaks on a schema change; the checks on `fct_orders` cat
 
 Lineage is the graph of which datasets are built from which. The nodes are tables and models, plus the dashboards that read them, and each edge records that 1 node reads another. The same graph answers 2 different questions depending on the direction you walk it.
 
-✓Backward lineage (upstream)
-
-- From a node to everything it reads, then everything those read
-- Answers: where could this bad number have come from?
-- Used during an incident to find the origin
-
-✗Forward lineage (downstream)
-
-- From a node to everything that reads it, and onward
-- Answers: what breaks if this node changes or goes bad?
-- Used before a change and during an incident to size the damage
+| ✓ Backward lineage (upstream) | ✗ Forward lineage (downstream) |
+| --- | --- |
+| • From a node to everything it reads, then everything those read<br><br>• Answers: where could this bad number have come from?<br><br>• Used during an incident to find the origin | • From a node to everything that reads it, and onward<br><br>• Answers: what breaks if this node changes or goes bad?<br><br>• Used before a change and during an incident to size the damage |
 
 
 <br>
@@ -324,10 +316,8 @@ Our Snowflake bill is $48,000 a month with no breakdown by pipeline. Replace the
 - Snowflake serving mart (storage, Snowflake)
 - Finance dashboard (consumer, Metabase)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Tagging the query is what makes spend attributable
 
@@ -389,6 +379,8 @@ ORDER BY credits DESC;
 2. What should the alert do when the share of credits with a blank `QUERY_TAG` starts climbing?\
    *Checks that the cost alert stays useful as untagged spend grows.*
 
+</details>
+
 
 <br>
 
@@ -402,10 +394,8 @@ CI on our dbt project rebuilds every model on every pull request, so engineers s
 
 - Production warehouse (storage)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Slim CI: build what changed, test it, then promote
 
@@ -448,6 +438,8 @@ flowchart LR
    *Extends promotion to rollback: redeploying the previous commit versus rebuilding the affected tables.*
 2. What changes when the edited model sits upstream of 200 others, so the downstream selection is no longer slim?\
    *Tests how far the downstream selection should reach before CI time grows back.*
+
+</details>
 
 
 <br>
@@ -576,10 +568,8 @@ Downstream of the curated Snowflake fct_orders table, add an output quality gate
 - Daily revenue email (consumer, Email)
 - ML feature store (storage, Feast)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Green means the job ran, not that the data is right
 
@@ -646,6 +636,8 @@ flowchart LR
 3. If the cost rollup shows this run cost 5x the median, what would you check first?\
    *Connecting a cost anomaly back to volume and freshness, since a full rescan or duplicated load often shows up in credits before anywhere else.*
 
+</details>
+
 
 <br>
 
@@ -662,10 +654,8 @@ A growth team's curated marts are built by dbt into Snowflake and feed three Loo
 - Snowflake serving marts (storage, Snowflake)
 - Three dashboards (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The observability plane
 
@@ -714,6 +704,8 @@ flowchart LR
    *Extends monitoring from a check result someone reads to a notification that reaches on-call.*
 2. Where would you store the pillar metrics so freshness and volume can be trended over time, not just pass or fail?\
    *Treats monitoring as a time series, not a single assertion.*
+
+</details>
 
 
 <br>
@@ -835,10 +827,8 @@ A true refactor diffs to all zeros. Pull a few changed orders, compare the 2 amo
 
 Smart meters upload about 960,000 readings a day as files, and a nightly batch loads them into a warehouse the billing job reads. Only freshness and volume are monitored, so a firmware update that renamed a column and switched readings from kWh to Wh reached billing on time and at full count. Design the pipeline with schema and distribution checks before billing reads the data, and alert on-call when a check fails.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### 2 pillars dark, 2 pillars green
 
@@ -887,6 +877,8 @@ flowchart LR
 2. For a week, some meters run old firmware and some run new. How would a distribution check tell a real shift from a mixed fleet?\
    *Using a separate baseline for each segment instead of one global threshold.*
 
+</details>
+
 
 <br>
 
@@ -896,10 +888,8 @@ flowchart LR
 
 Nightly Airflow jobs load billing events from a PostgreSQL database into an MRR model in a warehouse that the finance dashboard reads. The build must run only after an upstream readiness check confirms the night's billing export is complete. On-call traces a wrong MRR to its job and source, and engineers check a column's blast radius before changing it. Capture lineage from the scheduled jobs into a lineage store so the graph reads both ways.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Lineage is collected where dependencies are already declared
 
@@ -949,6 +939,8 @@ flowchart LR
 2. Finance asks which billing column a single MRR figure came from. What would table-level lineage miss?\
    *The difference between table-level and column-level lineage for backward tracing.*
 
+</details>
+
 
 <br>
 
@@ -977,19 +969,9 @@ The order follows the questions an incident raises: is something wrong, where, w
 
 ![Pipeline diagram 2](images/pa_pipeline_operations_intermediate_diagram_2.png)
 
-✓Do
-
-- Ship each step to prod before starting the next
-- Alert on the output table first and on task failures second
-- Reuse run_id as the key that joins logs to tags, and to pages too
-- Set gate thresholds from the metric history you already collect
-
-✗Don't
-
-- Start with CI on a pipeline whose failures nobody sees
-- Label metrics with run_id or order_id, or with partition_date
-- Rely on engineers to type query tags by hand in each task
-- Roll out all 7 steps as 1 change at the end of the quarter
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Ship each step to prod before starting the next<br><br>• Alert on the output table first and on task failures second<br><br>• Reuse run_id as the key that joins logs to tags, and to pages too<br><br>• Set gate thresholds from the metric history you already collect | • Start with CI on a pipeline whose failures nobody sees<br><br>• Label metrics with run_id or order_id, or with partition_date<br><br>• Rely on engineers to type query tags by hand in each task<br><br>• Roll out all 7 steps as 1 change at the end of the quarter |
 
 > When the order should change
 >
@@ -1059,10 +1041,8 @@ The tags isolate cost to 1 task, the merge date names the change, the gate clear
 
 Sixty scheduled pipelines owned by three teams share one cloud warehouse, and its spend grew 40% last quarter with no way to say which pipelines caused it. Design query tagging so every query an orchestrated run sends carries its pipeline, run and team, then roll the warehouse's query history up into a daily per-pipeline cost table behind a dashboard. Alert the owning team when a pipeline's daily cost doubles its trailing average.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Tag once, roll up after
 
@@ -1112,6 +1092,8 @@ flowchart LR
 2. A pipeline moves to another team. Should last month's cost move with it?\
    *Why the team is captured in the tag at run time instead of looked up during the rollup.*
 
+</details>
+
 
 <br>
 
@@ -1121,10 +1103,8 @@ flowchart LR
 
 Engineers on a subscription-billing team run every dbt change locally before pushing because CI never sees realistic data. Design CI/CD for the dbt project: each pull request triggers a Jenkins build that runs the models on a sample of production data and writes them into a dev warehouse, where dbt tests read the built models and block the merge if they fail. Only a merged, passing change is promoted by Airflow into the production warehouse.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### CI that sees production-shaped data
 
@@ -1164,6 +1144,8 @@ Read the design as 2 environments joined by one gate. The Jenkins build writes o
 2. A promoted change passes CI but breaks a nightly model. How do you get the previous version back?\
    *Tests rolling back through the same deploy path instead of editing production by hand.*
 
+</details>
+
 
 <br>
 
@@ -1193,10 +1175,8 @@ On a Monday at a ride-hailing company, the driver payouts dashboard shows weeken
 
 A nightly dbt build reads viewing sessions from a PostgreSQL replica into a daily watch-time table in a warehouse that feeds a content dashboard, and its only health signal today is the run status. Instrument it end to end: check the output table for freshness, volume, schema and distribution on every run, send the results to a monitoring tool, and page on-call when a check fails. Capture lineage so on-call can see what a failure affects.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Instrument from the output backward
 
@@ -1246,6 +1226,8 @@ flowchart LR
 2. If viewing genuinely drops on a holiday, how do you keep the volume check from paging every year?\
    *Tests tuning a volume threshold against a trailing baseline instead of a fixed band.*
 
+</details>
+
 
 <br>
 
@@ -1255,10 +1237,8 @@ flowchart LR
 
 A grocery chain's nightly dbt build turns store stock movements from a MySQL database into inventory models in a warehouse, which feed a replenishment dashboard and a demand forecasting job. Capture lineage so an engineer can list everything downstream of the stock-on-hand column before changing its unit, and on-call can trace a wrong dashboard figure back to the table that produced it. Gate every change with a pull-request build that runs the changed models and the tests of their downstream consumers on sample data, blocking the deploy if any test fails.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One lineage graph, read in 2 directions
 
@@ -1315,6 +1295,8 @@ flowchart LR
    *Extending lineage and the CI test set across a boundary the dbt project does not own.*
 2. How would you notice if the nightly run stopped emitting lineage events?\
    *Monitoring the lineage feed itself for freshness.*
+
+</details>
 
 
 <br>

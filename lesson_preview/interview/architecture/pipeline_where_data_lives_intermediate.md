@@ -93,19 +93,9 @@ The `RLE` entry on both columns is the encoding of the definition levels that tr
 
 Encoding works on neighbouring values, so the order in which rows are written changes the result. Dictionary indices only collapse into runs when equal values sit next to each other. Delta encoding of an `event_time` column stores 8-byte microsecond timestamps as differences: when events arrive in order a few milliseconds apart, each difference fits in roughly 12 bits, under a fifth of the original 64. Shuffle a day of those rows and the differences swing between large positive and negative values that can span the whole day, around 86 billion microseconds. Covering that span needs roughly 38 bits with the sign, roughly 3 times the sorted 12, so most of the saving disappears. Sorting also narrows the value range each row group covers, so the choice that shrinks the file is the same one that lets readers skip row groups by their statistics.
 
-✓Sorted by device_type, then event_time
-
-- device_type indices form a handful of long runs per row group
-- event_time stays ordered inside each device run, so deltas stay positive and small
-- Row-group statistics on device_type are narrow, so filters skip groups
-- Costs a sort of every batch before it is written
-
-✗Arrival order
-
-- device_type indices are bit-packed but rarely form runs
-- event_time is already ordered, so delta encoding still works well
-- Every row group spans every device type, so a device filter skips nothing
-- No sort, so the fastest path to disk
+| ✓ Sorted by device_type, then event_time | ✗ Arrival order |
+| --- | --- |
+| • device_type indices form a handful of long runs per row group<br><br>• event_time stays ordered inside each device run, so deltas stay positive and small<br><br>• Row-group statistics on device_type are narrow, so filters skip groups<br><br>• Costs a sort of every batch before it is written | • device_type indices are bit-packed but rarely form runs<br><br>• event_time is already ordered, so delta encoding still works well<br><br>• Every row group spans every device type, so a device filter skips nothing<br><br>• No sort, so the fastest path to disk |
 
 
 <br>
@@ -205,19 +195,9 @@ Read the pattern, then name the cause. A count near 1,440 a day is 1 file per mi
 
 ### Fix it at write time, then compact
 
-✓At write time
-
-- Repartition by the partition key before writing, so each partition gets 1 writer
-- Lengthen the streaming trigger: commits every 10 minutes cut file count 10x
-- Coarsen the partition key, such as daily instead of daily per customer
-- Costs: staler data for consumers, or a shuffle on every write
-
-✗After the fact with compaction
-
-- A scheduled job rewrites small files into 256 MB to 512 MB targets
-- Commits as a new snapshot, so running queries keep their view
-- Can sort while rewriting, which tightens statistics and encodings
-- Costs: every byte written twice, plus commit conflicts with live writers
+| ✓ At write time | ✗ After the fact with compaction |
+| --- | --- |
+| • Repartition by the partition key before writing, so each partition gets 1 writer<br><br>• Lengthen the streaming trigger: commits every 10 minutes cut file count 10x<br><br>• Coarsen the partition key, such as daily instead of daily per customer<br><br>• Costs: staler data for consumers, or a shuffle on every write | • A scheduled job rewrites small files into 256 MB to 512 MB targets<br><br>• Commits as a new snapshot, so running queries keep their view<br><br>• Can sort while rewriting, which tightens statistics and encodings<br><br>• Costs: every byte written twice, plus commit conflicts with live writers |
 
 ![Pipeline diagram 1](images/pipeline_where_data_lives_intermediate_diagram_1.png)
 
@@ -247,10 +227,8 @@ A real-time writer lands a new 4 KB Parquet file every few seconds, and after a 
 - Tiny files table (millions of 4 KB Parquet) (storage, S3)
 - Dashboards (consumer, Tableau)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The pattern in disguise
 
@@ -324,6 +302,8 @@ The whole design hinges on partitioning `landing` by ingest time, say `dt` and `
 3. Who deletes the tiny files in `landing` after they are compacted, and when is that safe?\
    *Tests retention ordering: expire a `landing` partition only after its `serving` counterpart is committed, so no data is lost between the 2 tables.*
 
+</details>
+
 
 <br>
 
@@ -361,19 +341,9 @@ WHERE customer_id = 'c_48213'
 
 Table formats apply a delete in 1 of 2 ways. Copy-on-write rewrites every affected data file during the delete and commits the replacements as a new snapshot. Merge-on-read leaves the data files alone and writes a small delete file listing the rows to drop, either by position (file path plus row number) or by value (`customer_id = 'c_48213'`). Every reader then filters those rows out as it scans, until a later compaction folds the deletes into rewritten data files and the delete files can be dropped.
 
-✓Copy-on-write
-
-- Delete cost: rewrite 200 files, 25.6 GB
-- Reads afterwards cost what they did before
-- Suits rare, batched deletes on read-heavy tables
-- Concurrent deletes touching the same files conflict at commit
-
-✗Merge-on-read
-
-- Delete cost: about 200 delete files of a few KB each
-- Every scan pays to match data rows against delete files
-- Suits frequent small deletes and streamed updates
-- Delete files accumulate until compaction rewrites the data
+| ✓ Copy-on-write | ✗ Merge-on-read |
+| --- | --- |
+| • Delete cost: rewrite 200 files, 25.6 GB<br><br>• Reads afterwards cost what they did before<br><br>• Suits rare, batched deletes on read-heavy tables<br><br>• Concurrent deletes touching the same files conflict at commit | • Delete cost: about 200 delete files of a few KB each<br><br>• Every scan pays to match data rows against delete files<br><br>• Suits frequent small deletes and streamed updates<br><br>• Delete files accumulate until compaction rewrites the data |
 
 
 <br>
@@ -457,19 +427,9 @@ Failure modes to name
 
 Partitioning by event date is what makes this plan workable: a lifecycle rule can target a prefix or a tag per partition only when age maps to location. A table partitioned by customer has no cold partitions, since every partition contains last week's rows.
 
-✓Do
-
-- Compute the break-even read rate before choosing a tier
-- Tier whole date partitions so no query mixes tiers
-- Compact a partition before it transitions, so fewer objects move
-- Keep table metadata and manifests in the hot tier
-
-✗Don't
-
-- Archive a range that a scheduled job still scans
-- Let compaction rewrite partitions already sitting in a cold tier
-- Expect the catalog to know which files are archived
-- Ignore minimum stays when data is deleted or rewritten early
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Compute the break-even read rate before choosing a tier<br><br>• Tier whole date partitions so no query mixes tiers<br><br>• Compact a partition before it transitions, so fewer objects move<br><br>• Keep table metadata and manifests in the hot tier | • Archive a range that a scheduled job still scans<br><br>• Let compaction rewrite partitions already sitting in a cold tier<br><br>• Expect the catalog to know which files are archived<br><br>• Ignore minimum stays when data is deleted or rewritten early |
 
 > **TIP**
 >
@@ -494,10 +454,8 @@ Two years of event history sits in one hot warehouse table. 95% of queries touch
 - Loader (transform, Spark)
 - Hot warehouse (2 yrs) (storage, Snowflake)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -573,6 +531,8 @@ flowchart LR
    *Pruning guards and default date filters on the view.*
 3. Marketing wants sub-hour freshness on the last day. What changes?\
    *Adding a streaming slice without moving the tiering boundary.*
+
+</details>
 
 
 <br>
@@ -681,10 +641,8 @@ A food delivery company keeps 3 years of order and courier-location events in a 
 
 Pings have to reach the ops team's route dashboard within 15 minutes, and every dashboard query already filters on a date range, yet the dashboard keeps getting slower on a lake table where 4,000 delivery vans each land a GPS ping every 5 seconds, filed into a separate folder for every van and every hour. Lay out how that table should be written, sized and periodically rewritten so the dashboard recovers and stays fast as months of pings accumulate.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -754,6 +712,8 @@ flowchart LR
 2. Finance wants 2 years of pings kept, but dispatchers only look at the last 7 days. Where should the old days live?\
    *Tests storage tiering: recent compacted days stay hot, older days move to cheaper object storage tiers without changing the dashboard's path.*
 
+</details>
+
 
 <br>
 
@@ -769,10 +729,8 @@ At two billion events a day arriving every few seconds, a naive writer buries th
 - Streaming writer (transform, Flink)
 - Compactor (transform, Spark)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really asks
 
@@ -827,6 +785,8 @@ One rewrite pays off all 4 asks. Pushdown rides on the columnar container: sorte
    *Tests whether they union raw landing with the curated table at read time.*
 2. Your `zstd` level 19 job starts missing its `< 24h` SLA as volume grows. What do you trade?\
    *Tests that compression level is a CPU-vs-ratio dial to lower or parallelize.*
+
+</details>
 
 
 <br>

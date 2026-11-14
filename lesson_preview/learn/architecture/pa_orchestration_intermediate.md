@@ -115,10 +115,8 @@ Design the pipeline that builds mart.daily_revenue_by_account, ready by 6am Paci
 - Stripe payments (refreshes hourly) (source, API)
 - Salesforce account export (one file a day) (source, S3)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One clock was never going to fit three rhythms
 
@@ -172,6 +170,8 @@ The clickstream rollup runs continuously, so it is already current whenever the 
 4. Stripe posts a refund against a payment from three days ago. Does an hourly incremental pull catch it?\
    *Tests full versus incremental loads and late-arriving corrections.*
 
+</details>
+
 
 <br>
 
@@ -189,10 +189,8 @@ Replace the monolithic Python task that extracts, cleans and aggregates orders w
 - Snowflake mart_orders (storage, Snowflake)
 - Morning dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Task, DAG, run: where a retry actually lives
 
@@ -239,6 +237,8 @@ Notice the division of labor the diagram makes explicit: the orchestrator was al
    *Checks that retry policy is understood as per-task-instance, not one global knob.*
 3. The 6am run fails at clean but you fix the bug at 9am. How do you re-run just the failed and downstream tasks for that one run without touching other runs?\
    *Tests the task-instance-within-a-run mental model against clear-and-rerun semantics.*
+
+</details>
 
 
 <br>
@@ -371,10 +371,8 @@ The orders DAG starts at 2am and usually finishes by 2:45am, so the marketing DA
 - compute_attribution task (transform, Pandas)
 - Marketing dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Wire DAGs to data, not to the clock
 
@@ -432,6 +430,8 @@ flowchart LR
 3. If the orders DAG commits a snapshot but the data is empty or partial, should the asset still fire?\
    *Tests data-quality gating on the emit step, not just commit success.*
 
+</details>
+
 
 <br>
 
@@ -448,10 +448,8 @@ A vendor drops a daily file on SFTP at any time between 01:00 and 05:00, so the 
 - Reporting warehouse (storage, warehouse)
 - Daily dashboard (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Wait for the world, then run
 
@@ -492,6 +490,8 @@ Notice where the sensor does not go. There is none between Spark and the warehou
    *An external trigger can start the DAG directly, so nothing has to poll.*
 3. The vendor is sometimes a day late. Should the 08:00 timeout fail the run, or should a later run pick the file up?\
    *Timeout semantics versus catching up on the next schedule.*
+
+</details>
 
 
 <br>
@@ -617,10 +617,8 @@ Split the daily mega-DAG into three upstream DAGs, each on its source's natural 
 - One mega-DAG (daily, forces all cadences to daily) (transform, Airflow)
 - Executive daily revenue dashboard (6am SLA) (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One DAG per cadence
 
@@ -674,6 +672,8 @@ flowchart LR
 2. Stakeholders now want an intraday revenue view. What would you add without touching the daily join?\
    *The raw events table can feed a second, faster path on its own schedule.*
 
+</details>
+
 
 <br>
 
@@ -690,10 +690,8 @@ A logistics company feeds a daily Looker dashboard from three sources on differe
 - Kafka events (source, Kafka)
 - Looker analytics dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Trigger on data, not on the clock
 
@@ -760,6 +758,8 @@ flowchart LR
    *Sensor timeouts: blocking keeps the output correct but breaches freshness; publishing partial output needs a visible staleness flag.*
 2. A Kafka event lands inside a day partition of the `events` table that analytics already read. How does it reach the dashboard?\
    *Late data: an idempotent partition overwrite and a recompute of the touched day.*
+
+</details>
 
 
 <br>
@@ -830,17 +830,9 @@ The orchestrator never learns the file exists; only a deadline check turns this 
 
 </details>
 
-✓Do
-
-- Wait on the exact file or partition named for this run's interval
-- Derive the timeout from the consumer's deadline
-- Back every external trigger with a deadline alert
-
-✗Don't
-
-- Sense another DAG where an asset trigger fits
-- Hold a worker slot through a wait of hours
-- Poll a partner's server every few seconds
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Wait on the exact file or partition named for this run's interval<br><br>• Derive the timeout from the consumer's deadline<br><br>• Back every external trigger with a deadline alert | • Sense another DAG where an asset trigger fits<br><br>• Hold a worker slot through a wait of hours<br><br>• Poll a partner's server every few seconds |
 
 **A vendor posts a report between 23:00 and 03:00. The consumer reads at 08:00, and the downstream load takes 1 hour. You run 200 such sensors each night on a 64-slot cluster. Which sensor setup fits?**
 
@@ -877,10 +869,8 @@ Deferred waits hold no slots, 07:00 leaves the 1-hour load time to finish by 08:
 
 A card processor's API publishes the previous day's settlement file only after 3am UTC, and finance reviews the settled totals in the warehouse at 7am UTC. A fraud dashboard reads authorization counts from that warehouse, pulled from the processor's auth API every 15 minutes, at no particular clock time. Give each feed its own orchestrated DAG with a cron or interval schedule that fits its source, and write that schedule into the DAG's name.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Let the source pick the schedule
 
@@ -922,6 +912,8 @@ flowchart LR
 2. If fraud ops later need each refresh to land on the quarter hour, does the authorization schedule change?\
    *Once the absolute time matters, the interval becomes a cron such as `*/15 * * * *`.*
 
+</details>
+
 
 <br>
 
@@ -931,10 +923,8 @@ flowchart LR
 
 A daily DAG extracts orders from PostgreSQL, fetches exchange rates from a currency API that times out a few nights a week, converts the orders to USD and loads them into a warehouse table. Set a retry policy on the rates task instance alone: exponential backoff and at most 3 retries, never re-running the whole DAG run. When the retries run out, alert the on-call engineer. Make the warehouse load overwrite its date partition so a retried load writes the same rows.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Retry the task instance, not the run
 
@@ -979,6 +969,8 @@ flowchart LR
    *Separating transient failures, which retries fix, from permanent ones, which retries only delay.*
 2. The orders extract starts timing out on some nights too. Where does its retry policy go, and does anything else in the run change?\
    *Applying task-level retries to a second task without touching the rest of the run.*
+
+</details>
 
 
 <br>
@@ -1102,10 +1094,8 @@ The condition waits for the slowest cadence, and fx_rates_daily updates once a d
 
 An events DAG owned by the platform team writes the day's sessionized events table, usually done by 1:30am but sometimes past 4am. Two DAGs owned by other teams read that table: the ML team's feature DAG and the product team's analytics DAG, each currently cron-scheduled at 2am. Draw the design so each downstream DAG starts only once the events DAG has finished that day's table, modeled as a cross-DAG dependency rather than a time offset.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Encode the dependency, not the clock
 
@@ -1141,6 +1131,8 @@ flowchart LR
 2. If the events DAG is rerun for last Tuesday, should the feature DAG rerun for last Tuesday too?\
    *Whether the dependency is tied to the logical date, so an upstream backfill reaches the consumers it fed.*
 
+</details>
+
 
 <br>
 
@@ -1169,10 +1161,8 @@ Picture the finance analytics team at Airbnb rebuilding the revenue job from the
 
 A clickstream Kafka topic receives about 20 million events a day, and a Spark batch job should load them into the warehouse each time 2 million new messages accumulate, not on a fixed clock. Design the DAG with a sensor that watches the topic's offset and triggers the batch job once the threshold is crossed. If the threshold is not reached within 6 hours, the sensor must time out and page on-call.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Let the offset, not the clock, start the load
 
@@ -1214,6 +1204,8 @@ flowchart LR
 2. How does the sensor know where the last load stopped?\
    *Recording the committed offset so each run's threshold is measured from the previous load.*
 
+</details>
+
 
 <br>
 
@@ -1223,10 +1215,8 @@ flowchart LR
 
 A grocery chain's replenishment DAG runs at 4am because the inventory snapshot DAG, owned by another team, usually finishes by 3:30am; on late nights it reads a half-written snapshot. Replace the time offset with an encoded cross-DAG dependency, a sensor or an event trigger, so the replenishment run starts only once the day's snapshot is complete. The run also calls a supplier lead-time API that times out a few nights a week: retry that task with backoff, and alert on-call when retries run out. Land the forecast in a warehouse that feeds the buyers' dashboard by 7am.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Encode the wait instead of guessing it
 
@@ -1276,6 +1266,8 @@ flowchart LR
    *Sensor timeouts and failing loudly against a business deadline.*
 2. A markdown-pricing DAG also needs the same snapshot. How do you avoid encoding its dependency a second, different way?\
    *Reusing one completion signal across several downstream DAGs.*
+
+</details>
 
 
 <br>

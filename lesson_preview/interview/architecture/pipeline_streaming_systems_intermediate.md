@@ -133,10 +133,8 @@ A single consumer can't keep up with a 16-partition topic and lag is growing. Ru
 - Single consumer (lagging) (transform, Flink)
 - Serving store (storage, Redis)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -216,6 +214,8 @@ Offsets within a partition are strictly ordered, so a consumer can't advance pas
 4. How does a record get out of the dead-letter topic and back into normal processing without replaying the poison version forever?\
    *Tests that the DLQ has a closed loop: triage, fix, replay.*
 
+</details>
+
 
 <br>
 
@@ -266,19 +266,9 @@ Command Query Responsibility Segregation separates the path that changes state f
 
 The cost CQRS adds is staleness. A rider who taps cancel may read the status table a few hundred milliseconds before the projection applies the event, and see the trip still active. The common mitigations are to return the new state in the command's response, or to have the client wait until the projection's committed offset passes the offset of the event it wrote.
 
-✓Use event sourcing when
-
-- History is the product: ledgers, fares, balances, inventory
-- Support or auditors must answer what state was at time T
-- New read models keep appearing and must backfill from the first event
-- Bugs in derived state are fixed by correcting code and replaying
-
-✗Skip it when
-
-- The domain is plain CRUD and nobody asks about past states
-- Every read must see the latest write, with no lag allowed
-- Personal data must be erasable and no key-deletion scheme exists
-- Nobody will own event schema versioning for the log's lifetime
+| ✓ Use event sourcing when | ✗ Skip it when |
+| --- | --- |
+| • History is the product: ledgers, fares, balances, inventory<br><br>• Support or auditors must answer what state was at time T<br><br>• New read models keep appearing and must backfill from the first event<br><br>• Bugs in derived state are fixed by correcting code and replaying | • The domain is plain CRUD and nobody asks about past states<br><br>• Every read must see the latest write, with no lag allowed<br><br>• Personal data must be erasable and no key-deletion scheme exists<br><br>• Nobody will own event schema versioning for the log's lifetime |
 
 
 <br>
@@ -404,10 +394,8 @@ A clickstream sessionization job buckets events by processing time, so when inge
 - Processing-time windows (transform, Flink)
 - Session metrics (storage, PostgreSQL)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -510,6 +498,8 @@ sessions.get_side_output(late_events).sink_to(dead_letter_sink)
 3. One Kafka partition goes silent and the watermark stalls. What breaks, and how do you detect it?\
    *Watermark idleness handling.*
 
+</details>
+
 
 <br>
 
@@ -587,19 +577,9 @@ Redrive is a deliberate job, run once 4.18.1 is deployed. It filters the DLQ by 
 
 Redriven events are hours old, so the windows they belong to closed long ago and the watermark treats them as late. They take the side output from the windowing section into the hourly reconciliation, which is how the 12:00 counts finally include them.
 
-✓Do
-
-- Classify errors in code and store the class on every DLQ record
-- Keep the original bytes next to the topic-partition and offset they came from
-- Alert on DLQ rate as a share of input, per error class
-- Redrive by filter after a fix, rate limited, with a redrive cap
-
-✗Don't
-
-- Retry permanent data errors, which fail the same way every time
-- Sleep in the consumer for long backoffs and block the partition
-- Redrive the whole DLQ blindly after every deploy
-- Let the DLQ grow with no owner and no retention policy
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Classify errors in code and store the class on every DLQ record<br><br>• Keep the original bytes next to the topic-partition and offset they came from<br><br>• Alert on DLQ rate as a share of input, per error class<br><br>• Redrive by filter after a fix, rate limited, with a redrive cap | • Retry permanent data errors, which fail the same way every time<br><br>• Sleep in the consumer for long backoffs and block the partition<br><br>• Redrive the whole DLQ blindly after every deploy<br><br>• Let the DLQ grow with no owner and no retention policy |
 
 
 <br>
@@ -615,19 +595,9 @@ The 2 engines in this section's title are the best-known examples of 2 execution
 
 ### How each model runs the surge job
 
-✓Micro-batch
-
-- A coordinator plans a batch every trigger interval, say 5 seconds
-- Each batch reads a fixed offset range from all 12 partitions
-- Each batch writes its output before checkpointing offsets and state
-- The watermark advances once per batch
-
-✗Continuous dataflow
-
-- Operators are deployed once and run until the job stops
-- Each record flows from source to sink as soon as it arrives
-- Keyed state lives inside operators, often in a local embedded store
-- Checkpoint barriers travel with the data to snapshot every operator consistently
+| ✓ Micro-batch | ✗ Continuous dataflow |
+| --- | --- |
+| • A coordinator plans a batch every trigger interval, say 5 seconds<br><br>• Each batch reads a fixed offset range from all 12 partitions<br><br>• Each batch writes its output before checkpointing offsets and state<br><br>• The watermark advances once per batch | • Operators are deployed once and run until the job stops<br><br>• Each record flows from source to sink as soon as it arrives<br><br>• Keyed state lives inside operators, often in a local embedded store<br><br>• Checkpoint barriers travel with the data to snapshot every operator consistently |
 
 
 <br>
@@ -704,10 +674,8 @@ A food delivery platform streams order events (OrderPlaced, CourierAssigned, Pic
 
 What does a usage-metering pipeline need so that growing its consumer group on the 24-partition API call topic, or a consumer dying mid-batch, never bills a call twice or drops one? The billing engineer on call wants the per-customer invoice line items it writes to survive exactly that, keep flowing past a malformed call without losing it from the bill, and stay recomputable from the original calls when a customer disputes an invoice months later.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem really is
 
@@ -783,6 +751,8 @@ flowchart LR
 2. Pricing changes mid-month and finance wants the month rebilled at the new rate. How do you do it without double-counting?\
    *Tests the event-log view: replay `raw_call_archive` for the period into a fresh version of the line items and swap it in, rather than pushing old calls back through the live topic.*
 
+</details>
+
 
 <br>
 
@@ -797,10 +767,8 @@ Our windowed totals from the 16-partition event topic come out doubled whenever 
 - Topic (16 partitions) (source, Kafka)
 - Stream processor group (transform, Flink)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What you actually just drew
 
@@ -876,6 +844,8 @@ Partitions are the unit of parallelism. A consumer group hands each of the 16 pa
    *Separates lag (a throughput signal) from DLQ depth (a data quality or schema drift signal).*
 3. The topic is repartitioned from 16 to 32. What breaks for a keyed window, and how do you replay safely?\
    *Probes whether they see that key-to-partition mapping and window state are coupled to partition count.*
+
+</details>
 
 
 <br>

@@ -140,10 +140,8 @@ Stop doing it removes a whole term, and daily runs cut runs per month 24 times w
 - Pipeline materializations (transform, dbt)
 - Warehouse (storage, warehouse)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Cost as a monitored loop
 
@@ -189,6 +187,8 @@ flowchart LR
 2. What should happen when a tier stays flagged ownerless for 2 cycles running?\
    *Adding an escalation path to the audit's alert.*
 
+</details>
+
 
 <br>
 
@@ -207,10 +207,8 @@ Build a pipeline from the production source to dev, CI, and staging stores. Add 
 - CI environment (no formal data shape) (storage, PostgreSQL)
 - Staging environment (no formal data shape) (storage, PostgreSQL)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Match the data shape to the bug you're hunting
 
@@ -249,6 +247,8 @@ Notice the masking step and the quality gate sit ONCE, upstream of all three sto
    *Tests that hashing preserves referential joins while redaction destroys them, the reason the policy differs per column.*
 2. What has to change if a new model in CI depends on a model that was NOT modified?\
    *Probes the 'plus descendants' half of state selection versus 'plus ancestors'.*
+
+</details>
 
 
 <br>
@@ -322,19 +322,9 @@ The same customers survive everywhere, so each sampled order finds its customer,
 
 Staging runs at prod volume because performance failures only appear there. A join on a key where 1 value holds 40% of rows finishes on a 1% slice and spills to disk on the full table. A snapshot clone gives full volume for the price of metadata: the staging table points at prod's immutable files as of 1 snapshot, and staging writes create new files without touching prod. Staging pays for the compute it runs and the storage of what it changes.
 
-✓Dev and CI data
-
-- Runs in seconds to minutes
-- Shaped by fixtures or key sampling
-- Answers: is the logic right?
-- Cheap to rebuild nightly
-
-✗Staging data
-
-- Same volume and distribution as prod
-- Cloned from a prod snapshot
-- Answers: will it run at scale?
-- Pays a full run each release
+| ✓ Dev and CI data | ✗ Staging data |
+| --- | --- |
+| • Runs in seconds to minutes<br><br>• Shaped by fixtures or key sampling<br><br>• Answers: is the logic right?<br><br>• Cheap to rebuild nightly | • Same volume and distribution as prod<br><br>• Cloned from a prod snapshot<br><br>• Answers: will it run at scale?<br><br>• Pays a full run each release |
 
 > Signs the data shapes are wrong
 >
@@ -382,10 +372,8 @@ Two orders workloads need pipeline-as-code. Nightly, export yesterday's orders f
 
 - orders database (source, PostgreSQL)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One source, two models
 
@@ -433,6 +421,8 @@ flowchart LR
 2. If the mart's target loosened to once a day, would a nightly task graph fit it just as well?\
    *Checks that the workload's facts, not the tool, drive the choice.*
 
+</details>
+
 
 <br>
 
@@ -450,10 +440,8 @@ Half of the catalog's thousands of pipelines belong to engineers who left, and t
 - legacy_orders_table (cold partitions still billing) (storage, warehouse)
 - Existing consumers (consumer, API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Let the audit flags be the work order
 
@@ -503,6 +491,8 @@ flowchart LR
 3. How would you catch a quarterly run that never started, rather than one that started and failed?\
    *Extends the failure alert into a freshness check on the rhythm itself.*
 
+</details>
+
 
 <br>
 
@@ -551,21 +541,9 @@ The YAML never says what order to build in or which partitions to rewrite. The e
 
 ### Trade-offs of each model
 
-✓Declarative
-
-- Plan before apply: the engine lists what will rebuild
-- Drift detection when prod stops matching the code
-- Build order inferred from references
-- Reruns replace by default
-- Control flow the format cannot express needs an escape hatch
-
-✗Imperative
-
-- Any control flow: loops, retries, branches on runtime data
-- Fits APIs, pagination, per-tenant fan-out, model training
-- Debuggable line by line in a general-purpose language
-- Idempotency, ordering and cleanup are the author's job
-- No plan: the only preview is a run
+| ✓ Declarative | ✗ Imperative |
+| --- | --- |
+| • Plan before apply: the engine lists what will rebuild<br><br>• Drift detection when prod stops matching the code<br><br>• Build order inferred from references<br><br>• Reruns replace by default<br><br>• Control flow the format cannot express needs an escape hatch | • Any control flow: loops, retries, branches on runtime data<br><br>• Fits APIs, pagination, per-tenant fan-out, model training<br><br>• Debuggable line by line in a general-purpose language<br><br>• Idempotency, ordering and cleanup are the author's job<br><br>• No plan: the only preview is a run |
 
 | Workload | Fits | Why |
 | --- | --- | --- |
@@ -647,10 +625,8 @@ The hourly_subscription_metrics pipeline rebuilds its whole Snowflake table ever
 - Snowflake hourly_subscription_metrics (storage, Snowflake)
 - Finance dashboard, churn ML, ad-hoc analytics (consumer, Tableau)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why it costs ten times too much
 
@@ -702,6 +678,8 @@ flowchart LR
 2. You need to correct 6 months of history after a mapping bug. How does partitioning let you backfill without a full rebuild?\
    *Reprocess partition by partition, reusing the same idempotent `MERGE`.*
 
+</details>
+
 
 <br>
 
@@ -718,10 +696,8 @@ Wire the full operations program onto the representative pipeline on the canvas 
 - Serving warehouse (storage, warehouse)
 - Downstream dashboards (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One pipeline, every plane wired
 
@@ -778,6 +754,8 @@ flowchart LR
    *Tests whether hashing consistency reads as an environment invariant rather than a data-quality failure.*
 2. A pipeline is in phase 3 of deprecation but its query tag shows rising cost. Who owns removing the last consumer?\
    *Ties deprecation to the cost rollup and the owning team.*
+
+</details>
 
 
 <br>
@@ -857,19 +835,9 @@ Lineage shows declared dependencies, and the query log shows people. A notebook 
 
 **Brownouts** exist because some readers never see announcements. A 1-hour revocation on a Tuesday afternoon makes a hidden reader's job fail while the table still exists and restoring access takes a minute. Found during a brownout, a hidden reader costs an hour. Found after deletion, it costs a restore from the final snapshot, if the retention period has not run out.
 
-✓Do
-
-- Name the replacement in the announcement, or say why there is none
-- Count readers from query logs as well as lineage
-- Brown out in growing windows before deleting
-- Keep a final snapshot through the retention period
-
-✗Don't
-
-- Delete on the announced date while readers remain
-- Record an individual as the owner
-- Let a deprecated table pick up new consumers
-- Skip the brownout because lineage shows no readers
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Name the replacement in the announcement, or say why there is none<br><br>• Count readers from query logs as well as lineage<br><br>• Brown out in growing windows before deleting<br><br>• Keep a final snapshot through the retention period | • Delete on the announced date while readers remain<br><br>• Record an individual as the owner<br><br>• Let a deprecated table pick up new consumers<br><br>• Skip the brownout because lineage shows no readers |
 
 **The phase 1 query-log check found 4 readers. The rerun before brownout finds 5, and the fifth started reading in week 6. Which phase failed?**
 
@@ -906,10 +874,8 @@ Freeze exists to block new consumers, and one got through in week 6.
 
 Build a daily cost job that reads the billing and access logs, attributes spend and partition reads to each owning team, and lands the results in a cost warehouse. A tiering job reads those read counts from the warehouse and moves data lake partitions unread for 90 days into cold object storage. When a team's daily spend runs 20% over its trailing 30-day average, alert that team's owner from the warehouse figures.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Measurement only pays off when it drives a lever
 
@@ -959,6 +925,8 @@ flowchart LR
 3. Reads start hitting a partition already in `cold_partition_archive`. What tells you to move it back?\
    *The same access counts driving tiering in both directions.*
 
+</details>
+
 
 <br>
 
@@ -968,10 +936,8 @@ flowchart LR
 
 Design the refresh that seeds staging from the production orders database (200 million rows). Staging receives a 10 percent sample, and every column the data catalog tags as PII is masked before it leaves production. The masked sample passes a validation check before landing in a staging store isolated from production, which the staging run of the orders pipeline reads instead of production.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Staging gets a shape, not a copy
 
@@ -1008,6 +974,8 @@ flowchart LR
    *Reusing one masking path to serve a second, smaller environment shape.*
 2. Tests join orders to customers by email. What breaks if masking turns the same email into a different value in each table?\
    *Deterministic masking that keeps the masked data joinable.*
+
+</details>
 
 
 <br>
@@ -1166,10 +1134,8 @@ Run count rose from 750 to 1,440: 690 extra builds at $8 add $5,520, which tops 
 
 Each night a partner's settlement file must be pulled from a flaky API, retried up to 3 times on failure, and loaded into a raw warehouse table before anything downstream runs. Three reporting tables are derived from that raw table and must be fresh within 24 hours. Express the procedural pull-and-load imperatively as an Airflow task, and the derived reporting tables declaratively as dbt models.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Steps for side effects, assets for derived data
 
@@ -1213,6 +1179,8 @@ flowchart LR
 2. One reporting table now needs hourly freshness while the other 2 stay daily. Where does that difference live?\
    *Freshness as a property declared per asset rather than a schedule wired per task.*
 
+</details>
+
 
 <br>
 
@@ -1242,10 +1210,8 @@ A food-delivery marketplace closes its annual plan: the data team grows from 30 
 
 A legacy nightly pipeline still writes an old revenue table that a replacement has superseded, and its author has left the company. Design the deprecation monitor for the table's 30-day sunset window: a daily scheduled job reads the warehouse query log and the lineage catalog to find every remaining reader, and lands each reader's read count in a usage table. Each day the job alerts the owning team of every reader still querying the old table.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Deprecation is a monitoring job with an end date
 
@@ -1289,6 +1255,8 @@ flowchart LR
 2. Some readers run only at month end. How does the sunset window need to change?\
    *Tests whether the window covers the slowest reader's cadence before zero reads mean anything.*
 
+</details>
+
 
 <br>
 
@@ -1298,10 +1266,8 @@ flowchart LR
 
 A payments pipeline lands 40 million card transactions a day in a production warehouse, with the cardholder name, email and card number columns tagged as PII. Build its non-prod side: an orchestrated weekly refresh that masks every tagged column before any copy leaves production, a dev store holding a 1 percent sample, and a staging store holding the most recent month at full volume. Non-prod must cost a fraction of prod, so add a daily cost check over both stores that alerts the owning team when either runs over budget.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Masking sits upstream of every non-prod copy
 
@@ -1351,6 +1317,8 @@ flowchart LR
    *Whether masking is driven by column tags rather than a hard-coded column list.*
 3. Staging spend doubles after a schema change widens the table. How do you find out, and what do you cut first?\
    *Treating the daily cost check as an ongoing cost rhythm rather than a one-off audit.*
+
+</details>
 
 
 <br>

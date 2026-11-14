@@ -94,19 +94,9 @@ The third row matters most once several teams share tables. In the intermediate 
 
 ### Picking a model
 
-✓Task-based fits when
-
-- The pipeline is a sequence of actions: export, upload, notify
-- A single team owns the whole graph end to end
-- Outputs are effects in other systems rather than tables anyone queries
-- The graph is small and rarely changes shape
-
-✗Asset-based fits when
-
-- Many teams build tables on top of each other's tables
-- People keep asking whether a table is current
-- Backfills of specific partitions are routine work
-- Upstream cadences change and consumers should not need to care
+| ✓ Task-based fits when | ✗ Asset-based fits when |
+| --- | --- |
+| • The pipeline is a sequence of actions: export, upload, notify<br><br>• A single team owns the whole graph end to end<br><br>• Outputs are effects in other systems rather than tables anyone queries<br><br>• The graph is small and rarely changes shape | • Many teams build tables on top of each other's tables<br><br>• People keep asking whether a table is current<br><br>• Backfills of specific partitions are routine work<br><br>• Upstream cadences change and consumers should not need to care |
 
 > **TIP**
 >
@@ -156,10 +146,8 @@ Airflow runs compute_fct_orders, which loads Postgres orders into fct_orders, th
 - Plain Snowflake mart_revenue (storage, Snowflake)
 - Executive dashboard (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Tasks run the work; assets are the data
 
@@ -216,6 +204,8 @@ flowchart LR
 2. `compute_mart_revenue` reruns on corrected input. How does snapshot identity on the `Iceberg` table let you name exactly which dashboard reads are affected?\
    *Connects snapshot versioning to impact analysis across a rerun.*
 
+</details>
+
 
 <br>
 
@@ -233,10 +223,8 @@ The daily aggregation hardcodes CURRENT_DATE, and history is filled by a custom 
 - Plain Snowflake mart.daily_orders (storage, Snowflake)
 - Morning dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Making the pipeline backfillable by design
 
@@ -275,6 +263,8 @@ flowchart LR
    *Tests why partition-level atomicity, not just parameterization, is what makes re-runs safe.*
 2. How would you backfill after adding a column to the aggregation?\
    *Tests table-format schema evolution alongside partition overwrite.*
+
+</details>
 
 
 <br>
@@ -357,19 +347,9 @@ Past the point where the warehouse saturates, more concurrent runs stop shorteni
 
 Some tables read their own previous partition. `customer_lifetime_value` for February 9 is the February 8 value plus February 9's orders. Backfill such a table at concurrency 1, oldest date first. At 6, the February 9 run can read a February 8 partition the backfill has not rebuilt yet and carry the old logic forward.
 
-✓Do
-
-- Read every date from the run's logical date
-- Clear or overwrite exactly the partition the run owns
-- Launch backfills through the orchestrator so failed dates are listed
-- Run tables that read their own prior partition at concurrency 1
-
-✗Don't
-
-- Call current_date or now() inside a transform
-- Append rows without clearing the target date first
-- Loop over dates in a shell script
-- Backfill a table before the inputs it reads are rebuilt
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Read every date from the run's logical date<br><br>• Clear or overwrite exactly the partition the run owns<br><br>• Launch backfills through the orchestrator so failed dates are listed<br><br>• Run tables that read their own prior partition at concurrency 1 | • Call current_date or now() inside a transform<br><br>• Append rows without clearing the target date first<br><br>• Loop over dates in a shell script<br><br>• Backfill a table before the inputs it reads are rebuilt |
 
 **The orchestrator substitutes each run's logical date wherever 2026-02-09 appears in this query. A 30-day backfill of it runs at concurrency 6. What does daily_active_users hold for those 30 dates afterwards?**
 
@@ -423,10 +403,8 @@ The daily revenue DAG promises that mart.daily_revenue is fresh for the previous
 - mart.daily_revenue (storage, warehouse)
 - Executive dashboard (6am Pacific read) (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Moving the SLA out of the runbook
 
@@ -470,6 +448,8 @@ flowchart LR
 2. A finance export also reads `mart.daily_revenue`, but its deadline is noon. How do you express both deadlines?\
    *Whether the SLA lives on the asset or on each consumer's expectation of it.*
 
+</details>
+
 
 <br>
 
@@ -487,10 +467,8 @@ A 6am-SLA customer dashboard DAG, a 365-day backfill DAG and an experimental ML 
 - Snowflake XL warehouse (shared) (storage, Snowflake)
 - Executive dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 Priority isolation starts with the DAG itself. The orchestrator runs **tasks in dependency order** and retries each task on its own, so a failed aggregate reruns without reloading the tables before it. Pools and `priority_weight` then decide which task starts next, but neither takes compute back from a query already running. On one shared Snowflake XL warehouse, a 365-day backfill query mid-flight keeps its compute while the dashboard waits, and on Monday that wait pushes it past 6am. The fix is structural: separate orchestrators and separate warehouses.
 
@@ -551,6 +529,8 @@ flowchart LR
    *Task-level retries versus the SLA they are meant to protect.*
 3. How do you stop 2 orchestrators from becoming 5 as new low-priority DAGs arrive?\
    *Criticality tiers as the rule, not one orchestrator per workload.*
+
+</details>
 
 
 <br>
@@ -686,10 +666,8 @@ Redesign the seam between stripe_to_raw (now every 5 minutes) and daily_finance_
 - Snowflake mart.daily_close (SLA 6am, missing 2x/week) (storage, Snowflake)
 - Executive finance dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The seam was a clock, not a contract
 
@@ -753,6 +731,8 @@ flowchart LR
 3. If two downstream marts both consume `raw.payments`, should they share one freshness check or each own theirs?\
    *Extends the asset-as-contract idea to fan-out consumers with different SLAs.*
 
+</details>
+
 
 <br>
 
@@ -772,10 +752,8 @@ Redesign a fintech data platform of 412 production DAGs where an upstream cadenc
 - Finance dashboard (consumer, Metabase)
 - ML feature store (consumer)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Depend on assets, not on clocks
 
@@ -856,6 +834,8 @@ flowchart LR
 3. Both orchestrators write to the same tables. How do you keep one lineage graph across 2 schedulers?\
    *Lineage is emitted per asset, so both schedulers report into the same graph.*
 
+</details>
+
 
 <br>
 
@@ -922,19 +902,9 @@ Setting `pool_slots: 2` makes `build_revenue` count double, because a slot count
 
 Priority acts only when a slot frees up. A backfill task that is already running keeps its slot for its full 12 minutes, whatever its weight. Under a steady stream of high-weight work, low-weight tasks can wait indefinitely. Use pools to guarantee capacity to a workload, and priority to order tasks that share 1 pool.
 
-✓Shared pool of 20 slots
-
-- At 23:30, an uncapped 365-day backfill fills all 20 slots
-- At 01:00, build_revenue queues behind backfill tasks of 12 minutes each
-- Priority 10 wins each slot that frees, but slots free slowly
-- Analyst notebooks stand in the same queue as finance's loads
-
-✗Pools of 11, 6 and 3
-
-- At 23:30, the backfill holds 6 slots and its other runs wait
-- At 01:00, build_revenue starts at once in wh_prod
-- Analyst notebooks wait in wh_adhoc and slow nothing else
-- The backfill finishes later; production finishes at its usual time
+| ✓ Shared pool of 20 slots | ✗ Pools of 11, 6 and 3 |
+| --- | --- |
+| • At 23:30, an uncapped 365-day backfill fills all 20 slots<br><br>• At 01:00, build_revenue queues behind backfill tasks of 12 minutes each<br><br>• Priority 10 wins each slot that frees, but slots free slowly<br><br>• Analyst notebooks stand in the same queue as finance's loads | • At 23:30, the backfill holds 6 slots and its other runs wait<br><br>• At 01:00, build_revenue starts at once in wh_prod<br><br>• Analyst notebooks wait in wh_adhoc and slow nothing else<br><br>• The backfill finishes later; production finishes at its usual time |
 
 > **TIP**
 >
@@ -975,10 +945,8 @@ Production gets 11 slots nothing else can hold, and the backfill can never excee
 
 Draw this nightly sensor pipeline asset-first: device reading files land in a raw object-storage table, a cleaning step builds a cleaned readings warehouse table, and an aggregation step builds a daily device health warehouse table that a fleet dashboard reads. Make each table its own stage wired by its data dependency, so lineage is visible on the graph. An orchestrator schedules both steps nightly and retries each one up to 3 times on failure.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Draw the tables, not just the jobs
 
@@ -1029,6 +997,8 @@ flowchart LR
 2. Redraw the same pipeline task-first. Which question about the dashboard numbers can it no longer answer?\
    *The lineage difference between the 2 orchestration models.*
 
+</details>
+
 
 <br>
 
@@ -1038,10 +1008,8 @@ flowchart LR
 
 A currency bug wrote wrong amounts into 45 days of a date-partitioned revenue table built nightly from an orders database. Design the pipeline so an orchestrator runs one load per logical date, for the nightly run and as a backfill over those 45 days. Each run must replace only its own date's partition in the warehouse, so rerunning a day never duplicates rows.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One load, any date, one partition
 
@@ -1080,6 +1048,8 @@ flowchart LR
    *Whether the same per-date backfill path covers a column-add backfill without a separate job.*
 2. What if an order's amount could be edited weeks after it was placed?\
    *Whether partitioning by date still bounds which partitions a correction must rewrite when late changes land in old dates.*
+
+</details>
 
 
 <br>
@@ -1207,10 +1177,8 @@ The seam, contract and SLA layers are untouched, so any late hour, whatever its 
 
 Design a nightly pipeline that carries the day's shipment scans from an operations database through an orchestrated batch job into a stock-levels table in a warehouse that feeds a replenishment dashboard. Declare the 7am SLA in the orchestrator so a miss pages the on-call engineer, and add DAG-level monitoring so a stalled upstream step alerts too, not only a late final task.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A deadline the scheduler enforces, plus a watcher for the middle
 
@@ -1259,6 +1227,8 @@ flowchart LR
 2. How would you tell a slow-but-healthy night from a truly stalled extract?\
    *Tests choosing a stall threshold from the normal run time rather than from the deadline.*
 
+</details>
+
 
 <br>
 
@@ -1287,10 +1257,8 @@ At 16:00 the Airbnb revenue team merges its cleaning-fee fix. Thirty days of rev
 
 Thirty nightly ingestion DAGs each copy tables from one PostgreSQL read replica that serves at most 8 analytics connections. Design the ingestion from the replica into a warehouse, scheduled by an orchestrator, so that every extract across all thirty DAGs shares one pool sized to that limit and the finance extracts claim free slots first.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One budget for every DAG that touches the replica
 
@@ -1331,6 +1299,8 @@ flowchart LR
 2. How would you stop a slow night's run of one DAG from overlapping its next run?\
    *Separating the per-DAG run concurrency lever from the cross-DAG pool.*
 
+</details>
+
 
 <br>
 
@@ -1340,10 +1310,8 @@ flowchart LR
 
 A fare bug wrote wrong driver payouts into the last 90 days of a date-partitioned payouts table that an orchestrated nightly task builds from a trips PostgreSQL database into a shared warehouse. Design it so the same date-parameterized task backfills the corrected range, and rerunning any day overwrites that day's partition instead of adding rows. The backfill shares the warehouse with the nightly run, so cap it at 4 concurrent task runs through a pool. Page on-call if the nightly payout run is not finished by its 6am SLA.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One task rebuilds history, a pool keeps it polite
 
@@ -1382,6 +1350,8 @@ flowchart LR
    *Whether the pool cap, not the range, sets the run time, and how you track progress across hundreds of dated runs.*
 2. A summary table downstream reads `payouts_warehouse`. How do its rows get corrected too?\
    *Propagating a backfill to dependent tasks through the dependency graph instead of by hand.*
+
+</details>
 
 
 <br>

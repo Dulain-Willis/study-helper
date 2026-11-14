@@ -79,17 +79,9 @@ The third gain happens inside the CPU. A row-at-a-time engine calls its filter a
 
 The operational database from the beginner lessons stores rows on purpose. Its work is a single record at a time: insert order 8841, fetch it with all its fields, update its status. A row layout serves each of those with a single contiguous read or write. In a columnar file, assembling a single row touches 40 separate column regions, and adding a single row means appending to all 40, so columnar files are written in large batches and rarely updated in place.
 
-✓Row layout fits
-
-- Fetching or updating a record by its key
-- Thousands of small inserts per second
-- Reading most columns of a few rows
-
-✗Columnar layout fits
-
-- Aggregating millions of rows
-- Reading a few of many columns
-- Writing in large batches, then reading many times
+| ✓ Row layout fits | ✗ Columnar layout fits |
+| --- | --- |
+| • Fetching or updating a record by its key<br><br>• Thousands of small inserts per second<br><br>• Reading most columns of a few rows | • Aggregating millions of rows<br><br>• Reading a few of many columns<br><br>• Writing in large batches, then reading many times |
 
 
 <br>
@@ -146,10 +138,8 @@ A 2-billion-row, 24-column orders fact in PostgreSQL feeds a quarterly report wh
 - Postgres analytics_mart (storage, PostgreSQL)
 - Quarterly report dashboard (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Columnar storage: pay for the columns you read
 
@@ -187,6 +177,8 @@ flowchart LR
 2. If the report later aggregates 20 of the 24 columns, how much of the columnar win is left?\
    *The I/O cut shrinks toward 24/20, so compression and vectorized execution carry most of what remains.*
 
+</details>
+
 
 <br>
 
@@ -203,10 +195,8 @@ A daily revenue dashboard reads an orders fact in the data lake that is partitio
 - Lake fct_orders/user_id=... (10M tiny dirs) (storage, object storage)
 - Daily revenue dashboard (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Partition on the column you filter
 
@@ -247,6 +237,8 @@ flowchart LR
    *Weighs the extra pruning against multiplying the folder count (`event_date` x `region`) and drifting back toward small files.*
 2. A finance report scans 5 years of orders by month. Is a daily `event_date` partition still the right granularity for it?\
    *Matching partition granularity to the ranges the queries actually filter on.*
+
+</details>
 
 
 <br>
@@ -319,19 +311,9 @@ Each file carries costs that do not shrink with its size. The engine has to list
 >
 > Serve a secondary filter like `country` inside the files: sort each hour's rows by `country` before writing. Each row group's min and max then cover a narrow band of countries, and the engine skips row groups for other countries without multiplying the file count.
 
-✓Do
-
-- Partition on the column most queries filter on
-- Keep each partition in the hundreds of MB or more
-- Sort within files by secondary filter columns
-- Read the query log before choosing a partition column
-
-✗Don't
-
-- Partition on high-cardinality columns like session_id
-- Partition on a column no query filters on
-- Stack partition levels until files shrink below 1MB
-- Pick the partition column from the load schedule instead of the filters
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Partition on the column most queries filter on<br><br>• Keep each partition in the hundreds of MB or more<br><br>• Sort within files by secondary filter columns<br><br>• Read the query log before choosing a partition column | • Partition on high-cardinality columns like session_id<br><br>• Partition on a column no query filters on<br><br>• Stack partition levels until files shrink below 1MB<br><br>• Pick the partition column from the load schedule instead of the filters |
 
 **A payments table lands 3GB of compressed files per day. In the query log, 90% of queries filter on paid_date, 40% on merchant_id (60,000 merchants) and 8% on currency (30 values). Which layout fits?**
 
@@ -375,10 +357,8 @@ An IoT pipeline writes its hourly batch output as GZIP-compressed CSV in a parti
 - Lake fct_telemetry GZIP CSV (5GB/partition, not splittable) (storage, S3)
 - Telemetry analytics dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why one file became one task
 
@@ -414,6 +394,8 @@ The fix is a columnar file (Parquet) under an open table format. Parquet compres
 2. If the format had to stay CSV, what codec would at least give you splits?\
    *Block-splittable codecs like `bzip2` exist; `gzip` is not splittable.*
 
+</details>
+
 
 <br>
 
@@ -429,10 +411,8 @@ fct_transactions is an Iceberg table partitioned by transaction_date and cluster
 - Fraud audit query (filter on transaction_date) (consumer, Jupyter)
 - Customer statement query (filter on customer_id) (consumer, Metabase)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Two filters, one storage layer
 
@@ -467,6 +447,8 @@ Each consumer uses a different pruning path. The audit filters on `transaction_d
    *Partition pruning and file-stats pruning compose.*
 2. A new dashboard filters on `merchant_id`, which is neither partitioned nor clustered. Why does it still scan almost everything?\
    *Pushdown only helps columns that the physical layout supports.*
+
+</details>
 
 
 <br>
@@ -520,17 +502,9 @@ A cluster is fast because many cores read different parts of the data at once. A
 
 Columnar files avoid this by compressing small pages inside each column chunk independently. A reader jumps to any row group through the footer and decodes it alone, so a columnar file is splittable with every codec in the table. The codec decides splittability only when it wraps an entire file.
 
-✓One core per file
-
-- A CSV or JSON file under whole-file gzip
-- A CSV file under whole-file Snappy or LZ4
-- Any compressed stream without a block index
-
-✗Many cores per file
-
-- Columnar files with any codec, split by row group
-- Uncompressed CSV, split at line breaks
-- Formats that compress independent, indexed blocks
+| ✓ One core per file | ✗ Many cores per file |
+| --- | --- |
+| • A CSV or JSON file under whole-file gzip<br><br>• A CSV file under whole-file Snappy or LZ4<br><br>• Any compressed stream without a block index | • Columnar files with any codec, split by row group<br><br>• Uncompressed CSV, split at line breaks<br><br>• Formats that compress independent, indexed blocks |
 
 > **TIP**
 >
@@ -578,10 +552,8 @@ The DAU dashboard's daily-unique-users SQL scans all 10TB of unpartitioned GZIP 
 - Lake mobile_clickstream GZIP CSV unpartitioned (10TB) (storage, S3)
 - DAU dashboard (full 10TB scan today) (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### 4 storage levers that multiply
 
@@ -635,6 +607,8 @@ flowchart LR
 2. Should you also partition by `event_hour` for hourly DAU?\
    *Over-partitioning creates many small files, which slows every reader.*
 
+</details>
+
 
 <br>
 
@@ -652,10 +626,8 @@ An ad-tech platform lands every bid event through an 80,000 writes-per-second bi
 - Advertiser reporting dashboard (365d, 2PB) (consumer, Looker)
 - ML model training (consumer, Jupyter)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 Storage layout should follow the read. A 12ms point lookup, a 365-day filtered scan and a full-history read each want a different layout on disk, so no single store serves all three well. The answer is to land the bid events once, then write **one copy per access pattern**: a row-oriented key-value store, columnar files partitioned by date, and a raw lake.
 
@@ -704,6 +676,8 @@ flowchart LR
    *Idempotent writes: upsert by `bid_id`, dedupe on a lake key.*
 2. What breaks if you partition the columnar copy by `advertiser_id` instead of `event_date`?\
    *The partition key must match the dashboard's real filter, not a high-cardinality column.*
+
+</details>
 
 
 <br>
@@ -890,10 +864,8 @@ Correct. Scattered ids defeat min and max, so only a bloom filter could skip the
 
 A support platform keeps 600 million tickets, 40 columns wide, in MySQL, a row store the agent console reads by ticket id to open one whole ticket. A new dashboard of weekly average resolution time by team scans just 3 of those 40 columns across every ticket, and data up to a day old is fine. Design the pipeline so each access pattern reads from the storage layout that suits it.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Two reads, two layouts
 
@@ -933,6 +905,8 @@ flowchart LR
 2. The dashboard grows to read 30 of the 40 columns. Does the columnar copy still pay off?\
    *Checks that the win scales with the fraction of columns a scan touches.*
 
+</details>
+
 
 <br>
 
@@ -942,10 +916,8 @@ flowchart LR
 
 Parcel scanners emit 2 TB of scan events a day into a stream, and a nightly batch job loads them into a lake table kept for three years. Analysts query it from notebooks, always filtering on scan date and usually the last 7 days, while about 400 million distinct shipment IDs appear each day. Draw the stream, the nightly load, the lake table and the notebooks, naming the lake table for the partition key you choose.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Partition on the column every query filters
 
@@ -982,6 +954,8 @@ flowchart LR
    *Checks the cardinality math for a second key: 12 x 1,095 partitions of roughly 170 GB each stays bounded.*
 2. Some scans arrive up to three days late. Which `scan_date` partitions does the nightly load have to write?\
    *Connects the partition key to late-arriving data: the load rewrites a small window of recent folders, not the whole table.*
+
+</details>
 
 
 <br>
@@ -1102,10 +1076,8 @@ Correct. The report reads every country, so nothing extra is pruned, while its f
 
 A nightly Spark batch rewrites 4 TB a day of raw JSON payment logs from a raw landing zone into a Parquet curated table that a reporting dashboard scans dozens of times a day. The table uses Snappy today, and dashboard reads are bound by bytes pulled from storage. Design the pipeline from raw landing to the dashboard, and choose the curated table's codec to shrink bytes read without slowing decompression, naming it on that stage.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Pick the codec, not whether to compress
 
@@ -1143,6 +1115,8 @@ flowchart LR
 2. Why does the curated Parquet table compress far better than the raw JSON under the same codec?\
    *How a columnar layout puts runs of similar values next to each other.*
 
+</details>
+
 
 <br>
 
@@ -1170,10 +1144,8 @@ Suppose a Netflix analyst owns a weekly report on German members watching a new 
 
 An API gateway lands 3 TB a day of raw JSON access logs in object storage, and analysts query one day of logs for one of 200,000 tenants at a time. Design a nightly batch job that rewrites the logs into a Parquet table, laid out so this query prunes by partition first and then skips row groups by their min/max statistics. Label the table's storage stage with its partition key and in-file sort order. Analysts read the table from a dashboard.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Coarse partition, fine statistics
 
@@ -1215,6 +1187,8 @@ flowchart LR
 2. A few queries filter on `status_code` instead of tenant. What does the current sort order do for them?\
    *Only the sort column gets narrow row-group ranges.*
 
+</details>
+
 
 <br>
 
@@ -1224,10 +1198,8 @@ flowchart LR
 
 Video players emit 6 billion playback heartbeats a day, 2 TB of raw JSON with 30 fields from 40 million devices in 8 regions, into a raw landing zone kept 18 months. A nightly batch job rewrites each day into a curated table that a dashboard reads for buffering ratio by region over the last 7 days and that support engineers query for one device on one day. Design the pipeline and put the curated table's file format, codec and partition key in its stage name, picking a key that lets both queries skip files without producing tiny ones.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Partition on the filter every reader shares
 
@@ -1276,6 +1248,8 @@ flowchart LR
    *Whether you reach for row-group statistics or bloom filters instead of a high-cardinality partition key.*
 2. Raw volume grows to 40 TB a day. Is a daily partition still the right grain?\
    *Re-checking partition size against file size: day plus region, or hourly, may now fit.*
+
+</details>
 
 
 <br>

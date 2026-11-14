@@ -113,10 +113,8 @@ A daily Python job appends 250,000 Postgres orders into a plain Snowflake table 
 - Plain Snowflake orders (430k rows after Tuesday's retry, 250k expected) (storage, Snowflake)
 - Revenue dashboard (41% inflated, undetected) (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Idempotency by keyed upsert, not by append
 
@@ -168,6 +166,8 @@ Why the table format is load-bearing: rewriting a day has to be all-or-nothing, 
    *MERGE errors on a non-deterministic match; you have to dedupe the source to one row per key first, e.g. keep the latest `updated_at`.*
 2. How would you make the load restartable at the partition level rather than reloading a whole day?\
    *Tests whether they reach for partition overwrite / replaceWhere as a coarser form of the same idempotency guarantee.*
+
+</details>
 
 
 <br>
@@ -284,10 +284,8 @@ Two candidate destinations sit on the canvas. The plain Snowflake table accumula
 - Iceberg orders (ACID partition overwrite; SET state) (storage, Iceberg)
 - Revenue dashboard (currently reads inconsistent numbers from both) (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Idempotency: run it twice, get the same answer
 
@@ -327,6 +325,8 @@ In real work this is the shape of most "the numbers are off by 2x on Tuesdays" i
 2. A late correction arrives for an order dated 3 days ago. How does the partition-overwrite destination handle it versus the append one?\
    *Tests that overwriting the old partition applies the correction cleanly, while append leaves both the wrong and the right row.*
 
+</details>
+
 
 <br>
 
@@ -343,10 +343,8 @@ Retries on this pipeline double the day's numbers because the hourly job appends
 - Plain Snowflake orders (daily partition; INSERT INTO appends; no atomic OVERWRITE) (storage, Snowflake)
 - Daily report dashboard (numbers drift across hourly retries) (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why a retry doubled the day
 
@@ -391,6 +389,8 @@ flowchart LR
    *Deterministic transforms: non-deterministic logic breaks idempotency even with an atomic overwrite.*
 2. How would you overwrite only the hours that changed instead of the whole date?\
    *Dynamic partition overwrite versus a static full-day replace, and the cost trade-off.*
+
+</details>
 
 
 <br>
@@ -460,31 +460,13 @@ def load_orders(conn, run_date):
     )
 ```
 
-✓Append with INSERT INTO
+| ✓ Append with INSERT INTO | ✗ Replace the partition |
+| --- | --- |
+| • A second run doubles the day<br><br>• A partial failure leaves rows the retry can't see<br><br>• Correct only if the run happens exactly once<br><br>• One statement to write, a long cleanup afterwards | • A second run equals the first<br><br>• A partial failure is erased by the next DELETE<br><br>• Correct for any number of runs<br><br>• Two statements, both scoped by the run date |
 
-- A second run doubles the day
-- A partial failure leaves rows the retry can't see
-- Correct only if the run happens exactly once
-- One statement to write, a long cleanup afterwards
-
-✗Replace the partition
-
-- A second run equals the first
-- A partial failure is erased by the next DELETE
-- Correct for any number of runs
-- Two statements, both scoped by the run date
-
-✓Do
-
-- Scope the DELETE and the INSERT by the same run date
-- Take the run date from the orchestrator, never from the clock
-- Partition the target by the same unit the loader processes
-
-✗Don't
-
-- Append daily loads with a bare INSERT INTO
-- Filter on CURRENT_DATE inside a scheduled task
-- Delete a wider range than the run inserts
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Scope the DELETE and the INSERT by the same run date<br><br>• Take the run date from the orchestrator, never from the clock<br><br>• Partition the target by the same unit the loader processes | • Append daily loads with a bare INSERT INTO<br><br>• Filter on CURRENT_DATE inside a scheduled task<br><br>• Delete a wider range than the run inserts |
 
 *Between the DELETE and the INSERT the partition is empty for a few seconds, and a query during that window sees no rows for the day. A single overwrite statement closes that gap, which is one reason engines offer it. The end state is identical.*
 
@@ -530,10 +512,8 @@ A duplicate-row incident from append-only writes spooked the team into turning r
 - Plain Snowflake orders (non-idempotent; INSERT INTO append) (storage, Snowflake)
 - Daily report dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why the pager goes quiet
 
@@ -569,6 +549,8 @@ The other half is ownership. The orchestrator, not a cron line or a person, hold
 2. How would you keep the retries bounded so a genuinely broken upstream does not retry forever?\
    *Checks understanding of max attempts plus backoff, and when a failure should escalate rather than retry.*
 
+</details>
+
 
 <br>
 
@@ -585,10 +567,8 @@ Pipeline A reads the day's orders, groups by customer, and row-by-row INSERTs in
 - Plain Snowflake daily_customer_summary (3x rows after 3 runs; no atomic OVERWRITE) (storage, Snowflake)
 - Customer summary dashboard (numbers multiply with every retry) (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The property lives in three changed lines
 
@@ -643,6 +623,8 @@ COMMIT;
    *Replacing the whole date drops rows that vanished from the source; an upsert only touches keys it sees.*
 2. If the `DELETE` succeeds and the `INSERT` fails, what does the dashboard show with and without the transaction?\
    *Ties atomicity to idempotency: the transaction keeps a failed run from leaving an empty day.*
+
+</details>
 
 
 <br>
@@ -736,10 +718,8 @@ Our first nightly pipeline appends each night's orders straight into the orders_
 - Plain Snowflake orders_daily (430k rows after retry; revenue inflated 41%) (storage, Snowflake)
 - Finance revenue dashboard (CFO sees inflated number) (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The property the append was missing
 
@@ -778,6 +758,8 @@ flowchart LR
    *Tests whether the partition overwrite scales to backfills, not just last night's run.*
 2. What happens to a late-arriving order whose `order_date` partition you already overwrote?\
    *Pushes on the full-vs-incremental boundary and how merge semantics handle stragglers.*
+
+</details>
 
 
 <br>
@@ -890,10 +872,8 @@ On the 26th, the clock minus 1 day gives the 25th, which matches the date the re
 
 A nightly batch job reads the day's page-view log files and adds each page's view count to a running total in a warehouse table, so a rerun doubles the numbers. Make the pipeline idempotent: running it twice for the same day must leave the table exactly as one run does, with the job setting each page's count for that day instead of adding to it. A reporting dashboard reads the table.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Set the count, do not add to it
 
@@ -927,6 +907,8 @@ flowchart LR
 2. The dashboard also wants an all-time total per page. Where should that number come from?\
    *Deriving a cumulative figure by summing the set daily counts instead of incrementing a stored total.*
 
+</details>
+
 
 <br>
 
@@ -936,10 +918,8 @@ flowchart LR
 
 A nightly batch job pulls one day of freezer temperature readings for 1,200 refrigerated trucks from the telematics API, summarizes them per truck, and appends the result to a warehouse summary table partitioned by reading date. A compliance dashboard reads that table, and every rerun of a failed night shows that day's trucks twice. Design the pipeline so each run replaces its reading date's partition instead of appending to it.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Set the partition, do not add to it
 
@@ -981,6 +961,8 @@ flowchart LR
 2. The API was down and a run produced zero rows. Should the replace still run?\
    *Whether an empty result should be allowed to wipe a date that already held good rows.*
 
+</details>
+
 
 <br>
 
@@ -1008,10 +990,8 @@ A food delivery company loads each day's completed deliveries into a warehouse p
 
 A nightly batch job reads one day of fitness-tracker step logs (about 2 million records), sums steps per user, and writes one row per user per day to a warehouse table that a leaderboard dashboard reads. Its write appends, so a retried night lists every user twice. Draw the same pipeline with only the write changed, so running it two or three times for one date leaves exactly one row per user for that date.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Same job, one changed write
 
@@ -1049,6 +1029,8 @@ flowchart LR
 2. What goes wrong if a run cleared the whole table before writing, instead of only its own date?\
    *Scoping the replace to exactly the data the run recomputes.*
 
+</details>
+
 
 <br>
 
@@ -1058,10 +1040,8 @@ flowchart LR
 
 A nightly batch job loads one day of email events (about 3 million sends, opens and clicks) from the email provider's API and writes two tables: event counts per campaign per day, and one row per customer holding their latest open and click times. An orchestrator retries any failed task up to 3 times. Design the pipeline so both writes pass the two-run test: running the same day twice must leave each table exactly as one run does, with no doubled counts and no duplicate customers.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Set the result, never add to it
 
@@ -1106,6 +1086,8 @@ flowchart LR
    *Spotting an add hiding inside a keyed write.*
 2. The provider resends last Tuesday's events late and you rerun that day. Which table stays correct, and why might the other drift?\
    *Applying the two-run test to an older day, not just tonight's.*
+
+</details>
 
 
 <br>

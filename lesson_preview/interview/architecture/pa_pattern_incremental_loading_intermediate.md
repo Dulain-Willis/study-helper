@@ -89,19 +89,9 @@ FROM orders_src
 WHERE updated_at > TIMESTAMP '2026-10-21 02:14:07'
 ```
 
-✓Full refresh wins when
-
-- The table reloads inside the window with room to spare
-- Most rows change every day, so the change filter saves little
-- The source has no change column you would trust
-- Correctness matters more than the compute bill, as with a 250 row reference table
-
-✗Incremental wins when
-
-- Under a few percent of rows change per day
-- The full reload no longer fits the load window
-- A trigger or the database itself sets the change column
-- Consumers need the data fresher than a nightly rebuild allows
+| ✓ Full refresh wins when | ✗ Incremental wins when |
+| --- | --- |
+| • The table reloads inside the window with room to spare<br><br>• Most rows change every day, so the change filter saves little<br><br>• The source has no change column you would trust<br><br>• Correctness matters more than the compute bill, as with a 250 row reference table | • Under a few percent of rows change per day<br><br>• The full reload no longer fits the load window<br><br>• A trigger or the database itself sets the change column<br><br>• Consumers need the data fresher than a nightly rebuild allows |
 
 > **TIP**
 >
@@ -181,19 +171,9 @@ Databases record every delete in their own transaction log, and a pipeline that 
 | Key reconciliation | no | up to 24 hours | 320 MB key pull and an anti-join | the key snapshot is incomplete |
 | Change log | database access, no schema change | seconds | a log reader running continuously | the log is truncated before it is read |
 
-✓Do
-
-- Bump updated_at in the same statement that sets is_deleted, by trigger
-- Pull keys only for reconciliation, never full rows
-- Count the key snapshot before any delete runs against it
-- Keep deleted keys as tombstones in the raw layer for backfills
-
-✗Don't
-
-- Trust a soft-delete flag that application code sets by convention
-- Run a reconciliation delete that reports success on a partial snapshot
-- Assume a hard-deleted row ever reaches a timestamp filter
-- Measure delete latency by the incremental run interval when keys arrive daily
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Bump updated_at in the same statement that sets is_deleted, by trigger<br><br>• Pull keys only for reconciliation, never full rows<br><br>• Count the key snapshot before any delete runs against it<br><br>• Keep deleted keys as tombstones in the raw layer for backfills | • Trust a soft-delete flag that application code sets by convention<br><br>• Run a reconciliation delete that reports success on a partial snapshot<br><br>• Assume a hard-deleted row ever reaches a timestamp filter<br><br>• Measure delete latency by the incremental run interval when keys arrive daily |
 
 > **TIP**
 >
@@ -515,19 +495,9 @@ JOIN dim_customer AS d
 
 A change that arrives late, with a `valid_from` earlier than the current version, is the SCD failure most candidates miss. A design that edits the dimension in place closes the current row at the late timestamp and opens a new one, producing 2 current rows or an interval running backwards. The version log design orders by `valid_from` when it derives intervals, so a late version slots between its neighbours and `LEAD` recomputes both of them on the next rebuild. Deletes fit the same log with 1 extra flag column: a tombstone version closes the last real version and carries no attributes forward. And because the dedupe stage guarantees 1 row per customer per load, 2 versions never share a `valid_from`, so the order within a customer is total.
 
-✓Do
-
-- Keep an append-only version log and derive the dimension from it
-- Use a far-future sentinel for valid_to on the current row
-- Hash the tracked columns after coalescing nullable ones
-- Resolve customer_sk at fact load with a range join, once
-
-✗Don't
-
-- Edit valid_to in place when a change may arrive out of order
-- Use NULL for an open interval and COALESCE in every report
-- Rebuild surrogate keys on each refresh; facts already hold the old ones
-- Compare attributes column by column across 30 columns
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Keep an append-only version log and derive the dimension from it<br><br>• Use a far-future sentinel for valid_to on the current row<br><br>• Hash the tracked columns after coalescing nullable ones<br><br>• Resolve customer_sk at fact load with a range join, once | • Edit valid_to in place when a change may arrive out of order<br><br>• Use NULL for an open interval and COALESCE in every report<br><br>• Rebuild surrogate keys on each refresh; facts already hold the old ones<br><br>• Compare attributes column by column across 30 columns |
 
 > **TIP**
 >
@@ -561,10 +531,8 @@ A subscription meal-kit company loads its 40 million row orders table and 2 mill
 
 Cancelled appointments are hard-deleted from the clinic scheduling database, leaving no trace in the table. The nightly full refresh of all 40 million appointment rows keeps cancellations off the operations managers' utilization dashboard, but no longer finishes before morning reporting starts. About 200,000 appointments are inserted, edited, or deleted daily: design an incremental pipeline that stages changes from the clinic database, applies them to the warehouse table by appointment so deletions take effect, and can reload a bounded date range directly from the clinic database if the nightly feed breaks.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem really is
 
@@ -642,6 +610,8 @@ flowchart LR
 2. Finance now wants to see how often appointments are rescheduled. What changes in the target table?\
    *Tests whether the candidate sees that overwriting in place destroys prior versions and reaches for keeping each version with validity dates, applied from the same change events.*
 
+</details>
+
 
 <br>
 
@@ -651,10 +621,8 @@ flowchart LR
 
 How should the engineer who owns the nightly warehouse copy of the vendor invoice ledger rebuild it, now that re-copying all 420 million invoices from the operational Postgres database and replacing the warehouse table takes 5 hours against a 3-hour batch window, while only about 1.5 million invoices change on a typical day? Auditors also need to know what approval status any invoice held at any past moment, including an invoice that was approved and then put back on hold within the same day.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Incremental Loading, with an auditor in the room
 
@@ -729,6 +697,8 @@ flowchart LR
    *Tests schema evolution: new columns flow through as nullable, the raw log keeps whatever arrived, and the merge does not crash or silently drop the field.*
 2. A bug in `status_history_merge` closed versions with the wrong `valid_to` for 3 weeks. How do you repair `invoice_status_history`?\
    *Tests backfill: delete the affected invoices' versions for the window and replay the events from `invoice_change_log` in commit order through the fixed merge.*
+
+</details>
 
 
 <br>

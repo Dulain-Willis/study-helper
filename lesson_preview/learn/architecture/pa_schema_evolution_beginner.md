@@ -134,10 +134,8 @@ The checkout_completed event gained a field, discount_code_applied, and the load
 - Strict target table (no discount_code_applied column) (storage, PostgreSQL)
 - Checkout dashboard (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Schema evolution, not schema enforcement
 
@@ -171,6 +169,8 @@ flowchart LR
 2. A consumer wants `discount_code_applied` as a first-class column: how do you expose it without re-ingesting history?\
    *Because the raw payload was kept, the field can be surfaced from data already landed, so no backfill from the producer is needed.*
 
+</details>
+
 
 <br>
 
@@ -194,19 +194,9 @@ A schema change splits the data into 2 versions: events written before it and ev
 
 ### Backward and forward
 
-✓Backward compatible
-
-- New reader, old data
-- The v2 loader reads v1 events
-- Needed when new code reprocesses history
-- Breaks when a new reader requires a field old events lack
-
-✗Forward compatible
-
-- Old reader, new data
-- The v1 loader reads v2 events
-- Needed in the gap before readers upgrade
-- Breaks when an old reader needs a field new events dropped
+| ✓ Backward compatible | ✗ Forward compatible |
+| --- | --- |
+| • New reader, old data<br><br>• The v2 loader reads v1 events<br><br>• Needed when new code reprocesses history<br><br>• Breaks when a new reader requires a field old events lack | • Old reader, new data<br><br>• The v1 loader reads v2 events<br><br>• Needed in the gap before readers upgrade<br><br>• Breaks when an old reader needs a field new events dropped |
 
 Name the direction from the reader's point of view. Backward means a new reader looks back at data from its past. Forward means an old reader receives data from its future. A change that keeps both working is *fully compatible*.
 
@@ -295,10 +285,8 @@ The producer starts writing a new user_signup schema next Monday, but the consum
 - Kafka user_signup topic (mixed v1 and v2 events in flight) (queue, Kafka)
 - Consumer: signup analytics (still on old schema for two more weeks) (transform, Pandas)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Forward compatibility: old code reading new data
 
@@ -338,6 +326,8 @@ In production this is how two teams ship on independent schedules without a coor
 2. Both teams may deploy in either order over the next month. Which mode covers you?\
    *Points at 'FULL' compatibility, which enforces both forward and backward at once.*
 
+</details>
+
 
 <br>
 
@@ -351,10 +341,8 @@ The orders stream feeds a daily revenue dashboard through a nightly load into a 
 
 - orders events (source, Kafka)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 Every change a producer proposes falls into one of 3 buckets, and sorting them is most of the work of **schema evolution**. Adding an optional `coupon_code` is additive: no existing reader ever asked for it, so nothing breaks. Dropping `promo_flag` is destructive: any query that reads it fails or quietly goes NULL. Renaming `amount` to `order_total` is the one that fools people, because to every reader it is a drop plus an add.
 
@@ -391,6 +379,8 @@ The schema registry check reads straight off the stream, before the nightly load
    *Applies the same classification to a type change.*
 2. If the producer skipped straight to dropping `amount`, which step would the registry reject?\
    *Checks that the compatibility mode lines up with the expand-then-contract steps.*
+
+</details>
 
 
 <br>
@@ -483,17 +473,9 @@ WHERE fare_amount_usd IS NULL
 
 Run the steps out of order and readers break. Drop before switch, and any reader still on `fare_usd` reads nulls: the March 11 dashboard again. Switch before the copy finishes, and a switched reader sees nulls for every row older than step 1. A type change uses the same steps under a new name: to store fares as whole cents, add `fare_cents`, copy, switch, then drop the old field.
 
-✓Do
-
-- Ship new fields with a default so they pass both directions
-- Treat every rename as add, copy, switch, drop
-- List every reader of a field before removing it
-
-✗Don't
-
-- Rename or retype a field in a single release
-- Drop the old field because the producer stopped writing it
-- Trust ignore mode during a rename: it hides the break
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Ship new fields with a default so they pass both directions<br><br>• Treat every rename as add, copy, switch, drop<br><br>• List every reader of a field before removing it | • Rename or retype a field in a single release<br><br>• Drop the old field because the producer stopped writing it<br><br>• Trust ignore mode during a rename: it hides the break |
 
 **A team renaming city to city_name finishes the add and copy steps, then removes city from the producer and the table the next morning. What happens?**
 
@@ -537,10 +519,8 @@ Mobile checkout events are queued offline and can reach the pipeline days late: 
 - Snowflake daily_revenue (mart) (storage, Snowflake)
 - Finance dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Count on the day it happened, not the day it landed
 
@@ -584,6 +564,8 @@ flowchart LR
 2. If reprocessing 7 days per run gets too expensive, how would you rebuild only the partitions that received late rows?\
    *Pushes toward tracking touched `event_date` values over a blanket window.*
 
+</details>
+
 
 <br>
 
@@ -600,10 +582,8 @@ The nightly daily_revenue job computes today only, so a mobile event that arrive
 - Plain Snowflake daily_revenue: INSERT INTO append (no partition overwrite; reruns duplicate) (storage, Snowflake)
 - Finance dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Widening the window so late data lands
 
@@ -640,6 +620,8 @@ flowchart LR
 
 1. How would you move from a fixed seven-day window to one that only reruns the `event_date` partitions with newly-arrived late events?\
    *Tests whether you see the window length as a cost knob: a full seven-partition overwrite every night is wasted work if only one day actually changed.*
+
+</details>
 
 
 <br>
@@ -768,10 +750,8 @@ Apply all four beginner-tier fixes to this consumer-app event pipeline. Replace 
 - Plain Snowflake daily_revenue: INSERT INTO append (no rerun, no partition overwrite) (storage, Snowflake)
 - Finance dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Four beginner fixes, wired into one line
 
@@ -825,6 +805,8 @@ flowchart LR
 3. How would you handle an event whose `event_time` is older than the rerun window when it finally arrives?\
    *Tests the boundary of late-data handling: the window is a bound, not a guarantee.*
 
+</details>
+
 
 <br>
 
@@ -834,10 +816,8 @@ flowchart LR
 
 Thermostat firmware rolls out over six weeks, so old and new firmware publish readings to one Kafka topic side by side while the stream job that parses them upgrades on day one. Add a schema registry that checks every new firmware schema before it publishes, and name the stage for the compatibility mode that lets the job upgrade first. Land the parsed readings in a table fresh within 15 minutes for the operations dashboard.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The reader moves first, so the check is backward
 
@@ -882,6 +862,8 @@ flowchart LR
    *An old reader of new data adds forward compatibility on top of backward, so both directions must hold.*
 2. What if the firmware shipped first and the parsing job upgraded a week later?\
    *Writer first means old code reads new data: the mode flips to forward.*
+
+</details>
 
 
 <br>
@@ -1040,10 +1022,8 @@ The copy filled the table, and raw events stayed as they arrived. Reading coales
 
 Trip events reach a warehouse from a Kafka topic, and the producer team wants to rename `fare` to `fare_amount` while new optional fields keep arriving. Design the pipeline so a schema check between the topic and the warehouse lets additive changes through but rejects an uncoordinated rename or removal. During the switch producers publish both names, and the warehouse must keep one fare column.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Let the additive change carry the rename
 
@@ -1085,6 +1065,8 @@ flowchart LR
 2. How do you know when it is safe to remove `fare` from the schema for good?\
    *Confirming no reader still depends on the old field before the destructive step.*
 
+</details>
+
 
 <br>
 
@@ -1094,10 +1076,8 @@ flowchart LR
 
 Smart electricity meters buffer readings offline and can upload them up to three days late, so land every raw reading with its event_time plus an ingestion_time stamped on arrival. Billing sums usage by ingestion day, because an issued invoice must never change. The grid-load dashboard sums usage by event hour, so a late reading counts in the hour it was measured. Design the pipeline that feeds both from the same landed readings.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One reading, two clocks
 
@@ -1146,6 +1126,8 @@ flowchart LR
 2. How would you report how much usage arrives more than a day late?\
    *Using `ingestion_time - event_time` on the landed readings to measure lateness itself.*
 
+</details>
+
 
 <br>
 
@@ -1174,10 +1156,8 @@ Back at Uber's tipping launch, the trip service adds tip_usd with a default of 0
 
 A mobile game's SDK retries failed uploads, so session events can arrive up to seven days after their event time. Land the raw session events in object storage, then add a nightly batch job that recomputes the last seven days of daily active player counts by event time and overwrites those daily partitions in a warehouse, so running it twice gives the same counts. A dashboard reads the daily counts from the warehouse.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Recompute a trailing week, overwrite what you recompute
 
@@ -1213,6 +1193,8 @@ flowchart LR
 2. A session arrives 10 days late. What happens to it, and how could you catch it without widening the nightly window?\
    *What a fixed window misses, and a less frequent wider rerun as a cheaper second pass.*
 
+</details>
+
 
 <br>
 
@@ -1222,10 +1204,8 @@ flowchart LR
 
 Retail stores upload point-of-sale events through an API whenever their connection returns, so a sale can arrive up to 14 days after its event time, and the vendor keeps adding fields to the event. Land every raw upload in a store that accepts added columns without failing the load. Each night, rebuild the daily sales table from that raw store over a rerun window sized to the lateness, overwriting each event-date partition so a rerun replaces the day instead of counting it twice. A store-sales dashboard reads the daily table.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Let the rerun window correct history
 
@@ -1268,6 +1248,8 @@ flowchart LR
    *Whether a one-off rebuild of older partitions beats widening the nightly window for every run.*
 2. What changes if the vendor renames `amount` to `sale_amount`?\
    *Contrasts a rename, which breaks readers, with the added fields the raw store absorbs.*
+
+</details>
 
 
 <br>

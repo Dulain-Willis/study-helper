@@ -48,19 +48,9 @@ Lambda's correctness comes from the batch side of the merge. A speed-layer mista
 
 Nathan Marz, whose stream engine Twitter open-sourced in 2011, laid out the design in a blog post that year and named it Lambda in his later book. It answered the limits of that era's engines: a crash could redeliver a message into a running count that then stayed wrong for good, stream state lived in process memory and vanished on restart, and no batch engine could recompute years of events fast enough to serve recent data, so recency needed a second path.
 
-✓Constraint in 2012
-
-- A crash could replay a message into a count that had already absorbed it
-- Stream state lived in worker memory and vanished on restart
-- A full recompute took longer than the freshness consumers accepted
-- The event feed kept hours of data, so history lived only in the archive
-
-✗Same constraint today
-
-- Engines checkpoint state and read position together, so a restart resumes without double counting
-- State is persisted to local disk and checkpointed, holding billions of keys
-- Recompute is a replay of the log through the same job, at many times the live rate
-- Logs retain weeks or months, so the log itself can be the history
+| ✓ Constraint in 2012 | ✗ Same constraint today |
+| --- | --- |
+| • A crash could replay a message into a count that had already absorbed it<br><br>• Stream state lived in worker memory and vanished on restart<br><br>• A full recompute took longer than the freshness consumers accepted<br><br>• The event feed kept hours of data, so history lived only in the archive | • Engines checkpoint state and read position together, so a restart resumes without double counting<br><br>• State is persisted to local disk and checkpointed, holding billions of keys<br><br>• Recompute is a replay of the log through the same job, at many times the live rate<br><br>• Logs retain weeks or months, so the log itself can be the history |
 
 > The cost of a second codebase
 >
@@ -114,10 +104,8 @@ The canvas holds a Lambda architecture missing its third layer: an immutable Kaf
 - Redis speed_view_delta (storage, Redis)
 - Analytics dashboard (consumer, Metabase)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The serving layer is the piece that makes Lambda one system
 
@@ -176,6 +164,8 @@ flowchart LR
 2. If a new consumer needs the same merged numbers, where does its merge logic live?\
    *Reinforces that the serving layer merges once so no consumer reimplements the batch and speed hand-off.*
 
+</details>
+
 
 <br>
 
@@ -192,10 +182,8 @@ One Flink job turns the Kafka orders log into a live view, but the log keeps onl
 - Snowflake mart_orders_v1 (storage, Snowflake)
 - Orders dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Kappa: replay is the whole point
 
@@ -236,6 +224,8 @@ Edit one, tiered storage, is what buys the replay. Offloading old log segments t
    *Tests understanding that replay must reach the live offset and be validated, not just finish.*
 2. What breaks about replay if the orders events are not keyed and partitioned to preserve per-order ordering?\
    *Connects tiered-log replay to stream-processing correctness under reordering.*
+
+</details>
 
 
 <br>
@@ -326,10 +316,8 @@ Replace the Spark batch and Flink streaming transforms that each compute the sam
 - Daily executive dashboard (consumer, Looker)
 - Live ops dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One transform, two clocks
 
@@ -399,6 +387,8 @@ with beam.Pipeline(options=options) as p:
 3. One slow Kafka partition holds back the live job's watermark. What stalls?\
    *Links per-partition progress to when streaming windows can fire.*
 
+</details>
+
 
 <br>
 
@@ -419,10 +409,8 @@ Kafka events land in an S3 raw zone within 15 minutes and roll up into a Snowfla
 - Live ops dashboard (consumer, Looker)
 - ML inference (consumer, API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The freshness contract
 
@@ -467,6 +455,8 @@ The fix gives each consumer the clock it needs. The batch path keeps its cadence
    *Routing a consumer by the freshness it needs, then checking the label against the feed.*
 2. The executive dashboard now wants hourly instead of daily numbers. What changes upstream before you can relabel `Snowflake curated daily aggregate`?\
    *The label follows the pipeline's real cadence, not the other way round.*
+
+</details>
 
 
 <br>
@@ -574,10 +564,8 @@ Migrate the Lambda engagement pipeline on the canvas to Kappa, keeping every Lam
 - Lambda serving merge (consumer, Looker)
 - Content engagement dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What Kappa actually removes
 
@@ -645,6 +633,8 @@ flowchart LR
 3. What signal tells you it is finally safe to delete the `Cassandra` views and the Lambda serving merge?\
    *The cut-over criterion: consumers reading the Iceberg view and a validated drift of zero, not a calendar date.*
 
+</details>
+
 
 <br>
 
@@ -665,10 +655,8 @@ Replace a market-intelligence platform's Lambda architecture with a Kappa core: 
 - Research mart (daily) (consumer, Jupyter)
 - Regulatory archive (monthly, < 24h freshness) (consumer, API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One log, one codebase
 
@@ -731,6 +719,8 @@ flowchart LR
    *Watermarks and allowed lateness versus silently dropping it.*
 2. The `Filings file drop` redelivers the same file. What keeps the `Warehouse mart` correct?\
    *Idempotent file ingestion and dedup keys on the batch side.*
+
+</details>
 
 
 <br>
@@ -823,10 +813,8 @@ Propagating the slowest input gives the segment column a weekly tier; the consum
 
 Ad impressions land on an append-only event log at 2 billion events a day. Build a Lambda architecture: an immutable master data set fed from the log, a batch layer that recomputes exact spend totals from full history every night, and a speed layer reading the same log that keeps spend fresh within a minute. A serving layer merges both views for the advertiser dashboard.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### 2 views, one answer
 
@@ -873,6 +861,8 @@ flowchart LR
 2. What happens to the dashboard if tonight's batch run fails?\
    *How the serving layer keeps answering when the speed view has to cover more than one day.*
 
+</details>
+
 
 <br>
 
@@ -882,10 +872,8 @@ flowchart LR
 
 Driver trip events land on a Kafka log that keeps every event since launch, about 40 million a day. Build a Kappa architecture: one Flink streaming job serves drivers live earnings within seconds, with no batch layer. When the fee formula changes, the same job's code replays the full log into a new earnings view that sits beside the live one until drivers are cut over.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One codebase, 2 running copies, one log
 
@@ -931,6 +919,8 @@ flowchart LR
    *Whether the event log can still be the source of truth, and what full retention or archiving it needs for a replay to reach every past trip.*
 2. How would you decide the replacement view is ready for cutover?\
    *Catching up to the live job's position in the log and validating the rebuilt numbers before readers switch.*
+
+</details>
 
 
 <br>
@@ -1062,10 +1052,8 @@ A count moves only when the job emits a replacement, and cutting over to a new v
 
 Smart-meter readings arrive on a Kafka topic at 50,000 events per second, and one Spark job computes per-meter usage. A grid-outage dashboard needs that usage within one minute. The billing report reads a daily usage table built from a full day of readings in object storage, and it must not pay for compute running around the clock. Design the pipeline so the same Spark logic runs in the mode each consumer needs.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 A unified engine lets you write the per-meter usage logic once and choose the runtime per output. Spark runs the same DataFrame query as a streaming job or a batch job by changing the trigger, but the two runs still bill and fail differently: streaming mode keeps executors up all day, batch mode pays only for the run window. The decision here is not which engine. It is which mode each consumer has earned.
 
@@ -1111,6 +1099,8 @@ flowchart LR
 2. A corrected reading arrives 3 days late. How does each run absorb it?\
    *Partition rerun in batch mode versus late data in the streaming run.*
 
+</details>
+
 
 <br>
 
@@ -1139,10 +1129,8 @@ A food delivery company shows every restaurant its orders and revenue for the da
 
 Inventory changes from a pharmacy chain's store database arrive through CDC, about 30 million a day, and three readers need them on different clocks: store managers see stock-outs within a minute, a regional replenishment dashboard refreshes hourly, and a compliance report rebuilds once a day. Land every change raw in object storage. Design the pipeline with a freshness tier on each processing stage, none faster than the reader it feeds needs.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Tier the stage, not the pipeline
 
@@ -1197,6 +1185,8 @@ flowchart LR
 2. Planners now ask for the dashboard every 5 minutes. Does the rollup cross into the streaming band, and what does that cost?\
    *Where a tighter reader clock crosses the batch-to-streaming line.*
 
+</details>
+
 
 <br>
 
@@ -1206,10 +1196,8 @@ flowchart LR
 
 A competitive online game writes 300 million match events a day to one event log that keeps 90 days of history. Choose between Lambda, Kappa and a unified engine, then design the pipeline: a live leaderboard store must reflect each match within seconds, and season standings land in a warehouse once a day. When the scoring rule changes, all 90 days are recomputed and the standings rewritten, and the three-person team can run only one codebase.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Kappa wins when one small team owns the rescore
 
@@ -1254,6 +1242,8 @@ flowchart LR
    *Tests whether a retroactive correction reuses the single streaming path and its replay instead of adding a second one.*
 2. Log retention is cut from 90 days to 7 to save storage. Does Kappa still hold?\
    *Tests seeing that replay depends on the log holding full history, and that the log would need archiving to object storage to keep it.*
+
+</details>
 
 
 <br>

@@ -101,10 +101,8 @@ Two aggregators read the same at-least-once event log. The daily revenue sum fee
 - Regulatory revenue report (finance files this with the SEC; needs exactly-once-correct daily revenue) (consumer, API)
 - Real-time engagement dashboard (page-view counts; tolerates at-least-once noise) (consumer, Grafana)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One log, two guarantees
 
@@ -152,6 +150,8 @@ Exactly-once is not something the log hands you; it is built across 3 links. The
 3. If the engagement team later wanted page views that are exact for billing advertisers, which path changes and why?\
    *Whether a tolerant pattern becomes one that needs explicit engineering once a duplicate costs money.*
 
+</details>
+
 
 <br>
 
@@ -186,21 +186,9 @@ After a crash, `state['orders']` restores from the snapshot and the count comes 
 
 Effectively-once reaches the same visible outcome by a different route. Records are delivered at least once, and every effect is made idempotent so the extra deliveries change nothing. The email operator becomes effectively-once if the email service accepts an idempotency key, such as the `order_id`, and drops any second send carrying a key it has seen.
 
-✓Exactly-once (transactional)
-
-- Positions, state and output snapshot together
-- The sink must take part in the engine's commit
-- Output appears only when a snapshot completes
-- Covers effects inside the engine's boundary
-- Breaks at any hop that cannot join the commit
-
-✗Effectively-once (idempotent)
-
-- Delivery is at least once; duplicates are expected
-- The sink deduplicates on a key the event carries
-- Output appears as soon as it is written
-- Covers any system that honors the key
-- Breaks if the key is minted at processing time
+| ✓ Exactly-once (transactional) | ✗ Effectively-once (idempotent) |
+| --- | --- |
+| • Positions, state and output snapshot together<br><br>• The sink must take part in the engine's commit<br><br>• Output appears only when a snapshot completes<br><br>• Covers effects inside the engine's boundary<br><br>• Breaks at any hop that cannot join the commit | • Delivery is at least once; duplicates are expected<br><br>• The sink deduplicates on a key the event carries<br><br>• Output appears as soon as it is written<br><br>• Covers any system that honors the key<br><br>• Breaks if the key is minted at processing time |
 
 
 <br>
@@ -278,10 +266,8 @@ Audit the claim. The vendor diagram says the Flink job delivers exactly-once via
 - Plain Postgres revenue_events: INSERT INTO append (no PK constraint, no UPSERT, no transaction integration with Flink) (storage, PostgreSQL)
 - Revenue dashboard (numbers double after every Flink checkpoint recovery) (consumer, Metabase)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Where the guarantee stops being true
 
@@ -315,6 +301,8 @@ flowchart LR
 2. When would you reach for the transactional 2PC sink over the idempotent upsert?\
    *Checks the tradeoff: 2PC handles non-idempotent side effects and multi-row atomic writes, at the cost of commit latency tied to the checkpoint interval.*
 
+</details>
+
 
 <br>
 
@@ -333,10 +321,8 @@ The order service commits to Postgres orders and publishes to Kafka order_events
 - Plain Postgres order_analytics: INSERT INTO append (no PK on event_id, no UPSERT, double-counts on Kafka redelivery) (storage, Postgres)
 - Order analytics dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Two boundaries, two named building blocks
 
@@ -377,6 +363,8 @@ The second boundary duplicates for a different reason. Kafka is at-least-once, s
    *Tests whether an idempotency key alone handles ordering, or whether you also need a version or sequence column.*
 2. Does the outbox plus CDC give you exactly-once end to end?\
    *Checks whether you see it as at-least-once delivery that the consumer's `event_id` upsert makes effectively-once.*
+
+</details>
 
 
 <br>
@@ -525,10 +513,8 @@ Prepare this pipeline to replay the 14 days a consumer-logic bug corrupted throu
 - Plain Snowflake event_stats: append-only INSERT, so any reprocessing double-counts (storage, Snowflake)
 - Event analytics consumer (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why the replay was blocked in 3 places
 
@@ -566,6 +552,8 @@ flowchart LR
 2. What breaks if 2 events share the same key you `MERGE` on?\
    *Tests whether the idempotency key is truly unique per event, not just per user or per minute.*
 
+</details>
+
 
 <br>
 
@@ -586,10 +574,8 @@ flowchart LR
 - Financial regulatory report consumer (SEC) (consumer, API)
 - Engagement dashboard consumer (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Match the guarantee to the bill
 
@@ -637,6 +623,8 @@ flowchart LR
    *Once a number is billed on, it inherits the financial-close guarantee and needs an idempotent or transactional sink.*
 2. You cannot use a 2PC sink for the financial close, only a plain object store. How do you still get identical numbers across replays?\
    *Points toward idempotent upserts keyed by input offset rather than blind increments.*
+
+</details>
 
 
 <br>
@@ -755,10 +743,8 @@ Make every boundary of the financial-close pipeline effectively-once: replace th
 - Plain Snowflake fct_merchant_balance_hourly (last week's reissue source; no ACID; no time travel) (storage, Snowflake)
 - CFO quarter-close reconciliation consumer (against bank settlement file) (consumer, Tableau)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Effectively-once is a chain, not a switch
 
@@ -819,6 +805,8 @@ flowchart LR
 2. How far back must `Kafka` retention reach to replay an old quarter?\
    *Ties the replay promise to retention or tiered storage.*
 
+</details>
+
 
 <br>
 
@@ -828,10 +816,8 @@ flowchart LR
 
 Parcel scan events arrive in Kafka at 40,000 per second, and a Flink job counts scans per depot per minute for an operations API that needs them within a minute. The counts land in a key-value store outside Flink's transaction boundary, and after a restart Kafka redelivers every event since the last checkpoint. Design the pipeline so the stored counts are effectively-once: a replay must leave every count unchanged.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Exactly-once stops where the transaction stops
 
@@ -872,6 +858,8 @@ flowchart LR
    *Whether the daily figure stays replay-safe when built from per-minute entries rather than an incremented counter.*
 2. The store is replaced by a Kafka topic that a second Flink job reads. Where does exactly-once now hold, and where does it stop?\
    *Placing the closed-system boundary when both ends are Kafka.*
+
+</details>
 
 
 <br>
@@ -989,10 +977,8 @@ A replayed delivery rewrites its own row, so each order pays once, effectively-o
 
 Order status events arrive in Kafka at 15,000 per second; a Flink job enriches them into a second Kafka topic, and a notifier sends each update through a push API that has no prepare step and cannot recall a push. A Flink restart must never publish an enriched event twice, and a notifier retry must never notify a customer twice. Use two-phase commit where both sides can take part, and an idempotent consumer with a durable store of sent event ids where one cannot.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Match the pattern to what each boundary can promise
 
@@ -1038,6 +1024,8 @@ flowchart LR
 2. The push API adds an idempotency key header. Which part of this design could you remove?\
    *Moving deduplication into the sink itself.*
 
+</details>
+
 
 <br>
 
@@ -1047,10 +1035,8 @@ flowchart LR
 
 Ad clicks reach Kafka at 20,000 a second, up to an hour out of order, and Kafka keeps 7 days. A live stream job keeps per-campaign state in hourly windows of click time, open for clicks up to an hour late, so advertisers see spend within seconds. Finance replays any hours of the last 180 days through a second windowed stream job whose watermark follows click time, resuming where a failed run stopped. A replayed click counts once.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Replay is a second stream job over old events
 
@@ -1109,6 +1095,8 @@ flowchart LR
 2. How would you replay one campaign without recomputing every other campaign?\
    *Whether the archive can also be addressed by key, for example partitioned by campaign as well as click hour, so only that campaign's window state is rebuilt.*
 
+</details>
+
 
 <br>
 
@@ -1137,10 +1125,8 @@ Back at Uber Eats, imagine the ads team owning both paths from the same click st
 
 Smart-meter readings arrive in Kafka at 50,000 per second. A billing aggregator sums daily kWh per meter for invoices, and its totals must be identical across every replay and recovery. A dashboard counter tallies readings per substation per minute for a grid-load dashboard that must refresh within a minute and tolerates a few double counts. Exactly-once sink commits surface only at each 2-minute checkpoint, so the dashboard counter must not wait on them.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Pay for exactly-once only where a duplicate costs money
 
@@ -1188,6 +1174,8 @@ flowchart LR
 2. What if the billing table had to live in a store with no transactions?\
    *Falling back to a keyed upsert on meter and day to reach effectively-once.*
 
+</details>
+
 
 <br>
 
@@ -1197,10 +1185,8 @@ flowchart LR
 
 A hotel-booking service writes each reservation to PostgreSQL and publishes a booking event to Kafka as 2 separate calls; a stream job reads the topic and credits loyalty points into a PostgreSQL ledger. 2 duplicate symptoms appear: events for bookings that never committed, and points credited twice after the job restarts from a checkpoint. Neither database can join a distributed transaction. Fix the producer side and the consumer side with the right pattern each, so a 30-day replay of the topic after a points-rule fix overwrites credits instead of adding to them.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Name the side of the duplicate before naming the pattern
 
@@ -1245,6 +1231,8 @@ flowchart LR
    *Whether the revocation overwrites state keyed by `booking_id` instead of appending a negative credit that double-applies.*
 2. The app now wants a running total per member. Where does that total come from so a replay cannot inflate it?\
    *Deriving the aggregate from the keyed ledger rows instead of incrementing a counter on every event.*
+
+</details>
 
 
 <br>

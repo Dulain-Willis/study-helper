@@ -103,19 +103,9 @@ WHERE rn = 1
 
 Add 2 further points. First, separate the 2 claims: exactly-once describes the delivery path, idempotency describes your write, and the second is the one you control. Second, the scope of the retry matters. A task-level retry inside the orchestrator is cheap to make safe, while a human re-running a backfill over 90 days needs the same guarantee, so the partition the job touches comes from the run's logical date rather than from now().
 
-✓Do
-
-- Name the exact step that breaks under a second run before proposing any fix
-- Derive the partition from the run's logical date so backfills replay the same slice
-- Put an idempotency key on every call that leaves the warehouse
-- State the retention of any dedup id store
-
-✗Don't
-
-- Say 'add deduplication' without saying what produces the duplicates
-- Compute aggregates as target plus delta
-- Generate surrogate keys from a sequence inside a retryable task
-- Claim exactly-once when you mean an idempotent write
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Name the exact step that breaks under a second run before proposing any fix<br><br>• Derive the partition from the run's logical date so backfills replay the same slice<br><br>• Put an idempotency key on every call that leaves the warehouse<br><br>• State the retention of any dedup id store | • Say 'add deduplication' without saying what produces the duplicates<br><br>• Compute aggregates as target plus delta<br><br>• Generate surrogate keys from a sequence inside a retryable task<br><br>• Claim exactly-once when you mean an idempotent write |
 
 > **TIP**
 >
@@ -140,10 +130,8 @@ A streaming consumer throws on a malformed event, restarts, replays the same poi
 - Consumer (wedges on bad event) (transform, Flink)
 - Fraud store (storage, PostgreSQL)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -210,6 +198,8 @@ flowchart LR
    *Probes monitoring design: absolute pile vs percentage-of-traffic, and why a slow trickle and a sudden spike need different alarms.*
 3. What happens if the write to the `Dead-letter topic` itself fails?\
    *Forces reasoning about the failure-of-the-failure-path: do you block, retry, or drop, and how offset commit ordering protects you.*
+
+</details>
 
 
 <br>
@@ -304,19 +294,9 @@ Light in fibre covers roughly 200,000 kilometres per second, so a round trip bet
 
 Major cloud providers publish inter-region transfer prices of about $0.02 per gigabyte for most routes, with higher rates on some continents. The arithmetic is where the points are. Replicating 10 terabytes of raw events per day is 300 terabytes a month, which at $0.02 per gigabyte is roughly $6,000 a month in transfer alone, every month, before storage in the second region. The senior move is to ask what actually needs to cross. If the Frankfurt team consumes a 40 gigabyte daily aggregate, replicating that instead of the raw feed costs about $24 a month, which is 250x less. The latency complaint goes away too, because the data is now local to its readers.
 
-✓Replicate raw
-
-- Every downstream query becomes possible in region 2
-- Egress scales with event volume
-- Lag of seconds with a log-based stream
-- Doubles storage and doubles the compliance surface
-
-✗Replicate curated
-
-- Only the agreed outputs cross the boundary
-- Egress scales with aggregate size, often 100x smaller
-- Lag equals the batch cadence
-- A schema change in the aggregate is a cross-region contract
+| ✓ Replicate raw | ✗ Replicate curated |
+| --- | --- |
+| • Every downstream query becomes possible in region 2<br><br>• Egress scales with event volume<br><br>• Lag of seconds with a log-based stream<br><br>• Doubles storage and doubles the compliance surface | • Only the agreed outputs cross the boundary<br><br>• Egress scales with aggregate size, often 100x smaller<br><br>• Lag equals the batch cadence<br><br>• A schema change in the aggregate is a cross-region contract |
 
 
 <br>
@@ -394,19 +374,9 @@ Here the interviewer wants a placement decision. Mask at the source and the raw 
 
 Expect 2 follow-ups. Deletion requests against immutable logs are answered with crypto-shredding: encrypt each customer's fields under a per-customer key, and deleting the key renders every copy unreadable without rewriting history. And dead-letter queues, which collect the malformed rows nobody looks at for weeks, are the leak point most teams forget, so you state their encryption and retention explicitly and unprompted.
 
-✓Do
-
-- Count the leak points: wire, staging, broker disk, DLQ, logs, errors, backups, exports
-- Pseudonymize at ingest with a keyed hash so joins survive
-- Hold raw identifiers in a separate table with its own policy and retention
-- Answer deletion against immutable logs with per-customer keys
-
-✗Don't
-
-- Stop at 'we use TLS' when asked where data is exposed
-- Hash a phone number without a secret key
-- Let a stack trace print a row into the orchestrator's logs
-- Forget that the dead-letter queue holds the same fields as the main topic
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Count the leak points: wire, staging, broker disk, DLQ, logs, errors, backups, exports<br><br>• Pseudonymize at ingest with a keyed hash so joins survive<br><br>• Hold raw identifiers in a separate table with its own policy and retention<br><br>• Answer deletion against immutable logs with per-customer keys | • Stop at 'we use TLS' when asked where data is exposed<br><br>• Hash a phone number without a secret key<br><br>• Let a stack trace print a row into the orchestrator's logs<br><br>• Forget that the dead-letter queue holds the same fields as the main topic |
 
 > **TIP**
 >
@@ -425,10 +395,8 @@ Expect 2 follow-ups. Deletion requests against immutable logs are answered with 
 
 Right now a second run over a date adds to the numbers already there, so our daily watch-time and revenue totals per title drift every time on-call retries a failed run or an analyst backfills an arbitrary past date, which happens several times a week. We recompute those totals in a daily batch from about 900M raw playback events, landing one row per title and date in the analytics warehouse that finance and content dashboards read. Design the pipeline, from scheduling through the warehouse load, so that running any date once or five times leaves that table exactly as a single clean run would.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem is really testing
 
@@ -499,6 +467,8 @@ flowchart LR
    *Tests the curveball. Partition REPLACE is faster than a full-table MERGE: delete the date's partition and write fresh data. Or stage the delta and MERGE only against the affected partition instead of the whole table.*
 2. An analyst backfills 90 days at once. How does that stay safe?\
    *Tests whether the replace stays date-scoped. The backfill fans out into 90 single-date runs, each overwriting its own partition, so no date corrupts another and any one date can be rerun independently.*
+
+</details>
 
 
 <br>
@@ -593,10 +563,8 @@ DoorDash on Super Bowl Sunday: order volume climbs through the afternoon and spi
 
 An offline-first mobile app holds events on the phone while it has no signal and flushes them on reconnect, so ingestion sees about 60M events a day with commute-hour spikes near 20x the average, and although 99% of events arrive within 2 hours, a tail trickles in up to 7 days late. The product analyst needs each day's engagement counts on a dashboard within 15 minutes, so a day cannot wait on the slowest phone, yet no spike may drop events and every straggler must still land in the day it happened. Design the pipeline so late events are durably stored until the nightly job folds them back, and the counts end up exact even when the job is rerun.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -667,6 +635,8 @@ flowchart LR
 2. A new app release doubles offline usage and the share of events past 2 hours climbs from 1% to 8%. What do you change?\
    *Tests whether the allowance is treated as a measured choice: watch the side-path share, then weigh a wider allowance (more state, slower settling) against a bigger nightly merge.*
 
+</details>
+
 
 <br>
 
@@ -681,10 +651,8 @@ Every backfill and on-call replay re-runs the same Kafka events through this str
 - Events (source, Kafka)
 - Stream processor (transform, Flink)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -754,6 +722,8 @@ The page sits on the queue's backlog, not on single dead letters. A steady trick
    *Probes replay through the same processor, reliance on the upsert sink, and sending still-bad records back to the queue.*
 4. Volume grows 10x and the processor can't keep up. What happens to the stream, and what do you change?\
    *Tests backpressure reasoning: buffering in the topic, scaling consumers, and never silently dropping data.*
+
+</details>
 
 
 <br>

@@ -194,19 +194,9 @@ ETL transforms before loading, so the warehouse holds only the processed shape. 
 
 Storage first: S3 standard is $0.023 per GB-month, and a year of raw events at 40 GB of JSON a day is about 15 TB, or $335 a month. Then the rerun. In bronze, 6 weeks of order CDC is about 176 million change events, and a 16-executor Spark cluster merging around 10 million rows a minute rebuilds silver orders in under 20 minutes, with the gold models adding a few more. The re-extract it replaces starts with 50,000 Stripe requests per 5 million charges, around 8 minutes at the rate limit, and then stalls: 6 weeks of order changes the WAL recycled once the slot confirmed them, and courier exports the partner has deleted. The comparison to say is 25 minutes of compute against a rebuild that cannot finish. Transforming before the load still makes sense in 1 place: card numbers and any other field that may never land in the lake get tokenised or dropped before the write.
 
-✓ETL: transform before load
-
-- Warehouse holds only the processed shape
-- A logic bug means re-extracting from every source
-- Rate limits and deleted exports cap what can be rebuilt
-- Right for fields that cannot be stored raw
-
-✗ELT: load raw, transform in place
-
-- Bronze keeps the year for around $335 a month
-- A logic bug means a dbt rerun over bronze
-- 6 weeks of orders rebuild in about 20 minutes
-- Right for everything the lake is allowed to hold
+| ✓ ETL: transform before load | ✗ ELT: load raw, transform in place |
+| --- | --- |
+| • Warehouse holds only the processed shape<br><br>• A logic bug means re-extracting from every source<br><br>• Rate limits and deleted exports cap what can be rebuilt<br><br>• Right for fields that cannot be stored raw | • Bronze keeps the year for around $335 a month<br><br>• A logic bug means a dbt rerun over bronze<br><br>• 6 weeks of orders rebuild in about 20 minutes<br><br>• Right for everything the lake is allowed to hold |
 
 > **TIP**
 >
@@ -379,21 +369,9 @@ Three monitors cover the pipeline. Freshness: `max(ingested_at)` per bronze tabl
 > - Slot lag: max_slot_wal_keep_size and a page at 30 GB before the primary's disk fills
 > - Silent success: volume check on the output table against a 7-day median
 
-✓Do
-
-- Give every box a reason tied to the source or consumer and a number the interviewer can check
-- Say the retry policy and the idempotency key in the same breath
-- Name the late-event percentage and the recompute window that absorbs it
-- Monitor the output table's freshness and volume, since task status can succeed on 0 rows
-- Route bad records sideways with the raw line kept, and alert on the reject rate
-
-✗Don't
-
-- Say "exactly-once" without naming the commit that makes it true
-- Treat a late event as an error instead of an expected 0.3%
-- Let 1 malformed row halt a 2 GB file and a 07:00 report
-- Read columns by position from a source that can add one on a Tuesday
-- Leave a replication slot without a WAL cap and a slot-lag alert
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Give every box a reason tied to the source or consumer and a number the interviewer can check<br><br>• Say the retry policy and the idempotency key in the same breath<br><br>• Name the late-event percentage and the recompute window that absorbs it<br><br>• Monitor the output table's freshness and volume, since task status can succeed on 0 rows<br><br>• Route bad records sideways with the raw line kept, and alert on the reject rate | • Say "exactly-once" without naming the commit that makes it true<br><br>• Treat a late event as an error instead of an expected 0.3%<br><br>• Let 1 malformed row halt a 2 GB file and a 07:00 report<br><br>• Read columns by position from a source that can add one on a Tuesday<br><br>• Leave a replication slot without a WAL cap and a slot-lag alert |
 
 
 <br>
@@ -422,10 +400,8 @@ A grocery delivery company runs the pipeline from this lesson. On a Friday at 18
 
 Design how our three fleet sources land in one lake and reach dispatch and finance: GPS and engine readings that 8,000 trucks publish over MQTT every 10 seconds, which we must be able to replay after a crash, maintenance records that mechanics edit in place in a SQL Server that cannot take extra query load, and the fuel card issuer's nightly CSV dropped on SFTP. Dispatch watches trucks per region on a map that may be at most 10 minutes stale. Finance reads weekly fuel cost per route, which must match the issuer's statement before it is published and must not double when a night's file is loaded twice.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Three sources, three answers, two readers
 
@@ -511,6 +487,8 @@ flowchart LR
 3. The issuer adds a `merchant_category` column to the CSV without telling anyone. What breaks?\
    *Schema evolution at the bronze landing, and whether silver fails, drops the column silently, or carries it forward.*
 
+</details>
+
 
 <br>
 
@@ -520,10 +498,8 @@ flowchart LR
 
 Appointments sit in MySQL, claim statuses come from a vendor REST API capped at 60 requests a minute, and lab results arrive as HL7 files over SFTP from 3 labs, one of which re-sends a week of files whenever its system restarts. From these, a daily claims-status table must be ready for billing by 08:00, and when a claim-status mapping bug surfaces four months after launch, every month since has to be recomputed by rerunning the pipeline over the data as it first landed. Throttled API calls, re-sent lab files and a late run each need a defined outcome in the design.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The rerun only exists if the raw does
 
@@ -597,6 +573,8 @@ Three sources, one raw landing, one quality step, one dbt build, one table, one 
 3. A lab starts sending an HL7 segment the parser does not know. What happens to those files?\
    *Tests schema evolution and a dead letter path for records that fail parsing instead of blocking the run.*
 
+</details>
+
 
 <br>
 
@@ -606,10 +584,8 @@ Three sources, one raw landing, one quality step, one dbt build, one table, one 
 
 Clickstream events reach Kafka at 200 million a day, a few of them twice, while each account's plan and seats sit in Postgres and its support tickets come from a paginated REST API. Three readers draw on that data: an hourly funnel by plan, a ticket rate per account refreshed daily in a tool that polls every 20 seconds across 300 accounts, and 18 months of events for churn modelling. Design the storage layout and the serving path for each reader.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Three readers, three clocks
 
@@ -693,6 +669,8 @@ flowchart LR
 3. Product now wants the funnel within 5 minutes. Which part of the design moves?\
    *Whether only the funnel path changes cadence, leaving the daily and churn paths batch.*
 
+</details>
+
 
 <br>
 
@@ -702,10 +680,8 @@ flowchart LR
 
 Our sell-through by SKU runs high on nights a store re-sends its closing transaction file after a dropped connection, which happens about 20 times a night across 1,200 stores, and low on days whose online orders arrive by webhook after the day has closed. Stores upload as they close by 21:00, the day's sell-through must be on the dashboard by 23:00, returns that post most weeks have to correct the weeks they belong to, and every file and webhook is kept as it arrived. Design how each path lands and how each model refreshes, so a re-sent file counts once and a late order lands on its own day.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Two wrongs, one repair
 
@@ -774,6 +750,8 @@ flowchart LR
    *Tests monitoring: an expected-file count per business date and an alert before 23:00, rather than a silently low total.*
 3. The chain grows to 12,000 stores. Which box breaks first?\
    *Tests where the load concentrates: thousands of small raw files and the dedup scan, and whether compaction or partitioning by business date keeps the window.*
+
+</details>
 
 
 <br>

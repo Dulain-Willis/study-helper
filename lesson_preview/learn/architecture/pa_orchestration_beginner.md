@@ -110,19 +110,9 @@ Now play the orchestrator variant. clean_orders has no clock time of its own; it
 
 An orchestrator keeps the clock time and adds a graph. Its jobs are now called tasks, and it stores the edges between them under 1 rule: a task starts when the tasks it depends on have all succeeded. It retries a task that fails, and it keeps a record of every run, so the question of what fed the 2026-10-22 dashboard has an answer. Cron supplies the clock and none of the rest.
 
-✓Cron knows
-
-- The current time
-- The command on this line
-- Nothing about the line above or below
-
-✗An orchestrator knows
-
-- The current time and the schedule
-- Which tasks this task depends on
-- Whether those tasks succeeded, and when
-- How many times to retry a failure
-- The history of every run
+| ✓ Cron knows | ✗ An orchestrator knows |
+| --- | --- |
+| • The current time<br><br>• The command on this line<br><br>• Nothing about the line above or below | • The current time and the schedule<br><br>• Which tasks this task depends on<br><br>• Whether those tasks succeeded, and when<br><br>• How many times to retry a failure<br><br>• The history of every run |
 
 *Cron is still the right tool for 1 job with no dependents, such as rotating a log file. The trouble starts at the second line that reads what the first line wrote.*
 
@@ -176,10 +166,8 @@ A daily orders pipeline runs 5 bash scripts by cron at 1am, 2am, 3am, 4am and 5a
 - Snowflake daily_orders mart (storage, Snowflake)
 - Morning dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 Dependency-driven orchestration is the fix here: model the pipeline as a directed acyclic graph where each task starts only after the task it depends on has actually **succeeded**. The orchestrator watches run state, not the wall clock. That one shift turns 5 hopeful `cron` timers into a chain that either produces correct numbers or fails loudly.
 
@@ -229,6 +217,8 @@ flowchart LR
 2. The 1am run failed and you notice at 9am. How do you re-run just that day without disturbing today's schedule?\
    *Re-running a single day's DAG run on its own.*
 
+</details>
+
 
 <br>
 
@@ -247,10 +237,8 @@ Wire three Airflow tasks, extract_orders, clean_orders and aggregate_orders, int
 - daily_orders mart (storage, warehouse)
 - Morning dashboard (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A DAG is the schedule, drawn as a graph
 
@@ -291,6 +279,8 @@ flowchart LR
    *Tests seeing a task's parents as an AND-join: every incoming edge must complete before the task starts.*
 2. Why is the arrow from the `daily_orders` mart to the dashboard not something Airflow schedules?\
    *Checks the boundary between orchestrated tasks and downstream readers that run on their own cadence.*
+
+</details>
 
 
 <br>
@@ -409,10 +399,8 @@ A daily orders pipeline runs its twelve-hour aggregation inside an Airflow opera
 - Snowflake daily_orders mart (storage, Snowflake)
 - Morning dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The scheduler keeps time; it should not do the lifting
 
@@ -456,6 +444,8 @@ flowchart LR
 2. What changes to build only the latest day instead of recomputing all of `daily_orders`?\
    *Incremental vs full loads, partitioning by `order_date`.*
 
+</details>
+
 
 <br>
 
@@ -474,10 +464,8 @@ Three cron jobs build a daily orders-by-region summary: extract the day's orders
 - Snowflake mart_orders_by_region (storage, Snowflake)
 - Regional orders dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Order by dependency, not by the clock
 
@@ -516,6 +504,8 @@ This is how late or slow-arriving data is handled in practice. Real DAGs push it
    *Extends the idea to failure semantics: a DAG stops downstream work, but the consumer still needs a defined behavior for a missing run.*
 2. How would you change the graph if the clean step could start on partial data as each `region` finishes loading?\
    *Probes when a strict succeed-then-start edge is too coarse and finer-grained dependencies are worth the complexity.*
+
+</details>
 
 
 <br>
@@ -620,10 +610,8 @@ Build a three-task Airflow DAG from Postgres production.orders to the Snowflake 
 - Snowflake mart.orders_by_region (storage, Snowflake)
 - Morning regional dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Let the data decide when a task runs, not the clock
 
@@ -666,6 +654,8 @@ The three-table hop is the other half of the design: **batch processing through 
 3. What changes if a second dashboard needs the data hourly instead of at 2am?\
    *Probes whether the DAG's schedule is separable from its task dependencies.*
 
+</details>
+
 
 <br>
 
@@ -681,10 +671,8 @@ Replace a six-job cron chain with one orchestrator (Airflow, Dagster, or Prefect
 - Stripe API (source, API)
 - Dashboard (consumer, Metabase)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### From six cron jobs to one DAG
 
@@ -750,6 +738,8 @@ flowchart LR
    *Tests per-task retries and that independent branches stay independent.*
 2. The team wants orders refreshed hourly but payments only daily. How would you express 2 cadences in one graph?\
    *Scheduling granularity beyond one DAG-level daily trigger.*
+
+</details>
 
 
 <br>
@@ -843,10 +833,8 @@ Those are the shared model. The new declaration spells them differently, but tas
 
 A daily report joins yesterday's ad spend from an ad platform API with yesterday's conversions from a Postgres orders database, landing the result in a warehouse table that a return-on-ad-spend dashboard reads. Cron runs both pulls at midnight and the join at 3am, so a slow pull leaves the join reading stale data. Design it with an orchestrator that starts the join only after both pulls finish and retries the API pull when it times out.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Completion, not clock time, starts the join
 
@@ -896,6 +884,8 @@ flowchart LR
    *Whether a new upstream task is one more edge rather than one more clock time.*
 2. The API pull fails all 3 of its retries. What should happen to the join and the dashboard?\
    *What a dependency means when an upstream task never succeeds.*
+
+</details>
 
 
 <br>
@@ -997,19 +987,9 @@ Now the source database drops the connection 12 minutes in. The orchestrator mar
 
 If attempts 2 and 3 fail as well, the sequence ends differently. After the third failure the orchestrator marks extract_orders failed and sets clean_orders and publish_orders to upstream-failed without starting either. It then fails the run and sends the alert. The published table keeps yesterday's rows, which is the right outcome: a stale table that everyone knows is stale beats a fresh-looking table built from the wrong night.
 
-✓Do
-
-- Name tasks after what they produce, so the run page reads as the pipeline
-- Give every task a retry count, even 1, so a flaky connection does not page anyone
-- Let the edges decide order; never encode order in start times
-- Read the run page after the first night and note each task's duration
-
-✗Don't
-
-- Chain tasks by giving each its own clock time inside one DAG
-- Set so many retries that a broken source gets queried again and again for hours
-- Move data through the orchestrator's own workers
-- Put 2 unrelated pipelines in 1 DAG because they share a schedule
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Name tasks after what they produce, so the run page reads as the pipeline<br><br>• Give every task a retry count, even 1, so a flaky connection does not page anyone<br><br>• Let the edges decide order; never encode order in start times<br><br>• Read the run page after the first night and note each task's duration | • Chain tasks by giving each its own clock time inside one DAG<br><br>• Set so many retries that a broken source gets queried again and again for hours<br><br>• Move data through the orchestrator's own workers<br><br>• Put 2 unrelated pipelines in 1 DAG because they share a schedule |
 
 
 <br>
@@ -1051,10 +1031,8 @@ A task whose retries are spent is marked failed, and everything downstream of it
 
 Each night a job loads the day's clickstream files, then two tasks aggregate the loaded clicks: one sessionizes visits, one counts page views. A report task joins both aggregates into a daily report table. Draw it as a DAG run by an orchestrator: both aggregations run in parallel after the load, and the report waits for both to succeed. No edge may point back upstream.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The edges are the schedule
 
@@ -1103,6 +1081,8 @@ flowchart LR
 2. If the report also read yesterday's `daily_report_table`, would that create a cycle?\
    *Telling apart reading an earlier run's output from a back edge inside the same run.*
 
+</details>
+
 
 <br>
 
@@ -1112,10 +1092,8 @@ flowchart LR
 
 Each night, shipment scans from a carrier API are pulled, cleaned and loaded into a warehouse table that a delivery-times dashboard reads every morning. Design the pipeline so an orchestrator owns all four of its responsibilities: it starts the run on a nightly schedule, runs pull, clean and load in dependency order, retries the pull up to 3 times because the API often times out, and alerts the on-call engineer when a run still fails.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Four jobs, one owner
 
@@ -1165,6 +1143,8 @@ flowchart LR
 2. What would make a retried pull load the same scans twice?\
    *Why retries depend on the work being safe to run more than once.*
 
+</details>
+
 
 <br>
 
@@ -1192,10 +1172,8 @@ Return to the Airbnb host payouts chain from the intro, rebuilt as a DAG with th
 
 A subscription business needs revenue by plan per day, built nightly from the payments table in its MySQL billing database. Design it as an orchestrated DAG of three tasks: extract the day's payments, clean and standardize them, then aggregate them into a warehouse summary table with one row per plan per day. The DAG runs once a day at 3:00 UTC, each task waits for the one before it, and every task retries twice before the run fails.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One schedule on the DAG, order on the edges
 
@@ -1235,6 +1213,8 @@ flowchart LR
 2. Extract fails all three attempts. What do clean and aggregate do on that run?\
    *Downstream tasks never start when the task they depend on has failed.*
 
+</details>
+
 
 <br>
 
@@ -1244,10 +1224,8 @@ flowchart LR
 
 Each night a mobile game's match logs are pulled from the game API and cleaned, then joined with player accounts from PostgreSQL to compute day-one retention into a warehouse table the retention dashboard reads. The draft DAG also draws an edge from the retention task back to the cleaning task so cleaning can drop flagged bots, which forms a cycle. Redraw it as a valid DAG run by one orchestrator that starts it daily at 3am, retries a failed task, and alerts on-call when a run fails.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A DAG has a first task and a last task
 
@@ -1295,6 +1273,8 @@ flowchart LR
    *Adding a new upstream dependency without creating a cycle or a second schedule.*
 2. Cleaning fails three times in a row. What does the orchestrator do with `compute_retention` that night?\
    *How retries and dependency tracking work together: a downstream task never runs on a failed upstream.*
+
+</details>
 
 
 <br>

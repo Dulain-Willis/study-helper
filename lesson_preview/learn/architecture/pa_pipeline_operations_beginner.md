@@ -69,21 +69,9 @@ Both Wednesday runs got Tuesday from today minus a day, so warehouse.insert load
 
 An operable pipeline can be run as a service by people who did not write it. Without opening the code, a stranger can find out whether last night's run happened, whether its output can be trusted, who must hear when it cannot, and what to do next. Each of those 4 answers is work the script never did.
 
-✓Working script
-
-- Started by cron on a single server
-- Processes whatever day the clock says
-- Appends on every run
-- Reports success to a terminal
-- Breakage found by the people reading dashboards
-
-✗Operable pipeline
-
-- Scheduled and retried by an orchestrator
-- Takes the date to process as an input
-- Replaces the day's rows, so reruns are safe
-- Sends its logs and metrics somewhere searchable, along with the status of each run
-- Monitors watch the output and alerts reach an owner, with a runbook to follow
+| ✓ Working script | ✗ Operable pipeline |
+| --- | --- |
+| • Started by cron on a single server<br><br>• Processes whatever day the clock says<br><br>• Appends on every run<br><br>• Reports success to a terminal<br><br>• Breakage found by the people reading dashboards | • Scheduled and retried by an orchestrator<br><br>• Takes the date to process as an input<br><br>• Replaces the day's rows, so reruns are safe<br><br>• Sends its logs and metrics somewhere searchable, along with the status of each run<br><br>• Monitors watch the output and alerts reach an owner, with a runbook to follow |
 
 > The 3 a.m. test
 >
@@ -149,10 +137,8 @@ The stranger can now ask for Monday on any day, and replacing the day's rows mea
 - fct_orders warehouse (storage, warehouse)
 - Revenue dashboard (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### From a script to a job someone else can run
 
@@ -197,6 +183,8 @@ flowchart LR
    *Extends retry handling to an outage longer than a blip.*
 2. Finance corrects an order from 2 days ago. How would you reload that one day without touching the others?\
    *Applies the rerun-safe write to a deliberate backfill.*
+
+</details>
 
 
 <br>
@@ -342,10 +330,8 @@ The nightly daily_orders_agg job loads the Snowflake revenue mart but logs only 
 - Snowflake fct_orders mart (storage, Snowflake)
 - Revenue dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Making a batch job answer for itself
 
@@ -391,6 +377,8 @@ flowchart LR
 1. Should the alert carry the failure detail, or point at the run's log record?\
    *Shows how the alert and the log work together: the page says the run failed, the log says why.*
 
+</details>
+
 
 <br>
 
@@ -407,10 +395,8 @@ The starter canvas is a new daily orders pipeline: an Airflow DAG scheduled at 2
 - Orders mart (storage, warehouse)
 - Revenue dashboard (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The three day-one monitors
 
@@ -467,6 +453,8 @@ flowchart LR
    *Pushes a static band toward a day-of-week baseline.*
 3. If the orders database is down at 2am, which of the three monitors fires, and is that the signal you want?\
    *Whether a failed extract surfaces as a failed run or as a missing one.*
+
+</details>
 
 
 <br>
@@ -615,10 +603,8 @@ The monitors on this daily orders pipeline raise three alerts: a customer-facing
 - Daily orders pipeline (transform, Airflow)
 - Monitors: did-it-run, did-it-succeed, row-count drift (quality_gate, custom)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One monitor, three severities, three channels
 
@@ -662,6 +648,8 @@ flowchart LR
 2. A new monitor is added next quarter with no severity assigned. Where does it route by default?\
    *Tests whether routing fails safe: an unclassified alert should land somewhere visible but low-urgency, not silently page or vanish.*
 
+</details>
+
 
 <br>
 
@@ -677,10 +665,8 @@ flowchart LR
 - run + volume monitor (quality_gate, custom)
 - on-call pager alert (consumer, alerting)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The 2 checks a green run still needs
 
@@ -721,6 +707,8 @@ flowchart LR
    *Pushes past a hardcoded threshold toward a rolling baseline, like this run versus a trailing 7-day median for the same weekday.*
 2. A warning sits unacknowledged in the team channel for 2 days. Should it ever escalate to the pager?\
    *Tests whether severity is static or a function of age, and where that escalation logic lives.*
+
+</details>
 
 
 <br>
@@ -802,31 +790,13 @@ Most of the rest were retries that later succeeded and volume ranges drawn too t
 
 ### What a page should say
 
-✓Hard to act on
+| ✓ Hard to act on | ✗ Ready to act on |
+| --- | --- |
+| • Task failed: extract_orders<br><br>• No date, so the reader hunts for the run<br><br>• No impact, so the reader cannot judge urgency<br><br>• No link, so the reader starts from a blank screen | • orders_daily: no rows in daily_revenue for 2026-03-15 at 06:00 UTC<br><br>• Impact: finance dashboard shows stale revenue from 08:00 UTC<br><br>• Cause so far: extract_orders failed at 02:14 after 3 retries<br><br>• Runbook: runbooks/orders_daily, freshness section |
 
-- Task failed: extract_orders
-- No date, so the reader hunts for the run
-- No impact, so the reader cannot judge urgency
-- No link, so the reader starts from a blank screen
-
-✗Ready to act on
-
-- orders_daily: no rows in daily_revenue for 2026-03-15 at 06:00 UTC
-- Impact: finance dashboard shows stale revenue from 08:00 UTC
-- Cause so far: extract_orders failed at 02:14 after 3 retries
-- Runbook: runbooks/orders_daily, freshness section
-
-✓Do
-
-- Page only when a consumer will be harmed and a person must act now
-- Give every page the date and impact, plus a link to the runbook
-- Demote any alert that fired twice with no action taken
-
-✗Don't
-
-- Page on a retry that went on to succeed
-- Page more than once for a single incident
-- Route alerts to a shared inbox nobody owns
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Page only when a consumer will be harmed and a person must act now<br><br>• Give every page the date and impact, plus a link to the runbook<br><br>• Demote any alert that fired twice with no action taken | • Page on a retry that went on to succeed<br><br>• Page more than once for a single incident<br><br>• Route alerts to a shared inbox nobody owns |
 
 **For the third night in a row, orders_daily ran over 80 minutes. Each run still finished before 03:40. How should this alert be routed?**
 
@@ -870,10 +840,8 @@ Make the orders script operable before it ships tomorrow, keeping Looker reading
 - Snowflake fct_orders mart (storage, Snowflake)
 - Revenue dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Operability is a layer you build, not a property the script has
 
@@ -943,6 +911,8 @@ flowchart LR
 3. The size check fires after half a day of `fct_orders` is already on the dashboard. What is the safe recovery?\
    *Tests an idempotent re-run against a live read path.*
 
+</details>
+
 
 <br>
 
@@ -952,10 +922,8 @@ flowchart LR
 
 A nightly Spark job loads about 2 million partner CSV rows from object storage into the warehouse and reports nothing about its runs. Add a check that rejects malformed rows before they reach the warehouse, and give the job the two signals it is missing: per-run metrics (rows read, rows rejected, run duration) charted on a monitoring dashboard, and structured JSON logs keyed by `run_id` in a searchable log store. Keep the two signals in separate stores.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A number per run, a line per event
 
@@ -1004,6 +972,8 @@ flowchart LR
    *Where traces earn their place next to logs and metrics.*
 2. A partner adds a column and rejected rows jump to 30 percent. Which signal shows it first, and which one explains why?\
    *Matching each question to the signal built to answer it.*
+
+</details>
 
 
 <br>
@@ -1119,10 +1089,8 @@ Each result now leads somewhere: a transient error to a rerun, a schema change t
 
 A new nightly job pulls about 500,000 shipment records from a carrier API at 2am, loads them with Spark under Airflow, and writes them to the warehouse. Add the three day-one monitors: a run check that flags no run by 2:30am, a success check on the latest run's final status, and an output-size check on the rows loaded. All three feed one monitoring view.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 Day-one monitoring is the smallest set of checks that makes a new pipeline operable: did it run, did it succeed, and was the output the right size. Each question has one honest source of truth. The design work is wiring each check to that source, not to whatever node happens to sit nearby.
 
@@ -1172,6 +1140,8 @@ flowchart LR
 2. The job moves from 2am to 4am. What in the run check has to change?\
    *The run check's deadline is the schedule plus a tolerance, so it moves with the schedule.*
 
+</details>
+
 
 <br>
 
@@ -1200,10 +1170,8 @@ A marketplace pays its sellers every Friday at 09:00 UTC from a nightly seller_p
 
 An hourly Spark job loads inventory counts into a serving table the storefront reads, and once that table is two hours stale shoppers buy items that are gone. Apply the page-worthy test to three signals: staleness past two hours, a daily row-count drop someone should review next business day, and per-run duration, which needs no action. Route each to one tier: an on-call page, a team channel, or a dashboard only.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Rationing pages with the page-worthy test
 
@@ -1253,6 +1221,8 @@ flowchart LR
 2. If the row count fell by 90 percent instead of a few percent, should it still go to the channel?\
    *Whether a severe version of a lower-tier signal earns its own page-worthy threshold.*
 
+</details>
+
 
 <br>
 
@@ -1262,10 +1232,8 @@ flowchart LR
 
 A nightly Airflow DAG uses Spark to load about 3 million smart-meter readings from object storage into the warehouse, and the 6am billing run reads them. Triage three failures by routing each to its tier: a run that fails or has not finished by 5am pages on-call; a load whose row count is far off the usual volume alerts the team channel without paging; malformed readings Spark skips go only to a log store, with no alert. Send the run and row-count metrics to a health dashboard.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Severity decides where each signal goes
 
@@ -1319,6 +1287,8 @@ flowchart LR
    *Turning a log-only signal into a counted metric with its own threshold and tier.*
 2. The load slows from 40 minutes to three hours but still finishes before 5am. What shows where the time went, and should it page?\
    *Using a trace to locate slow steps, and keeping a degraded but on-time run off the pager.*
+
+</details>
 
 
 <br>

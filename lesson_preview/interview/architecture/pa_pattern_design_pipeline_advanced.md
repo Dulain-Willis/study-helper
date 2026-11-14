@@ -43,19 +43,9 @@ The prompt arrives dressed as a business complaint. Marketing wants attribution 
 
 A pipeline serves 1 consumer. A platform serves that consumer and the 10 that follow, so onboarding and schema governance are designed in from the first sketch, and so is cost attribution. The opening sentence that lands is close to: 'This is 1 pipeline, and I'm going to design the platform it runs inside, because the next 9 teams will ask for the same thing with different sources.' Netflix published the scale its Keystone platform reached after making that choice: 1 ingestion path carrying more than 1 trillion events a day on behalf of every team, in place of each team running its own collectors. The question is testing whether you have internalized that trajectory and can defend the extra cost of building it.
 
-✓One pipeline
-
-- Serves 1 consumer's stated requirement
-- Schema lives inside the job that reads it
-- Cost absorbed by the owning team's budget
-- Rebuilt when the next use case arrives
-
-✗The platform
-
-- Serves current and future consumers through configuration
-- A schema registry governs every source
-- Cost attributed per team and per query
-- A new source onboards without a platform engineer
+| ✓ One pipeline | ✗ The platform |
+| --- | --- |
+| • Serves 1 consumer's stated requirement<br><br>• Schema lives inside the job that reads it<br><br>• Cost absorbed by the owning team's budget<br><br>• Rebuilt when the next use case arrives | • Serves current and future consumers through configuration<br><br>• A schema registry governs every source<br><br>• Cost attributed per team and per query<br><br>• A new source onboards without a platform engineer |
 
 
 <br>
@@ -200,19 +190,9 @@ Every event carries an idempotency key the platform assigns at the gate, sha256(
 
 ELT lands the raw record and transforms it on warehouse or lakehouse compute, the analytical default because the raw record stays available for questions nobody has asked yet and the transformation lives in versioned, tested SQL. Three conditions flip it: PII that must never land in the analytical store, a 100-to-1 reduction such as 10 TB of raw logs a day collapsing to 100 GB of metrics, and regulatory scope where every raw table widens the audit surface. These usually produce a hybrid: the PII columns or the log stream transform before load, everything else lands raw. Name the default and the 3 exceptions, then say which exception this scenario triggers.
 
-✓ELT
-
-- Raw lands in bronze; transforms run on warehouse compute
-- Exploratory queries on the raw record stay possible
-- Fewer moving parts before the load
-- Transformation compute billed by the warehouse
-
-✗ETL
-
-- Transforms run before the warehouse load
-- PII never enters the analytical system
-- A 100:1 reduction before load avoids the storage
-- No raw record for the question nobody asked yet
+| ✓ ELT | ✗ ETL |
+| --- | --- |
+| • Raw lands in bronze; transforms run on warehouse compute<br><br>• Exploratory queries on the raw record stay possible<br><br>• Fewer moving parts before the load<br><br>• Transformation compute billed by the warehouse | • Transforms run before the warehouse load<br><br>• PII never enters the analytical system<br><br>• A 100:1 reduction before load avoids the storage<br><br>• No raw record for the question nobody asked yet |
 
 
 <br>
@@ -339,19 +319,9 @@ The failure the interviewer is waiting for you to name is the noisy neighbor: on
 
 Every contract breaks eventually, and the procedure for breaking it is what scales. The pattern: publish the new version beside the old for 90 days, route each consumer's reads through a view that resolves to the version it has migrated to, pull usage from the query log so the owning team knows which 3 of 15 consumers have not moved, and drop the old version when the log shows 30 days of silence. Saying 'dual-publish, then measure, then drop' gives the interviewer the shape; adding that the measurement comes from `query_history` and from no other source is the part that shows you have done it.
 
-✓Each team defines its metrics
-
-- Every team computes dau from silver its own way
-- Finance and the dashboard disagree by Thursday
-- 15 copies of the same aggregation, each paid for
-- A definition change needs 15 pull requests
-
-✗One metrics layer
-
-- dau defined once, in the contract, with a tested query
-- Every consumer reads the same gold row
-- 1 aggregation, 1 bill, attributed to the owner
-- A definition change ships once with a version bump
+| ✓ Each team defines its metrics | ✗ One metrics layer |
+| --- | --- |
+| • Every team computes dau from silver its own way<br><br>• Finance and the dashboard disagree by Thursday<br><br>• 15 copies of the same aggregation, each paid for<br><br>• A definition change needs 15 pull requests | • dau defined once, in the contract, with a tested query<br><br>• Every consumer reads the same gold row<br><br>• 1 aggregation, 1 bill, attributed to the owner<br><br>• A definition change ships once with a version bump |
 
 
 <br>
@@ -414,21 +384,9 @@ Monitoring is a guarantee too, and it is tiered the same way. Each tier has a di
 
 ![Pipeline diagram 3](images/pa_pattern_design_pipeline_advanced_diagram_3.png)
 
-✓Do
-
-- Open with the platform frame and 2 minutes of volume and cost arithmetic
-- Put a schema registry with a 3-class change policy in front of every source
-- Price each transformation stage and its reprocess before naming an engine
-- Isolate compute per consuming team and tag every query for attribution
-- Assign guarantees by tier and say what each one costs to keep
-
-✗Don't
-
-- Put Kafka and Snowflake on the board, with Spark between them, before asking what real time means
-- Promise exactly-once without naming the sink that joins the transaction
-- Let 15 gold tables hang off 1 silver table with no owner on call
-- Claim Kappa replay without checking the log retention covers the incident
-- Give every dataset the fraud tier's on-call and watermark
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Open with the platform frame and 2 minutes of volume and cost arithmetic<br><br>• Put a schema registry with a 3-class change policy in front of every source<br><br>• Price each transformation stage and its reprocess before naming an engine<br><br>• Isolate compute per consuming team and tag every query for attribution<br><br>• Assign guarantees by tier and say what each one costs to keep | • Put Kafka and Snowflake on the board, with Spark between them, before asking what real time means<br><br>• Promise exactly-once without naming the sink that joins the transaction<br><br>• Let 15 gold tables hang off 1 silver table with no owner on call<br><br>• Claim Kappa replay without checking the log retention covers the incident<br><br>• Give every dataset the fraud tier's on-call and watermark |
 
 The last thing to say is what you would refuse. Giving every dataset tier 0 treatment spends about $50,000 a year where $1,800 would do and burns the on-call rotation on marketing rollups, so the answer ends with the datasets you deliberately leave at tier 2.
 
@@ -460,10 +418,8 @@ A consumer fintech with 38 product teams, 50 million daily active app users and 
 
 An ML engineer found that a changed feature definition left the marketplace's 9 models training on old history while serving computed the new values, and nobody was paged when features went stale. Design the feature platform: its 12 sources (4 database change feeds, 5 partner REST APIs whose payloads change without notice, 3 nightly file drops) onboard against a registered schema, and a payload that fails is held for replay rather than dropped or blocking the rest. Features refresh every 15 minutes, except those built from the nightly files, which carry a daily promise, and a changed definition must recompute the full history without duplicating it.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One promise per source type, one price per tier
 
@@ -544,6 +500,8 @@ flowchart LR
 2. A fraud model needs a feature within 200 ms of a purchase. Where does it go?\
    *Whether the candidate opens a new top tier with its own guarantees and price instead of tightening every feature to the fraud SLA.*
 
+</details>
+
 
 <br>
 
@@ -553,10 +511,8 @@ flowchart LR
 
 Nine copies of `active_subscribers`, each computed by a different team from the same silver subscription table, let the Q3 close land 3.1 percent below the subscriber count the product dashboard showed all quarter. Redesign serving so the close and the product dashboard both read one owned definition that publishes only after passing its checks, a failed check pages the owning team, and the close runs on compute of its own that product's dashboard and ad hoc scans never share. The nine copies get retired only once 60 days of warehouse query history proves nobody still reads them.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 This is a serving contract problem wearing a finance complaint. Nobody's SQL is wrong in a way a reviewer would catch. Nine teams each wrote a reasonable reading of 'active' against the same silver table, and nine reasonable readings disagree by 3.1 percent. The trap is treating it as a data bug. Candidates add a reconciliation job, or a tenth query that blends the others, and leave with one more definition than they started with. **The fix is ownership, published once and gated.** One team owns the metric and checks it before anyone reads it. That team hears first when it breaks, and the old copies go dark only when query history proves they are dead.
 
@@ -643,6 +599,8 @@ flowchart LR
 
 Read the design back against the brief: one owned definition, an ownership line above silver, a measured retirement, and compute that keeps the close fast. Every stage on the canvas answers one of those, and nothing on it answers none.
 
+</details>
+
 
 <br>
 
@@ -652,10 +610,8 @@ Read the design back against the brief: one owned definition, an ownership line 
 
 How do the 31 pipelines of an acquired fleet operator, spread over six Airflow instances, move onto one governed platform alongside its 2 TB a day telematics feed from 140,000 vehicles, whose firmware changes the message format every quarter? A format change must break no reader, every raw message is kept so any day can be rebuilt, and a message that fails its registered format is held for replay instead of lost. Only the dispatch team's live vehicle map needs data under a minute old, paging on-call when it lags; the other 30 are daily reports under one scheduler, each checked before it publishes.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One feed, two clocks
 
@@ -735,6 +691,8 @@ flowchart LR
 3. A firmware bug sent speed in the wrong unit from half the fleet for three days. How do you repair history?\
    *Backfill from the raw landing by date partition without double counting downstream.*
 
+</details>
+
 
 <br>
 
@@ -744,10 +702,8 @@ flowchart LR
 
 Chargeback files from the processor that delivers by SFTP arrive up to 45 days after their transactions settle, while the other 2 processors' CDC and webhook events stay in Kafka for only 7 days. Each chargeback re-states the regulator's daily settled total for its transaction's settlement day, replacing the original amount rather than adding to it, and reprocessing a file leaves a filed total unchanged. Design the correction path, starting with the 90 days of files on hand, keeping every feed replayable across the chargeback window and paging on-call when a re-statement fails.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Kafka cannot give you day 44 back
 
@@ -830,6 +786,8 @@ flowchart LR
    *Whether retention is derived from the correction window rather than copied.*
 3. A chargeback names a transaction that has not reached silver yet. Where does it wait?\
    *Late-arriving keys handled with a holding path instead of a dropped record.*
+
+</details>
 
 
 <br>

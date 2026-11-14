@@ -176,10 +176,8 @@ Wire the starter's schema-compatibility quality_gate between the producer and th
 - Kafka checkout_events topic (v1 through v4 in flight) (queue, Kafka)
 - Consumer: checkout analytics (5-min event-time windows) (transform, Flink)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### 2 guarantees, 2 different places
 
@@ -227,6 +225,8 @@ The late-data side is about keeping a window open long enough. A 5-minute **even
 3. How does raising the allowed-lateness budget trade off against the streaming job's state size?\
    *Tests the cost of keeping window state open longer versus dead-lettering more records.*
 
+</details>
+
 
 <br>
 
@@ -244,10 +244,8 @@ The users table is renaming signup_date to created_at and changing it from DATE 
 - Consumer B: lifecycle email (consumer)
 - Consumer C: 10 other downstream consumers (consumer)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 Expand-contract is how you rename `signup_date` to `created_at` and widen `DATE` to `TIMESTAMP` without a flag-day: the old shape and the new shape coexist while 12 teams migrate on their own clock. The four markers you placed are an ordering constraint, not a to-do list to shuffle. Each phase only removes something once its replacement is already in place, so the system stays releasable at every step.
 
@@ -295,6 +293,8 @@ flowchart LR
 2. During dual-write, what stops `signup_date` and `created_at` from drifting if a write touches only one?\
    *Points toward a generated column, a trigger, or a single write path so the shapes cannot diverge.*
 
+</details>
+
 
 <br>
 
@@ -304,19 +304,9 @@ flowchart LR
 
 The registry blocks the rename, and the business still needs it. Today `fare` is a string such as `12.50 USD`, and each of the topic's 3 consumers parses it with code of its own. The target is a long `fare_cents` plus a string `fare_currency`. Expand-contract makes that change in 4 deploys, each compatible with the one before it, so no team waits on another team's release.
 
-✓One synchronized deploy
-
-- The producer and 3 consumers ship inside one release window
-- A rollback has to undo all 4 deploys together
-- A consumer that misses the window breaks on the first new message
-- Messages already on the topic still carry the old shape
-
-✗Expand-contract
-
-- Each team ships on its own schedule
-- Each phase rolls back on its own
-- Old and new fields coexist for as long as readers need
-- The old field leaves only after its last reader has moved
+| ✓ One synchronized deploy | ✗ Expand-contract |
+| --- | --- |
+| • The producer and 3 consumers ship inside one release window<br><br>• A rollback has to undo all 4 deploys together<br><br>• A consumer that misses the window breaks on the first new message<br><br>• Messages already on the topic still carry the old shape | • Each team ships on its own schedule<br><br>• Each phase rolls back on its own<br><br>• Old and new fields coexist for as long as readers need<br><br>• The old field leaves only after its last reader has moved |
 
 
 <br>
@@ -430,10 +420,8 @@ A finance dashboard reports daily revenue and is audited monthly, so a rerun mus
 - Finance dashboard (audited; reruns must produce identical history) (consumer, Metabase)
 - Operations dashboard (events-per-second; lag detection) (consumer, Grafana)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Name the consumer, then pick its clock
 
@@ -471,6 +459,8 @@ flowchart LR
 2. Operations also wants revenue per hour of the day the sales happened. Which transform should feed that chart?\
    *The domain follows the consumer's question, not the dashboard it is shown on.*
 
+</details>
+
 
 <br>
 
@@ -486,10 +476,8 @@ Events on the Kafka topic arrive 0 to 30 seconds after their event_time, and the
 - Flink streaming aggregation: 1-minute tumbling windows on event_time (transform, Flink)
 - minute_revenue dashboard (consumer, Grafana)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The watermark, plainly
 
@@ -532,6 +520,8 @@ flowchart LR
    *The watermark is a promise sized to a bound: an event beyond the bound reaches a window that has already closed.*
 2. One idle Kafka partition stops sending events. Why might the watermark stall so that no window ever closes?\
    *The watermark advances only on observed events, so a silent input holds it back.*
+
+</details>
 
 
 <br>
@@ -678,10 +668,8 @@ A revenue aggregation tumbles in 5-minute event-time windows behind a watermark 
 - Flink aggregation: 5-minute tumbling on event_time (no allowed-lateness budget yet) (transform, Flink)
 - minute_revenue dashboard (consumer, Grafana)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### 2 clocks, not one: watermark vs. allowed lateness
 
@@ -729,6 +717,8 @@ flowchart LR
 2. How does raising `allowedLateness` to 6 hours affect state size, and when would you move window state from heap to RocksDB?\
    *Links the lateness budget to how much window state the engine must hold.*
 
+</details>
+
 
 <br>
 
@@ -745,10 +735,8 @@ Extend this live metrics pipeline so the producer can ship a breaking schema cha
 - Flink streaming aggregation (currently no watermark, no lateness budget, buckets by processing_time) (transform, Flink)
 - Real-time metrics dashboard (consumer, Grafana)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What the capstone wired together
 
@@ -803,6 +791,8 @@ flowchart LR
    *Tuning the budget from the observed event-delay distribution, not a round number.*
 3. What happens to events in the dead letter queue once the incident is over?\
    *Replay-and-reaggregate vs alert-only handling of quarantined late events.*
+
+</details>
 
 
 <br>
@@ -860,19 +850,9 @@ The 10:06:20 event lifts the watermark to 10:05:20 and fires the window; 10:04:5
 
 ### Choosing the lag
 
-✓10-second lag
-
-- Totals publish about 10 seconds after a window ends
-- Any event delayed past 10 seconds counts as late
-- Open windows sit in memory briefly
-- Suits alerting, where a fast rough answer beats a slow exact one
-
-✗30-minute lag
-
-- Totals publish about 30 minutes after a window ends
-- Only events delayed past 30 minutes count as late
-- Every key holds 30 minutes of open windows in memory
-- Suits billing, where completeness outranks speed
+| ✓ 10-second lag | ✗ 30-minute lag |
+| --- | --- |
+| • Totals publish about 10 seconds after a window ends<br><br>• Any event delayed past 10 seconds counts as late<br><br>• Open windows sit in memory briefly<br><br>• Suits alerting, where a fast rough answer beats a slow exact one | • Totals publish about 30 minutes after a window ends<br><br>• Only events delayed past 30 minutes count as late<br><br>• Every key holds 30 minutes of open windows in memory<br><br>• Suits billing, where completeness outranks speed |
 
 The lag trades latency for completeness, so set it from measured skew. If the p99 of `processed_at` minus `ended_at` is 40 seconds, a 60-second lag leaves fewer than 1 event in 100 late in a steady stream, and every total waits about a minute past its window's end.
 
@@ -911,10 +891,8 @@ Each window stays open longer, so more stragglers make it in, results wait, and 
 
 Firmware teams on a fleet of IoT devices publish readings to one Kafka topic, and a Flink job lands them in a lake table. New firmware adds fields every few weeks. Add a schema registry that producers register each new version with before publishing and that the Flink job fetches each record's version from on read, and land the readings in a table that takes added columns without a rewrite.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The registry sits beside the stream, not in it
 
@@ -959,6 +937,8 @@ flowchart LR
 2. What goes wrong if a producer publishes under a new shape without registering it first?\
    *Why registration has to happen before publishing, not after.*
 
+</details>
+
 
 <br>
 
@@ -968,10 +948,8 @@ flowchart LR
 
 A payments topic in Kafka carries a decimal `amount` that must be replaced by an integer `amount_minor` and a `currency` field. A fraud stream job, a nightly finance warehouse load and a partner export all read it, each migrating on its own schedule. Design the expand phase of expand-contract: the producer writes both shapes through a schema registry check, and the warehouse takes the new columns while the old one stays.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Add first, remove last
 
@@ -1018,6 +996,8 @@ flowchart LR
    *Whether a new reader starts already migrated, so it never pushes back the contract phase.*
 2. Older rows in the finance warehouse only have `amount`. How do they get `amount_minor` before finance switches over?\
    *Filling the new column for historical data as part of the migration.*
+
+</details>
 
 
 <br>
@@ -1272,10 +1252,8 @@ At 14:40 the window is inside its lateness. The 15:06:00 event pushes the waterm
 
 Scooters publish ride-start events to a Kafka topic at 5,000 per second, and phones that lose signal upload them up to 20 minutes late. Design a streaming pipeline that counts rides per zone in 10-minute event-time windows for a city operations dashboard that must be fresh within a minute. Keep the raw events in an archive so that replaying them through the same job after a bug fix reproduces identical counts.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Bucket by when the ride happened
 
@@ -1320,6 +1298,8 @@ flowchart LR
 2. A firmware bug stamps some rides with the device's boot time instead of the unlock time. What does event-time bucketing do with them, and where would you catch it?\
    *Tests that event time trusts the timestamp in the data, which makes that timestamp's quality a pipeline concern.*
 
+</details>
+
 
 <br>
 
@@ -1329,10 +1309,8 @@ flowchart LR
 
 Smart meters publish readings to a Kafka topic at 20,000 per second, and meters that lose signal flush buffered readings up to 10 minutes late. Aggregate load per feeder in 15-minute event-time windows that close when the watermark passes them, not on the wall clock, and feed a grid dashboard that refreshes every minute. Readings that arrive behind the watermark go to a late-readings store, never dropped silently.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A window closes when the stream says so
 
@@ -1368,6 +1346,8 @@ flowchart LR
 2. How would you use the late-readings store to correct a feeder total the dashboard already showed?\
    *Extends the side path into a correction: recompute the affected window from the readings that were set aside.*
 
+</details>
+
 
 <br>
 
@@ -1396,10 +1376,8 @@ Picture Uber's earnings pipeline during the fare rename. Version 3 of trip_compl
 
 Mobile apps publish ad-click events to a Kafka topic, and phones that go offline upload their buffered clicks later. Design a pipeline that counts clicks per campaign in 5-minute event-time windows with a 60-second watermark and 60 minutes of allowed lateness. When a late click arrives inside that hour, the dashboard's count for its window must be corrected in place, and clicks later than that go to a dead-letter path instead of vanishing.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Allowed lateness is a second clock on every window
 
@@ -1435,6 +1413,8 @@ flowchart LR
 2. How would you fold the dead-lettered clicks back into daily totals?\
    *Reconciling very late data with a batch backfill instead of reopening streaming windows.*
 
+</details>
+
 
 <br>
 
@@ -1444,10 +1424,8 @@ flowchart LR
 
 Handheld scanners publish parcel scans to a Kafka topic, and the event-time field `ts` is being renamed to `scanned_at` with expand-contract. A streaming job counts scans per hub in 5-minute windows on that event time for a live dashboard, allowing 60 minutes of lateness because offline scanners upload buffered scans late. The topic also lands in a lake table read by a nightly billing job that migrates last. Design the expand phase: the scanners write both fields, and every schema version is checked against a registry before publishing.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 Expand-contract gets harder when the column being renamed is the one your watermark reads. Here `ts` is the event time that places every scan in a 5-minute window, and scanners that sat offline keep delivering scans written before the rename for up to an hour. So the rename is not finished when the last reader switches: it is finished when no record carrying only `ts` can still arrive or be reread.
 
@@ -1496,6 +1474,8 @@ flowchart LR
    *Whether a new slow reader extends the expand phase and joins the conditions for contracting.*
 2. If allowed lateness rose to 24 hours, how long after the last scanner update could the stream drop its `ts` fallback?\
    *Tying the contract step to the lateness bound the watermark enforces.*
+
+</details>
 
 
 <br>

@@ -353,10 +353,8 @@ Every night a Python batch job wipes and reloads a Snowflake table of daily sign
 - Snowflake daily_signups_by_country (storage, Snowflake)
 - Looker dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Full reload or incremental: the 90-day trap
 
@@ -400,6 +398,8 @@ flowchart LR
 3. If Postgres kept every signup forever, would you still choose an incremental load?\
    *Weighing simplicity against nightly cost once retention is no longer the constraint.*
 
+</details>
+
 
 <br>
 
@@ -418,10 +418,8 @@ A startup built a six-node pipeline (Postgres to Fivetran to S3 to dbt to Snowfl
 - Snowflake quarterly_signups (storage, Snowflake)
 - Looker - 'CEO question' dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A query for the one-off, a batch job for the recurring
 
@@ -454,6 +452,8 @@ flowchart LR
    *Tests when stored history, rather than the count itself, starts to justify a storage stage.*
 2. The nightly job fails on Tuesday and nobody notices until Thursday. What does the rerun need to read, and why is that cheap here?\
    *Tests that a bounded daily input turns a rerun into a one-day job.*
+
+</details>
 
 
 <br>
@@ -529,19 +529,9 @@ It carries all 3 signals: it recurs every morning, it reshapes refund rows and m
 
 </details>
 
-✓Do
-
-- Write down which of the 3 gaps a request shows before choosing a tool.
-- Point every analytical read at a replica, so the checkout database only ever serves the checkout.
-- Answer a question asked once with a query, and save the query in case it is asked again.
-- Build a pipeline when the work recurs, reshapes data across systems and feeds a decision.
-
-✗Don't
-
-- Build a pipeline for a one-off question; it will run nightly for nobody.
-- Run reporting scans against the production database to save the cost of a replica.
-- Treat a cache as a pipeline; it holds 1 answer and cannot move data to another system.
-- Let a recurring report live in 1 person's calendar; the first holiday breaks it.
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Write down which of the 3 gaps a request shows before choosing a tool.<br><br>• Point every analytical read at a replica, so the checkout database only ever serves the checkout.<br><br>• Answer a question asked once with a query, and save the query in case it is asked again.<br><br>• Build a pipeline when the work recurs, reshapes data across systems and feeds a decision. | • Build a pipeline for a one-off question; it will run nightly for nobody.<br><br>• Run reporting scans against the production database to save the cost of a replica.<br><br>• Treat a cache as a pipeline; it holds 1 answer and cannot move data to another system.<br><br>• Let a recurring report live in 1 person's calendar; the first holiday breaks it. |
 
 
 <br>
@@ -556,10 +546,8 @@ It carries all 3 signals: it recurs every morning, it reshapes refund rows and m
 
 Nine team-specific extracts read three sources (the Postgres checkout database, Stripe and Zendesk) into three dashboards (Product, Finance and Support), so every source is scanned three times a night. Replace them with one nightly batch job, run by a scheduler, that loads all three sources into one shared warehouse the three dashboards read from. Each run loads only the day it owns rather than reloading full history, so rerunning a failed night replaces just that day.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Nine extracts, one scheduled batch job
 
@@ -609,6 +597,8 @@ flowchart LR
 2. Finance asks for its numbers by 06:00 and Support asks for 09:00. Does that call for one nightly job or two?\
    *Tests whether a different deadline justifies a second scheduled job.*
 
+</details>
+
 
 <br>
 
@@ -618,10 +608,8 @@ flowchart LR
 
 Build the nightly batch as an orchestrated DAG: an orders extract from MySQL and a payments extract from an API both feed a row-count check, and only after it passes does a gold build load the warehouse behind the finance dashboard. Each run loads only its own date's orders and payments, never the full history, so rerunning a past night replaces just that day's slice. Finance checks the dashboard once each morning, so a daily refresh is enough.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One bounded day per run
 
@@ -671,6 +659,8 @@ flowchart LR
 2. When would reloading the full history every night be the better choice?\
    *A small source, or rows that change anywhere in history, can make a full reload simpler and still cheap.*
 
+</details>
+
 
 <br>
 
@@ -699,10 +689,8 @@ A regional pharmacy chain with 140 stores runs its point-of-sale on a single SQL
 
 Clinic managers read yesterday's numbers on a warehouse dashboard at 7am, rebuilt by hand each morning from the PostgreSQL replica. Choose what replaces that hand step (a query, the replica, a cache or a scheduled batch job) and design how it runs between the midnight close and 7am, including the bounded input each table's run reads. Clinics: 300 rows, edited and deleted in place. Appointments: 40M rows, a 9-hour full read, edited up to 3 days after a visit.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A recurring reader earns a nightly batch
 
@@ -752,6 +740,8 @@ flowchart LR
 3. Finance asks for the total number of appointments ever booked, once, for a board slide. Does that need a change to this nightly batch?\
    *A question asked once is answered by a query on the replica, not by a new scheduled job.*
 
+</details>
+
 
 <br>
 
@@ -761,10 +751,8 @@ flowchart LR
 
 Design a nightly batch pipeline that loads one day of water meter readings (about 3 million rows) from a PostgreSQL billing database into a warehouse, landing them raw, cleaning them, and building a daily usage table read by a billing dashboard. An orchestrator must run the stages in dependency order and retry a stage that fails. Because a retry reloads the same day, every load must be idempotent, by partition overwrite or MERGE, so a rerun leaves that day's rows unchanged. If the extract returns zero rows, the run must stop before it overwrites good data.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A retry is only as safe as the write it repeats
 
@@ -823,6 +811,8 @@ flowchart LR
    *Extending partition overwrite to a rolling window: each night re-extracts and overwrites the last 3 day partitions, and reruns stay idempotent.*
 2. A `meters` table of 400,000 accounts, edited in place, must also reach the dashboard. Full or incremental load?\
    *Choosing a full load for a small table that changes in place, versus the incremental daily load that suits append-only readings.*
+
+</details>
 
 
 <br>

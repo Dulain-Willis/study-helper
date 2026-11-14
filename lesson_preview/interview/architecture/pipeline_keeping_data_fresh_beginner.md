@@ -80,21 +80,9 @@ After the run, the new watermark is 09:47:02, the largest updated_at the run act
 
 ### Choosing between them
 
-✓Full load
-
-- Cost grows with table size
-- No state kept between runs
-- Sees deletes automatically
-- A retry reruns from scratch
-- Self-heals once a bug is fixed
-
-✗Incremental load
-
-- Cost grows with rows changed
-- Stores a watermark per table
-- Misses hard deletes
-- A retry needs an upsert to avoid duplicates
-- Needs a lookback window for late commits
+| ✓ Full load | ✗ Incremental load |
+| --- | --- |
+| • Cost grows with table size<br><br>• No state kept between runs<br><br>• Sees deletes automatically<br><br>• A retry reruns from scratch<br><br>• Self-heals once a bug is fixed | • Cost grows with rows changed<br><br>• Stores a watermark per table<br><br>• Misses hard deletes<br><br>• A retry needs an upsert to avoid duplicates<br><br>• Needs a lookback window for late commits |
 
 A working rule: full-load a table when reading all of it fits comfortably inside the freshness target, or when deletes matter and nothing else reveals them. Load incrementally when the table is large, only a small fraction of it changes per run, and its change column is trustworthy. Dimension tables of a few thousand rows sit in the first group. The trips table, 2 billion rows with about 4 million inserted or edited per day, sits firmly in the second, and the gap is wide:
 
@@ -166,23 +154,9 @@ Freshness shrinks from the run interval to the time an event takes to cross the 
 
 **Order matters per key.** Applying 88152 before 88131 would leave trip 103 accepted. A queue split into partitions keeps order only within a partition, so it is partitioned by trip_id and all of a trip's events land together. **The log does not go back forever.** The database discards old log segments after a configured retention period, so a new CDC pipeline begins with a full snapshot of the table, notes the log position at the moment of the snapshot, and streams from there.
 
-✓Timestamp-based incremental
-
-- Queries current table state
-- Misses hard deletes
-- Depends on every writer setting updated_at
-- Sees only the latest state between runs
-- Freshness bounded by the run interval
-- A query plus a stored watermark
-
-✗Change data capture
-
-- Reads the database's own commit log
-- A delete arrives as an event
-- Captures every committed change
-- Keeps intermediate states, in order
-- Freshness in seconds to minutes
-- A log reader and a queue to operate, plus ordering rules and a snapshot
+| ✓ Timestamp-based incremental | ✗ Change data capture |
+| --- | --- |
+| • Queries current table state<br><br>• Misses hard deletes<br><br>• Depends on every writer setting updated_at<br><br>• Sees only the latest state between runs<br><br>• Freshness bounded by the run interval<br><br>• A query plus a stored watermark | • Reads the database's own commit log<br><br>• A delete arrives as an event<br><br>• Captures every committed change<br><br>• Keeps intermediate states, in order<br><br>• Freshness in seconds to minutes<br><br>• A log reader and a queue to operate, plus ordering rules and a snapshot |
 
 > Try it: replay after a restart
 >
@@ -213,10 +187,8 @@ A nightly job re-copies the entire 500M-row orders table from production Postgre
 - Full nightly copy (hours) (transform, Spark)
 - Warehouse (storage, Snowflake)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The trap: a full reload dressed up as freshness
 
@@ -291,6 +263,8 @@ flowchart LR
    *Tests idempotency: keyed `MERGE` on primary key plus offset ordering makes reprocessing converge to the same state.*
 4. When would a nightly batch load actually be the right call over CDC?\
    *Checks judgment: low freshness needs, no delete tracking required, or a source that exposes no usable log make the streaming machinery unjustified overhead.*
+
+</details>
 
 
 <br>
@@ -397,10 +371,8 @@ A customer's address changes. The current pipeline overwrites it, so a report ru
 - Overwrite loader (transform, Spark)
 - Customer dim (overwrites) (storage, Snowflake)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -502,6 +474,8 @@ VALUES
 4. Which columns are Type 2 versus Type 1 here, and how do you load a mixed dimension?\
    *Tests that they don't version every column blindly.*
 
+</details>
+
 
 <br>
 
@@ -565,20 +539,9 @@ Naming columns trades one risk for another: the new tip_cents column is safely i
 
 ![Pipeline diagram 3](images/pipeline_keeping_data_fresh_beginner_diagram_3.png)
 
-✓Do
-
-- Compare each batch's schema with the expected one before loading it
-- Add new nullable columns to the target and log the change
-- Hold the batch and alert on any column drop or rename, or any type narrowing
-- Check value ranges to catch meaning changes that types cannot reveal
-- Agree with source owners to rename by adding, migrating, then dropping
-
-✗Don't
-
-- Write positional inserts or SELECT \* into a fixed target
-- Let a failed type cast write NULLs and report success
-- Load a renamed column as new and strand its history under the old name
-- Drop a column the moment the source does while readers still query it
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Compare each batch's schema with the expected one before loading it<br><br>• Add new nullable columns to the target and log the change<br><br>• Hold the batch and alert on any column drop or rename, or any type narrowing<br><br>• Check value ranges to catch meaning changes that types cannot reveal<br><br>• Agree with source owners to rename by adding, migrating, then dropping | • Write positional inserts or SELECT \* into a fixed target<br><br>• Let a failed type cast write NULLs and report success<br><br>• Load a renamed column as new and strand its history under the old name<br><br>• Drop a column the moment the source does while readers still query it |
 
 A rename handled well spans 3 releases. First the source adds trip_status and writes both columns. Next, every reader moves to the new name. Only then is status dropped. Throughout the overlap, every reader works. Describe this sequence when asked how a breaking change can ship without an outage.
 
@@ -708,10 +671,8 @@ A ride-hailing company's finance team reports that September revenue by city doe
 
 Our warehouse visit totals never go down when the clinic's scheduling database hard-deletes a cancelled appointment, and every visit is credited to the patient's current insurance plan instead of the plan they held on the visit date. Design how the warehouse copy keeps up with those deletes and plan switches from now on, and how the months already reported shed the cancelled visits they still count.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -784,6 +745,8 @@ flowchart LR
 3. The rerun of last March overlaps with tonight's load. What keeps March from being counted twice?\
    *Tests backfill safety: overwriting the month's partition replaces it wholesale, so a rerun is repeatable, and tonight's load writes a different partition.*
 
+</details>
+
 
 <br>
 
@@ -797,10 +760,8 @@ The operational PostgreSQL customers table holds 40 million rows, about 200,000 
 
 - Operational DB (source, PostgreSQL)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -899,6 +860,8 @@ WHERE  d.customer_id IS NULL          /* never seen this customer */
    *Ordering by `change_ts` within each key so versions chain correctly.*
 3. What breaks if an `extract_date` partition arrives late?\
    *Whether idempotency and the single `is_current` invariant survive out-of-order replay.*
+
+</details>
 
 
 <br>

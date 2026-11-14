@@ -119,10 +119,8 @@ An order handler writes each order to Postgres and publishes to Kafka in the sam
 - Recommendation service consumer (consumer, API)
 - Customer notification service consumer (consumer, Email)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### 2 commits, no shared transaction
 
@@ -166,6 +164,8 @@ The fix removes the second commit instead of trying to coordinate it. The handle
 2. Which of the 4 outcomes would a nightly reconciliation job catch, and how late would it catch them?\
    *Contrasts event-triggered delivery with a schedule that only detects the gaps after the fact.*
 
+</details>
+
 
 <br>
 
@@ -182,10 +182,8 @@ Each order is written to Postgres and its order_placed event published to Kafka 
 - Kafka order_events topic (queue, Kafka)
 - Recommendation service consumer (consumer, API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why the two writes drift
 
@@ -224,6 +222,8 @@ flowchart LR
    *Expect a retention job that deletes rows safely behind the published watermark.*
 2. `order_events` has several partitions, so how do you keep one order's events ordered?\
    *Key the Kafka message by order id so all of an order's events land on the same partition.*
+
+</details>
 
 
 <br>
@@ -306,19 +306,9 @@ In the dual-write variant, the order at second 3 arrives while the broker is dow
 
 ### Polling publisher or CDC publisher
 
-✓Polling publisher
-
-- Queries the outbox every few seconds; delay is about the poll interval
-- Adds query load on the primary at every poll, even an empty one
-- Writes published_at per acknowledgement: 1 extra write per event
-- Needs only SQL access
-
-✗CDC publisher
-
-- Reads outbox inserts from the log; delay under a second
-- Adds no query load: the log is written anyway
-- Lets outbox rows be deleted soon after insert
-- Needs a running log reader whose retention and failover you own
+| ✓ Polling publisher | ✗ CDC publisher |
+| --- | --- |
+| • Queries the outbox every few seconds; delay is about the poll interval<br><br>• Adds query load on the primary at every poll, even an empty one<br><br>• Writes published_at per acknowledgement: 1 extra write per event<br><br>• Needs only SQL access | • Reads outbox inserts from the log; delay under a second<br><br>• Adds no query load: the log is written anyway<br><br>• Lets outbox rows be deleted soon after insert<br><br>• Needs a running log reader whose retention and failover you own |
 
 **At peak, a payments service writes 3,000 outbox rows per second on a primary near 70% CPU. Fraud scoring needs each event within 1 second, and log-based CDC already runs for 2 other services. Which publisher fits?**
 
@@ -415,10 +405,8 @@ The producer bursts to 50k events/sec during a flash sale, but the consumer drai
 - Consumer (5k events/sec capacity; crashes on spike) (transform, Pandas)
 - Iceberg raw_events landing (storage, Iceberg)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Backpressure: decide where the extra events wait
 
@@ -456,6 +444,8 @@ flowchart LR
 2. If freshness had to stay under 1 minute during the sale, what would you change about the stream consumer?\
    *When buffering alone is not enough and the stream processor must scale out.*
 
+</details>
+
 
 <br>
 
@@ -472,10 +462,8 @@ A platform pages the HTTP APIs of 3,000 free, pro and enterprise accounts by inc
 - shared API puller pool (transform)
 - raw landing (storage, Iceberg)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One lane for the loud tier
 
@@ -529,6 +517,8 @@ The API is why the shared pool breaks. Each account is paged by cursor and cappe
    *Extends tier isolation to fair scheduling between tenants that share a lane.*
 2. Your largest enterprise customer wants guaranteed capacity. When does a dedicated lane per tenant beat a lane per tier?\
    *Weighs stronger isolation against cost as the tenant count grows.*
+
+</details>
 
 
 <br>
@@ -645,10 +635,8 @@ Redesign an order service that dual-writes to Postgres and Kafka so the handler 
 - Kafka order_events topic (queue, Kafka)
 - Downstream consumers (warehouse, recommendation, notification) (consumer, API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One commit, then a log
 
@@ -697,6 +685,8 @@ flowchart LR
 2. What prunes `outbox` rows the connector has already published?\
    *An outbox needs a retention path or it grows without bound.*
 
+</details>
+
 
 <br>
 
@@ -715,10 +705,8 @@ Migrate a 3,000-account order platform off its dual write: each handler writes P
 - Iceberg multi_tenant_raw (storage, Iceberg)
 - Three downstream consumers (warehouse, recommendation, notification) (consumer, API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why the dual write breaks, and what replaces it
 
@@ -777,6 +765,8 @@ flowchart LR
    *Partition-key choice: per-tenant ordering versus throughput, and why the key must match the isolation boundary.*
 3. If the CDC reader crashes mid-batch and resumes, how do you keep it from skipping or reordering outbox rows?\
    *Idempotency extended to the relay itself: checkpointed log positions over the outbox.*
+
+</details>
 
 
 <br>
@@ -906,10 +896,8 @@ A bulkhead contains the crash itself: other tenants keep their pool while boreal
 
 A ride-hailing trip handler inserts each trip into PostgreSQL and publishes a trip event to Kafka, a dual write that leaves about 1 in 10,000 trips stored but unbilled, or billed but unstored. Redesign it for 2 million trips a day so the handler writes to one system only and both the trip database and billing are fed from that write, billing triggered by the trip event stream. Kafka redelivers events after restarts, so a replay must never store a trip twice.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One write, and everything else reacts to it
 
@@ -953,6 +941,8 @@ Here the single write is the publish. Once Kafka acknowledges it, two readers ac
 3. How would you notice that `trip_writer` has fallen hours behind `trip_events`?\
    *Monitoring consumer lag so a stalled writer is caught before trips go missing from reports.*
 
+</details>
+
 
 <br>
 
@@ -962,10 +952,8 @@ Here the single write is the publish. Once Kafka acknowledges it, two readers ac
 
 A payment service writes each captured payment to PostgreSQL, and a ledger loader reads payment events from Kafka into a finance warehouse. Use a transactional outbox: the payment and its event commit in one transaction, and a separate publisher drains unpublished outbox rows to Kafka. The publisher may crash after Kafka confirms but before marking a row published, so replays must leave each payment in the warehouse exactly once.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The outbox moves the duplicate, it does not remove it
 
@@ -1008,6 +996,8 @@ flowchart LR
    *Idempotency belongs to each reader: every consumer of an at-least-once topic needs its own guard on `event_id`.*
 2. How do you keep the outbox table from growing without bound?\
    *Published rows are history; the partial index on `published_at IS NULL` keeps draining fast, and a cleanup of old published rows keeps the table small.*
+
+</details>
 
 
 <br>
@@ -1137,10 +1127,8 @@ The outbox still holds the skipped rows. Replaying by id range closes the gap, a
 
 A multiplayer game emits match results, which must never be lost and feed a leaderboard that may lag during spikes, and frame-timing telemetry, which a performance dashboard only needs as a sample. On launch nights match results peak at 60k events/sec and telemetry at 240k/sec, 10 times the steady load, while the stream processor handles 40k/sec. Design the ingestion so each event type gets the backpressure strategy that fits it.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Two event types, two backpressure strategies
 
@@ -1187,6 +1175,8 @@ flowchart LR
 2. What if the dashboard also needs an exact count of crash events from telemetry?\
    *How the worth of the data moves a subset of telemetry into the must-not-lose class.*
 
+</details>
+
 
 <br>
 
@@ -1216,10 +1206,8 @@ Back at Shopify at noon on Black Friday, the sneaker drop tests every part of th
 
 A marketplace pulls orders from 940 sellers' paginated storefront APIs by incremental cursor, and on one shared worker pool the 40 large sellers (2 million rows per pull) starve the 900 small ones. Apply resource isolation per tier: a separate pull queue and worker pool for large and for small sellers, both landing in one shared warehouse. Small sellers' orders must land within 15 minutes, large sellers' within an hour. Retry rate-limited API calls with backoff.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Isolate the pulls by tier, share the landing table
 
@@ -1262,6 +1250,8 @@ flowchart LR
 2. Within the small tier, one seller's API is slow and every page takes 30 seconds. Is per-tier isolation still enough?\
    *When to cap concurrency per tenant inside a tier rather than adding another tier.*
 
+</details>
+
 
 <br>
 
@@ -1271,10 +1261,8 @@ flowchart LR
 
 A ticketing platform's order service writes each order to PostgreSQL and its event to an outbox table in the same transaction. When a big show goes on sale, checkout bursts to 20,000 orders per minute for 10 minutes while the warehouse loader drains 5,000 per minute, and checkout must never be slowed to match. Design the ingestion: capture the outbox with CDC, absorb the burst without losing an order event, and load the warehouse so a redelivered event never creates a duplicate order row. Reporting dashboards read the warehouse within 2 hours.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Buffer the burst, never throttle the buyer
 
@@ -1327,6 +1315,8 @@ flowchart LR
    *Giving a second reader its own offset on the same log so it is not stuck behind the warehouse backlog, and keeping it idempotent.*
 2. What happens if Kafka is unavailable for 20 minutes during an on-sale?\
    *Recognizing that the outbox table itself holds the events and CDC resumes from its position with nothing lost.*
+
+</details>
 
 
 <br>

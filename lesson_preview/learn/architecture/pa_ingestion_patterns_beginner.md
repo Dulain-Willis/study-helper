@@ -90,10 +90,8 @@ Clicks on the Kafka clickstream topic must reach the live traffic dashboard with
 - revenue warehouse (storage, warehouse)
 - morning revenue report (consumer, Metabase)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### 2 latencies, 2 processing modes
 
@@ -136,6 +134,8 @@ flowchart LR
 2. What if the dashboard only needed clicks within the hour?\
    *Relaxing the deadline moves the clickstream path into the batch band and changes the cost picture.*
 
+</details>
+
 
 <br>
 
@@ -151,10 +151,8 @@ The nightly pull of the 200M-row Postgres orders table scans every row for 4 hou
 - extract_orders_full: SELECT * (4-hour scan every night) (transform, SQL)
 - Iceberg raw_orders landing (storage, Iceberg)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Full or incremental, decided per table
 
@@ -195,6 +193,8 @@ flowchart LR
    *A deleted row never carries a newer `updated_at`, so a column-based mark cannot see it.*
 2. 2 orders share the exact `updated_at` stored as the mark, and only one was loaded before a crash. Should the filter be `>` or `>=`?\
    *This tests boundary handling: `>=` re-reads the tie, and the upsert absorbs it.*
+
+</details>
 
 
 <br>
@@ -275,19 +275,9 @@ The first is the slow transaction. An application opens a transaction at 02:59:4
 
 The second is the hard delete. A removed row has no `updated_at` left to move, so no incremental query sees it and the destination keeps a ghost. Until the source flags deletions instead of removing rows, the usual answer is a weekly pull of the primary keys alone, compared against the destination to remove the ghosts.
 
-✓Full load
-
-- Replaces the whole table each run
-- No progress marker to maintain
-- Picks up deletes for free
-- Cost grows with table size
-
-✗Incremental load
-
-- Reads only the changed window
-- Needs an updated_at column and a stored mark
-- Blind to hard deletes
-- Cost grows with change volume
+| ✓ Full load | ✗ Incremental load |
+| --- | --- |
+| • Replaces the whole table each run<br><br>• No progress marker to maintain<br><br>• Picks up deletes for free<br><br>• Cost grows with table size | • Reads only the changed window<br><br>• Needs an updated_at column and a stored mark<br><br>• Blind to hard deletes<br><br>• Cost grows with change volume |
 
 **A nightly job loads raw.orders incrementally in this order: advance the high-water mark to the run start time, run the query, write the rows with replace by order_id. On Tuesday the write failed halfway and the orchestrator's retry on Wednesday succeeded. Which rows are at risk?**
 
@@ -331,10 +321,8 @@ Replace the click_events consumer, which commits its Kafka offset before writing
 - raw_zone_writer (commits offset before write) (transform)
 - Iceberg raw_clicks landing (storage, Iceberg)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Write first, commit after
 
@@ -376,6 +364,8 @@ flowchart LR
 2. The webhook queue fills faster than the consumer drains it for an hour. What should the handler do, and what does the partner see?\
    *Extends the buffer idea to a bounded queue that pushes back instead of dropping events.*
 
+</details>
+
 
 <br>
 
@@ -391,10 +381,8 @@ A partner drops daily CSVs into an SFTP inbox, sometimes re-uploading a file und
 - process_files (lists prefix, processes every file every run) (transform)
 - Iceberg raw_partner_data landing (storage, Iceberg)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The pattern: a manifest turns full re-processing into incremental
 
@@ -443,6 +431,8 @@ flowchart LR
    *Tests whether validation is a hard gate or should detect and record the encoding per file.*
 2. 2 scheduler runs overlap and both see the same new file. What stops it from being processed twice?\
    *Tests whether the manifest write is atomic enough to be the real idempotency boundary, not just the prefix move.*
+
+</details>
 
 
 <br>
@@ -536,10 +526,8 @@ A Stripe REST API ingest job stops at the first empty page, spends its rate budg
 - ingest_stripe (page-based pagination, no rate limiter, no refresh, no backoff) (transform)
 - Iceberg raw_stripe landing (storage, Iceberg)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The four concerns of API ingestion
 
@@ -589,6 +577,8 @@ flowchart LR
 3. Stripe sends Retry-After in seconds, but some APIs send an absolute timestamp. How does your rate limiter stay correct for both?\
    *Checks that honoring Retry-After means reading the API's actual signal, not hardcoding a unit.*
 
+</details>
+
 
 <br>
 
@@ -606,10 +596,8 @@ Build the ingestion for a new analytics platform that lands four sources in one 
 - Stripe REST API (source, API)
 - Iceberg raw landing zone (single landing for all four sources) (storage, Iceberg)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Four intake shapes, one landing zone
 
@@ -682,6 +670,8 @@ flowchart LR
    *Tests that the cursor is persisted per-committed-page, not per-run.*
 3. Why can't the Kafka consumer use the same schedule-and-bookmark loop as Postgres?\
    *Tests the batch-vs-streaming distinction: push has no queryable high-water mark you control, only an offset to commit.*
+
+</details>
 
 
 <br>
@@ -809,10 +799,8 @@ The manifest lets you distinguish a late upload from a lost file. Here the evide
 
 A delivery fleet's trucks push GPS pings as events into a Kafka topic, and a fuel vendor drops one CSV of the day's fuel purchases into a landing folder each night. Dispatchers need each truck's position on a live map within one minute of its ping, while finance reads fuel spend only in a morning report. Name each source's ingestion shape, then design both paths, choosing batch or streaming for each.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Shape tells you how data arrives; the deadline picks batch or streaming
 
@@ -857,6 +845,8 @@ flowchart LR
 2. Would you still stream the pings if dispatchers could live with a 30-minute-old position?\
    *Where the line between streaming and a frequent batch sits once the deadline relaxes.*
 
+</details>
+
 
 <br>
 
@@ -866,10 +856,8 @@ flowchart LR
 
 A clinic-booking MySQL database has two tables to pull nightly into a raw landing zone: clinics, 3,000 rows with no change-tracking column, and appointments, 900 million rows with a reliable updated_at column and about 2 million changes a day. A full scan of appointments takes seven hours, longer than the nightly window. Design the pull for each table, choosing full or incremental for each.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Pick the flavor per table, not per database
 
@@ -907,6 +895,8 @@ flowchart LR
    *When full reload stops being cheap, and why the fix starts at the source table.*
 2. What if `appointments` rows could be hard-deleted?\
    *Why an `updated_at` watermark cannot see a row that no longer exists.*
+
+</details>
 
 
 <br>
@@ -989,15 +979,9 @@ What vendors change underneath you
 - A field that turns nullable: budget_cents was always present, then 1 campaign returns null and the integer cast fails on page 77.
 - A timeout on page 230 with no cursor stored, so the retry re-crawls from page 1 and spends the rate limit on pages it already loaded.
 
-✓Do
-
-- Pull by updated_since when offered, with a few minutes of overlap
-- Honor Retry-After before applying your own backoff
-
-✗Don't
-
-- Retry a 401 or 403: the credential is wrong and waiting cannot fix it
-- Parse timestamps without confirming the vendor's timezone in writing
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Pull by updated_since when offered, with a few minutes of overlap<br><br>• Honor Retry-After before applying your own backoff | • Retry a 401 or 403: the credential is wrong and waiting cannot fix it<br><br>• Parse timestamps without confirming the vendor's timezone in writing |
 
 
 <br>
@@ -1093,10 +1077,8 @@ Each marker matches its shape and moves only after its write, the rule every sec
 
 A support-ticketing SaaS vendor pushes ticket events to our webhook at whatever rate it likes, up to 2,000 per second during its outages, and redelivers any event we do not acknowledge within 5 seconds. Design push ingestion that accepts each webhook into a queue first, then has a consumer group land the events in a raw event store, with duplicate redeliveries removed before landing.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Webhooks push, so a queue absorbs the rate
 
@@ -1138,6 +1120,8 @@ flowchart LR
 2. The consumer is down for 9 days. What happens to the events?\
    *How the topic's retention period bounds recovery.*
 
+</details>
+
 
 <br>
 
@@ -1147,10 +1131,8 @@ flowchart LR
 
 A shipping carrier drops hourly CSV files of parcel scans into an object storage landing prefix; some files are still half-written when listed, and the column layout occasionally changes. Design the file drop ingestion: keep a manifest so each file loads once, check every file's schema before loading, route rejected files to a quarantine store, and land good files in the warehouse within two hours.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The manifest decides what gets loaded
 
@@ -1196,6 +1178,8 @@ flowchart LR
 2. How would the design change if the partner moved from an object storage prefix to an SFTP directory?\
    *Tests whether manifest pickup and the per-file check stay the same when only the landing location changes.*
 
+</details>
+
 
 <br>
 
@@ -1224,10 +1208,8 @@ A ride-hailing company launches in a new country. Trips come from its own trips 
 
 Design an API ingestion pipeline that pulls contacts from a CRM's REST API every hour into a raw landing zone. The API pages results with an opaque cursor and returns HTTP 429 above 10 requests per second. Contacts are edited constantly, so each run pulls only records updated since the last successful run, and rerunning an hour must not duplicate rows in the raw zone.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Cursors, backoff and an hour you can pull twice
 
@@ -1267,6 +1249,8 @@ flowchart LR
 2. A one-time backfill needs every contact ever created. What does the rate limit do to that run?\
    *Sizing a full pull against 10 requests per second and 100 contacts per page.*
 
+</details>
+
 
 <br>
 
@@ -1276,10 +1260,8 @@ flowchart LR
 
 Design a nightly batch pipeline that lands three inputs in a raw landing zone, read once each morning. A PostgreSQL rentals table holds 90M rows, gains about 400K new or changed rows a day and carries a last-updated timestamp: pull it incrementally, reading only rows changed since the last run. The same database's 600-row branches table has no change column, so reload it in full every night. An insurance partner drops a daily CSV of damage claims into an object storage prefix, and some files are still uploading when the run starts: land only complete files.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Match the load to how the data changes
 
@@ -1325,6 +1307,8 @@ flowchart LR
    *An incremental pull only sees rows that still exist, so deletes need another signal or a periodic full comparison.*
 2. The `branches` table grows to 50M rows but still has no change column. Now what?\
    *Whether a full reload still fits the nightly window, and what you would ask the source team to add.*
+
+</details>
 
 
 <br>

@@ -151,10 +151,8 @@ Set each source's slaFreshness to its rhythm. The Postgres orders database accum
 - Postgres orders (source, Postgres)
 - Kafka clickstream (source, Kafka)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Two rhythms, two labels
 
@@ -184,6 +182,8 @@ flowchart LR
    *A faster schedule is still batch. The tier tightens to '< 1h', but the data still arrives in chunks.*
 2. Which `slaFreshness` fits the clickstream if the app buffers events offline and flushes them in bursts?\
    *The label follows the delivery rhythm, not the transport. A bursty Kafka feed behaves more like micro-batch.*
+
+</details>
 
 
 <br>
@@ -288,10 +288,8 @@ Between the MySQL transactions source and the Looker dashboard, add a raw-zone s
 - MySQL transactions (source, MySQL)
 - Looker executive dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 A nightly batch pipeline is one run, once a day, over bounded data. It lands the extract untouched, curates it into a table, and serves that table to a morning reader under a named freshness promise. You were given both ends of the run. The middle you drew is the same 4 moves every batch job makes: **land raw, curate, serve, all woken by one clock**.
 
@@ -335,6 +333,8 @@ flowchart LR
    *The SLA as an enforceable contract, not documentation.*
 2. Leadership wants hourly refreshes. Which nodes stay, and what changes?\
    *Where batch cadence ends and micro-batch begins.*
+
+</details>
 
 
 <br>
@@ -382,17 +382,9 @@ That `for` loop is the entire transform. `queue.subscribe` blocks until a record
 
 The queue sits between the app and the consumer so that neither waits for the other. The app publishes a record in 40 milliseconds and goes back to serving the user. If the consumer is taken down for an upgrade at 15:00, signup `s4` at 15:30 lands in the queue and sits there. When the consumer returns at 15:45 it reads `s4` and carries on. The queue turned a 45 minute outage into a 15 minute delay for 1 record, and the app never noticed. Without the queue, the app would have had to wait for the counter or drop the record.
 
-✓Batch job down
-
-- The next read is hours away, so nobody sees it
-- A rerun reads the same closed window
-- Same output, finished later
-
-✗Consumer down
-
-- New records wait in the queue
-- Readers see a frozen, stale table
-- Restart resumes at the first unfinished record
+| ✓ Batch job down | ✗ Consumer down |
+| --- | --- |
+| • The next read is hours away, so nobody sees it<br><br>• A rerun reads the same closed window<br><br>• Same output, finished later | • New records wait in the queue<br><br>• Readers see a frozen, stale table<br><br>• Restart resumes at the first unfinished record |
 
 **Signups feed both pipelines from the animation. At 15:00 on April 24 the stream consumer is stopped for an upgrade and restarted at 15:45. The nightly job runs as usual at 02:00 on April 25. At 02:10 on April 25, what does each table show for IN?**
 
@@ -461,10 +453,8 @@ Driver phones publish GPS pings to the Kinesis stream on the canvas every 3 seco
 
 - Kinesis driver pings (source, Kinesis)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Reading one ping end to end
 
@@ -499,6 +489,8 @@ The store keeps no history. The dashboard asks one thing, 'where is each driver 
    *Event time versus arrival order: keep the newest timestamp per `driver_id` rather than the last ping read.*
 2. The product team wants a driver's last 10 minutes of trail on the map. What changes in the shape?\
    *A latest-only store versus a windowed store that keeps recent history, still without falling back to batch.*
+
+</details>
 
 
 <br>
@@ -595,10 +587,8 @@ A product manager asks for a real-time inventory dashboard and, when pressed for
 - Inventory warehouse (storage, warehouse)
 - Inventory dashboard (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### An hour-old target is a batch problem
 
@@ -636,6 +626,8 @@ flowchart LR
 2. If the target loosens to 'ready by the start of each workday', which tier and cadence fit?\
    *'< 24h' and one daily batch run: an even simpler schedule.*
 
+</details>
+
 
 <br>
 
@@ -651,10 +643,8 @@ A meal-kit subscription company serves two consumers off one Postgres orders dat
 - Looker weekly orders chart (consumer, Looker)
 - Fulfillment fraud-blocking service (consumer, API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One source, two clocks
 
@@ -700,6 +690,8 @@ flowchart LR
 2. A backfill corrects a week of miscategorized regions in Postgres. How does each path pick up the fix?\
    *Batch reruns a window and recomputes; the stream only saw orders as they arrived, so a correction may need a replay or a separate reload.*
 
+</details>
+
 
 <br>
 
@@ -735,19 +727,9 @@ Put a price on both shapes with one rate. Suppose the smallest machine that can 
 
 Money is only part of the cost. A stream consumer is a process that can crash at 03:00 on a Sunday, and someone has to notice and restart it, because every minute it is down the live table drifts further from the truth. A batch job that fails at 02:05 can be restarted at 09:00 by whoever arrives first, and the output is still ready hours before the Monday meeting. Cost tolerance means both the bill and the willingness to run something that never stops.
 
-✓Do
-
-- Write the consumer's freshness tier down before choosing a shape
-- Default to batch, and make streaming earn its place with a seconds tier
-- Price both shapes with the same hourly rate so the comparison is fair
-- Feed a batch and a stream from one source when 2 consumers need 2 tiers
-
-✗Don't
-
-- Build streaming because the request contained the words real time
-- Schedule a batch every 30 seconds to avoid admitting the case is streaming
-- Judge cost by the bill alone and forget who restarts a crashed consumer at 03:00
-- Let the loudest requester set the tier for every consumer of a table
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Write the consumer's freshness tier down before choosing a shape<br><br>• Default to batch, and make streaming earn its place with a seconds tier<br><br>• Price both shapes with the same hourly rate so the comparison is fair<br><br>• Feed a batch and a stream from one source when 2 consumers need 2 tiers | • Build streaming because the request contained the words real time<br><br>• Schedule a batch every 30 seconds to avoid admitting the case is streaming<br><br>• Judge cost by the bill alone and forget who restarts a crashed consumer at 03:00<br><br>• Let the loudest requester set the tier for every consumer of a table |
 
 
 <br>
@@ -806,10 +788,8 @@ Wire the 5 endpoints on the canvas so each consumer runs at the rhythm its fresh
 - Store-ops kitchen ticket dashboard (consumer, Looker)
 - Marketing retention chart (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Match the pipeline to the reader's clock
 
@@ -878,6 +858,8 @@ flowchart LR
 2. Yesterday's orders had a duplicate-charge bug fixed this morning. How do you correct the CFO revenue chart, and why is the raw landing zone what makes that cheap?\
    *Reprocessing from the immutable raw lake copy versus re-pulling from Postgres; why ELT keeps corrections local to the batch spine.*
 
+</details>
+
 
 <br>
 
@@ -887,10 +869,8 @@ flowchart LR
 
 A finance executive asks for real-time revenue. Pressed for a concrete target, she wants yesterday's revenue on her dashboard when she opens it at 8am, and payments land in a PostgreSQL database whose day closes at midnight. Translate her request into a freshness tier, then build the simplest pipeline from that database to her dashboard that meets it, with the freshness set on the stage that serves her.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Real-time is a word; 8am is a target
 
@@ -932,6 +912,8 @@ flowchart LR
 2. What changes if a day's payments can keep settling until 3am?\
    *Tests that a later close moves when the nightly run can start but not which tier is needed.*
 
+</details>
+
 
 <br>
 
@@ -959,10 +941,8 @@ A ride-hailing company such as Uber moves the same trip events down 2 paths. Sur
 
 A cold-chain warehouse publishes a temperature reading from each of its 400 freezers to Kafka once a second. Choose batch or streaming for each of 2 consumers: the on-call alert must fire within seconds of any freezer rising above -18C, and the compliance dashboard an auditor opens once each morning needs only each freezer's daily high and low. Wire Kafka to both consumers through the processing each one needs.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One source, 2 clocks
 
@@ -1006,6 +986,8 @@ flowchart LR
 2. If Kafka keeps readings for only 12 hours, what does `daily_rollup` need before it can see a full day?\
    *Landing raw readings in storage so a nightly batch has a complete day to read.*
 
+</details>
+
 
 <br>
 
@@ -1015,10 +997,8 @@ flowchart LR
 
 A news site publishes every article page view to a Kafka topic, about 30 million events a day, and needs one number computed 2 ways: views per article. The newsroom's trending board must show counts no more than a minute old, so build a streaming path that keeps a running count per article in a store the board reads. The ad billing report needs yesterday's final count per article by 6am, so land the raw events in a store where they pile up and have a nightly batch job count the whole day in one pass into a warehouse the report reads.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Same count, 2 rhythms
 
@@ -1063,6 +1043,8 @@ flowchart LR
    *Placing a freshness need that sits between the 2 existing paths.*
 2. The board's total at midnight differs slightly from the billing number. Which one is the record?\
    *Why the settled batch count over a bounded day is the number money is based on.*
+
+</details>
 
 
 <br>

@@ -72,19 +72,9 @@ Without the pointer swap the commit never happened. The 40 files are orphans: th
 
 ### Why the metadata is the product
 
-✓Directory of files
-
-- The table is whatever a listing returns right now
-- A half-finished write is visible to readers
-- Schema is inferred from whichever files get opened
-- Pruning needs a listing, then every file's footer
-
-✗Lakehouse table
-
-- The table is the file list in the current snapshot
-- A commit appears all at once or not at all
-- Schema is stored once, with a permanent id per column
-- Pruning reads min and max values from manifests
+| ✓ Directory of files | ✗ Lakehouse table |
+| --- | --- |
+| • The table is whatever a listing returns right now<br><br>• A half-finished write is visible to readers<br><br>• Schema is inferred from whichever files get opened<br><br>• Pruning needs a listing, then every file's footer | • The table is the file list in the current snapshot<br><br>• A commit appears all at once or not at all<br><br>• Schema is stored once, with a permanent id per column<br><br>• Pruning reads min and max values from manifests |
 
 Copy every data file of a lakehouse table into a fresh bucket and leave the metadata behind: what you hold is a pile of files that has lost its schema and its version history, and nothing says which files were ever committed. Every capability in the rest of this lesson is a change to metadata. The data files are open columnar files any engine can read; the metadata turns them into a table many jobs can share.
 
@@ -131,10 +121,8 @@ Two Spark jobs write Kafka orders every 1 and 5 minutes into a table defined as 
 - Orders table (Parquet directory, no metadata layer) (storage, object storage)
 - Analytics dashboard (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The metadata file is the table
 
@@ -179,6 +167,8 @@ flowchart LR
 2. Both jobs commit to the same day's partitions within the same second. What has to be true for both commits to land without one erasing the other?\
    *Extends the single atomic commit to two writers racing to publish the next metadata file.*
 
+</details>
+
 
 <br>
 
@@ -197,10 +187,8 @@ A regulator reviewed the daily revenue numbers 90 days ago, and the audit team m
 - Daily revenue dashboard (consumer, Looker)
 - Regulatory audit consumer (90-day reproducibility) (consumer, Jupyter)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Time travel: reading a table as it used to be
 
@@ -267,6 +255,8 @@ ALTER TABLE fct_orders SET TBLPROPERTIES (
    *Tests knowing that `snapshot_id` or `VERSION AS OF` pins one exact commit, while `TIMESTAMP AS OF` resolves to whichever snapshot was live at that time.*
 2. The refund job starts rewriting the same day's files the load writes. What does the load's retry have to do now?\
    *Tests the conflict case: when both writers rewrite the same files, retrying the commit alone is not enough and the load has to recompute its rows.*
+
+</details>
 
 
 <br>
@@ -419,10 +409,8 @@ A curated payments table is plain Parquet. Stripe adds new fields monthly; each 
 - Plain Parquet fct_payments (column names embedded in file footers) (storage, Parquet)
 - Finance dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Schema evolution lives in the table format, not the files
 
@@ -462,6 +450,8 @@ flowchart LR
 2. Finance renames `amount` to `gross_amount`. Why is that safe in Iceberg but a silent data-loss trap in plain Parquet?\
    *Ties the rename to field IDs: plain Parquet matches the new name against nothing and reads NULLs, while Iceberg only relabels the ID.*
 
+</details>
+
 
 <br>
 
@@ -479,10 +469,8 @@ A streaming pipeline writes a Parquet file every 30 seconds per partition into a
 - Live ops dashboard (consumer, Looker)
 - Hourly analytics dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Compaction beside the writer
 
@@ -553,6 +541,8 @@ CALL catalog.system.expire_snapshots(
    *The 128 MB to 512 MB range assumes partitions hold enough data to fill files that large.*
 2. How would `partial-progress.enabled` help if the writer commits to a partition mid-rewrite?\
    *Commit conflicts between the maintenance job and ingest.*
+
+</details>
 
 
 <br>
@@ -684,19 +674,9 @@ L looks up the name amount in each old file, but the column there is still calle
 
 A widening is safe when every value the old type can hold is exactly representable in the new one, so readers upcast while decoding. Any change that could lose or reinterpret a value needs new files: add a new column, fill it by rewriting, move readers over, then drop the old one.
 
-✓Metadata-only
-
-- integer to bigint
-- real to double
-- decimal(10,2) to decimal(12,2)
-- required column to optional
-
-✗Not metadata-only
-
-- bigint to integer
-- varchar to integer
-- decimal(10,2) to decimal(10,4)
-- optional column to required
+| ✓ Metadata-only | ✗ Not metadata-only |
+| --- | --- |
+| • integer to bigint<br><br>• real to double<br><br>• decimal(10,2) to decimal(12,2)<br><br>• required column to optional | • bigint to integer<br><br>• varchar to integer<br><br>• decimal(10,2) to decimal(10,4)<br><br>• optional column to required |
 
 **Which change to orders cannot commit as a metadata-only schema update?**
 
@@ -748,10 +728,8 @@ A financial-services platform runs three workloads on one Snowflake warehouse: a
 - BI revenue dashboard (consumer, Looker)
 - Compliance audit consumer (quarterly historical reads) (consumer, API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One ledger, three access patterns
 
@@ -795,6 +773,8 @@ flowchart LR
 2. Audit now wants results in seconds, not minutes. Do you touch the lakehouse or add a store?\
    *Probes when a fourth purpose-built store is justified versus over-splitting.*
 
+</details>
+
 
 <br>
 
@@ -814,10 +794,8 @@ A health-tech company has kept a 1.4 PB warehouse beside a 6 PB raw S3 lake for 
 - Spark ML training (full history) (consumer, Jupyter)
 - Regulator audit query (historical via time travel) (consumer, API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One table, one answer
 
@@ -872,6 +850,8 @@ flowchart LR
    *Late data landing as a new snapshot.*
 3. How would you partition the archive so both the regulator's year-old read and the dashboard's latest-day read stay cheap?\
    *Partitioning against two read patterns.*
+
+</details>
 
 
 <br>
@@ -982,10 +962,8 @@ The query pinned 900 at planning, and those 1,200 files stay in storage until 90
 
 Design a pipeline that applies a PostgreSQL orders database's change feed (about 2 million updates and deletes a day) to the orders table in object storage every hour. Today each run rewrites Parquet in place, so a failed run leaves half-applied changes and the finance dashboard can read a half-written table. Store the table in an open table format so each hourly merge commits atomically and the dashboard reads only committed snapshots.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Atomic commits live in the metadata, not the files
 
@@ -1027,6 +1005,8 @@ flowchart LR
 2. 2 hours of changes arrive late and one run applies both. Can the dashboard ever see only the first hour?\
    *Checks that one commit is the unit of visibility, however much it contains.*
 
+</details>
+
 
 <br>
 
@@ -1036,10 +1016,8 @@ flowchart LR
 
 An hourly Spark job appends about 50 GB of clickstream events to a curated table while a second job appends late events, so their commits can race; the writer that loses a race must retry its commit rather than fail. A nightly partner export scans the table for 40 minutes and must read one consistent snapshot while commits land mid-scan. An operator must also be able to read the table as it stood before a bad load, up to 7 days back.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One snapshot chain, 3 jobs
 
@@ -1089,6 +1067,8 @@ flowchart LR
    *Ties the length of retention to recording which snapshot each export read.*
 2. If the late-events job rewrote rows the hourly job had just read, could the hourly job still retry by swapping again?\
    *Probes when a retry is not enough: the loser's output was computed from data the winner changed.*
+
+</details>
 
 
 <br>
@@ -1194,10 +1174,8 @@ At 40 files every 30 seconds, orders_raw gains 115,200 files a day, and reading 
 
 Mobile app click events arrive in Kafka, about 400 million a day, and an hourly job lands them in a 9 TB curated table that analysts query from a dashboard. Every few weeks a release adds new fields, and the next one renames the `screen` column to `screen_name`. Design the pipeline so both changes apply without rewriting any existing data files, and rows written before the rename still read under the new name.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Renames live in metadata, not in files
 
@@ -1235,6 +1213,8 @@ flowchart LR
 2. How would you read the table exactly as it looked before the rename?\
    *Connects schema history to snapshots and time travel from the earlier section.*
 
+</details>
+
 
 <br>
 
@@ -1244,10 +1224,8 @@ flowchart LR
 
 Vehicle telemetry arrives on Kafka at about 120 GB a day and must be queryable in a lakehouse table within a minute, so a streaming job commits every 60 seconds into each of 12 device-type partitions, writing files of roughly 7 MB. Design the pipeline so that freshness holds while a compaction job rewrites each finished day toward 256 MB files, and a fleet dashboard reads the table.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Compaction keeps a one-minute writer cheap to read
 
@@ -1291,6 +1269,8 @@ flowchart LR
 2. The dashboard mostly reads today's partition, which is still all small files. How would you compact it without waiting for the day to end?\
    *Compacting finished hours inside an open partition without conflicting with the streaming writer.*
 
+</details>
+
 
 <br>
 
@@ -1319,10 +1299,8 @@ A ride-hailing company keeps live trips in an operational database for the rider
 
 Parcel scan events arrive on Kafka, about 300 million a day, for three readers: a tracking page fetching one parcel's latest status in under 50 ms, a daily operations dashboard aggregating delivery times over all history, and claims staff replaying five years of raw scans. Give each reader the storage layer that matches its access pattern, and keep the raw history as a lake table on object storage that the daily aggregation reads from.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Each reader gets the shape it reads best
 
@@ -1374,6 +1352,8 @@ flowchart LR
 2. What changes if the dashboard must show today's on-time rate within 15 minutes?\
    *Adding a fresher path into the analytical layer while the lake stays the source of record.*
 
+</details>
+
 
 <br>
 
@@ -1383,10 +1363,8 @@ flowchart LR
 
 Retail checkout events, about 24 GB a day, stream from Kafka into an Iceberg table partitioned by day and 40 regions, committing every minute so a sales dashboard stays within 15 minutes of the registers. Each partition now gains 1,440 files of about 400 KB a day, and dashboard scans have slowed badly. Design the pipeline with compaction that rewrites closed partitions into large files while the dashboard keeps reading, never seeing a half-rewritten partition. New checkout fields arrive every few weeks and must land without rewriting existing files.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Compaction is a commit, not a cleanup
 
@@ -1433,6 +1411,8 @@ flowchart LR
    *Compaction cadence against partition size and contention with the writer.*
 2. Finance wants a query rerun exactly as `checkout_table` stood before last night's compaction. What makes that possible, and for how long?\
    *Linking time travel to snapshot retention.*
+
+</details>
 
 
 <br>

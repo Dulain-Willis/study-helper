@@ -32,21 +32,9 @@ An incremental load needs a column that moves forward every time a row changes: 
 
 Incremental loads have 2 blind spots. A hard delete removes the row, so its `updated_at` never moves again and the target keeps the order forever. A write that skips `updated_at`, such as a bulk fix run by hand, is invisible too. Teams cover both with a periodic full comparison, or by moving to change data capture, the next section's subject.
 
-✓Full load
-
-- Reads every row on every run
-- Catches every change, hard deletes included
-- Needs no change-tracking column
-- The next run repairs a bad run
-- Cost grows with table size
-
-✗Incremental load
-
-- Reads rows changed since the bookmark
-- Misses hard deletes and untracked writes
-- Needs a reliable updated_at or growing id
-- Needs a bookmark store and a keyed upsert
-- Cost grows with change volume
+| ✓ Full load | ✗ Incremental load |
+| --- | --- |
+| • Reads every row on every run<br><br>• Catches every change, hard deletes included<br><br>• Needs no change-tracking column<br><br>• The next run repairs a bad run<br><br>• Cost grows with table size | • Reads rows changed since the bookmark<br><br>• Misses hard deletes and untracked writes<br><br>• Needs a reliable updated_at or growing id<br><br>• Needs a bookmark store and a keyed upsert<br><br>• Cost grows with change volume |
 
 
 <br>
@@ -142,10 +130,8 @@ The bookmark claims the window is done. Nothing rereads it and nothing fails, so
 - extract_orders (full load; 4-hour scan; unworkable) (transform, SQL)
 - Iceberg raw landing zone (storage, Iceberg)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Full load vs. bookmark-driven incremental
 
@@ -202,6 +188,8 @@ flowchart LR
 2. How would you handle the very first run, when the bookmark store has no value yet?\
    *The cold-start case: seed the bookmark to a floor value so the first incremental behaves like a bounded backfill.*
 
+</details>
+
 
 <br>
 
@@ -221,10 +209,8 @@ Choose a CDC family for each of three Postgres sources: orders takes 10M writes/
 - ingest_legacy (no CDC family chosen) (transform, SQL)
 - Iceberg raw landing zone (storage, Iceberg)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Matching a CDC family to each source's constraint
 
@@ -277,6 +263,8 @@ flowchart LR
    *Forces a trade between write doubling and missed deletes.*
 3. If `shopping_cart` grew to `orders`-level write volume, would trigger-based still be the right call?\
    *Re-examines the write-doubling trade once the volume assumption changes.*
+
+</details>
 
 
 <br>
@@ -441,10 +429,8 @@ A Debezium connector on a Postgres logical replication slot has twice filled the
 - Change-capture connector (no initial-snapshot phase named, no slot lag monitor; restart-and-never-reattach incidents) (source, CDC)
 - Kafka cdc.orders topic (queue, Kafka)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Change data capture, and why the slot is the whole risk
 
@@ -486,6 +472,8 @@ The schema-evolution policy is a gate, not a note. Upstream DDL flows into the e
 2. How would you let a `DROP COLUMN` through safely instead of just blocking it forever?\
    *The coordinated-migration path: deprecate, dual-write, drain old consumers, then remove.*
 
+</details>
+
 
 <br>
 
@@ -503,10 +491,8 @@ Kafka rebalances, Stripe webhook retries and SFTP partner re-uploads all redeliv
 - ingest_writer (writes everything it receives) (transform, Pandas)
 - raw_events (plain append, duplicates accumulate) (storage, PostgreSQL)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### At-least-once is the world, so dedupe at the sink
 
@@ -562,6 +548,8 @@ ON CONFLICT (source, dedupe_key) DO NOTHING;
    *Separates first-write-wins dedupe from a last-write-wins upsert as a deliberate choice.*
 2. How would you dedupe when the sink is an append-only lake with no `UNIQUE` constraint?\
    *Pushes the pattern onto partition overwrite, the mechanism for engines without constraints.*
+
+</details>
 
 
 <br>
@@ -669,10 +657,8 @@ A Postgres database holds customers (~2M rows, slowly changing, hourly freshness
 - Postgres operational database (source, PostgreSQL)
 - Snowflake analytics warehouse (storage, Snowflake)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Matching an ingestion strategy to each table
 
@@ -711,6 +697,8 @@ flowchart LR
 2. How would you load the existing history of `orders` before the log stream takes over?\
    *Log-based capture needs a snapshot-then-stream handoff so rows written before the slot existed are not missed.*
 
+</details>
+
 
 <br>
 
@@ -727,10 +715,8 @@ Design ingestion from a Postgres database into Snowflake for three tables. custo
 - Postgres legacy_events (hosted; no WAL access) (source, PostgreSQL)
 - Snowflake analytics warehouse (storage, Snowflake)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 Choosing between a full reload, an incremental pull and change data capture is a per-table decision. What the source lets you read, how big the table is and how fresh its warehouse copy must be settle it. Here `orders` earns log-based change capture, while `customers` and `legacy_events` take incremental pulls on their own cadences. Every lane lands through a `MERGE` on the table's key, so a replayed load does no harm.
 
@@ -776,6 +762,8 @@ flowchart LR
 2. How would you load the existing `orders` history before the change-capture stream took over?\
    *Tests the one-time initial snapshot and the cutover to the stream.*
 
+</details>
+
 
 <br>
 
@@ -785,17 +773,9 @@ flowchart LR
 
 Every ingestion consumer does 2 things per batch, whatever it reads from: it writes the records to the sink, and it saves its position (an offset for a queue, an LSN for a replication slot, a file name when it reads a folder of files) so it can resume after a restart. A crash can land between the 2 steps, and their order decides what that crash costs.
 
-✓Write, then save position
-
-- Crash in between: the batch is read again
-- Cost: duplicate records in the sink
-- Called at-least-once delivery
-
-✗Save position, then write
-
-- Crash in between: the batch is never written
-- Cost: records silently missing
-- Called at-most-once delivery
+| ✓ Write, then save position | ✗ Save position, then write |
+| --- | --- |
+| • Crash in between: the batch is read again<br><br>• Cost: duplicate records in the sink<br><br>• Called at-least-once delivery | • Crash in between: the batch is never written<br><br>• Cost: records silently missing<br><br>• Called at-most-once delivery |
 
 Ingestion picks at-least-once, because a duplicate can be found and removed while a missing record leaves no trace. A restarted CDC connector rereads changes after its last confirmed LSN, a queue redelivers anything unacknowledged, and a retried API page returns rows already loaded. The sink can turn each of these repeats into a no-op in 3 ways.
 
@@ -948,10 +928,8 @@ The batch is marked delivered but never written. The anti-join had already made 
 
 An append-only MySQL table, meter_readings, holds 3 billion rows keyed by an auto-increment id and gains 40 million rows a day; reading it in full takes 9 hours. Design the hourly pull into a warehouse that feeds a usage dashboard, choosing between a full reload and an incremental load. Keep any bookmark in a metadata table the pipeline owns, not in the source, and advance it only after the warehouse load succeeds.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A 9-hour read cannot feed an hourly dashboard
 
@@ -993,6 +971,8 @@ flowchart LR
 2. A 50,000-row `meters` lookup table also feeds the dashboard. Does it need a bookmark?\
    *When a full reload is the simpler, correct end of the spectrum.*
 
+</details>
+
 
 <br>
 
@@ -1002,10 +982,8 @@ flowchart LR
 
 A MySQL `inventory` table takes 2 million writes a day, and its nightly incremental load filtered on `updated_at` never sees hard-deleted rows, so the warehouse still lists discontinued items. Replace it with change data capture that publishes every insert, update and delete to a message queue in commit order. Land the changes in a warehouse fresh within 15 minutes for the stock dashboard.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A deleted row leaves no timestamp behind
 
@@ -1038,6 +1016,8 @@ flowchart LR
    *Whether you can name the family that captures deletes without touching the table's write path.*
 2. The `suppliers` table marks removals with an `is_active` flag instead of deleting. Does a bookmark on `updated_at` stay correct there?\
    *Whether you can tell when an incremental bookmark is enough and when only change capture is.*
+
+</details>
 
 
 <br>
@@ -1076,20 +1056,9 @@ Team capacity can overrule the table. Log-based CDC needs `wal_level = logical` 
 
 The hybrid has a price. Revenue can trail the source by 20 minutes instead of 5, since the pull interval stacks on top of the lag. A cancelled order also stays in revenue until the 02:00 diff removes it. Agree on both with finance before launch, or ask the application team for soft deletes so cancellations become updates the pull already sees.
 
-✓Do
-
-- Decide per table, weighing size and change rate against delete and freshness needs and who will run it
-- Keep full snapshots for small tables even when big ones move to CDC
-- Save the bookmark only after the data commits
-- Make every sink absorb repeats, whether by dedupe or by a uniqueness or version check
-- Alert on retained WAL long before it threatens the source disk
-
-✗Don't
-
-- Run CDC on a 1,800-row table that a full copy refreshes in a second
-- Trust updated_at before confirming every writer sets it
-- Leave a replication slot behind when its pipeline is retired
-- Let a key diff delete a large share of rows without a threshold check
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Decide per table, weighing size and change rate against delete and freshness needs and who will run it<br><br>• Keep full snapshots for small tables even when big ones move to CDC<br><br>• Save the bookmark only after the data commits<br><br>• Make every sink absorb repeats, whether by dedupe or by a uniqueness or version check<br><br>• Alert on retained WAL long before it threatens the source disk | • Run CDC on a 1,800-row table that a full copy refreshes in a second<br><br>• Trust updated_at before confirming every writer sets it<br><br>• Leave a replication slot behind when its pipeline is retired<br><br>• Let a key diff delete a large share of rows without a threshold check |
 
 **A refunds table has 6 million rows and gains 20,000 a day. Rows are never updated or deleted; corrections arrive as new rows. Analysts need it hourly, and your team has no replication access. Which strategy fits?**
 
@@ -1126,10 +1095,8 @@ Rows never change after insert, so created_at is a complete change column, and a
 
 Capture every insert, update and delete on a Postgres `subscriptions` table by reading its write-ahead log into a Kafka topic, and load those changes into a warehouse refreshed within 15 minutes. The app team ships a migration about once a week that adds or drops columns. Register each change event's schema so a migration is checked for compatibility before the warehouse loader reads it, rather than breaking the load.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A migration is a log event too
 
@@ -1173,6 +1140,8 @@ flowchart LR
 2. A migration renames `plan_id` to `plan_code`. What does the compatibility check do, and how would you ship it?\
    *Whether a rename is seen as a drop plus an add.*
 
+</details>
+
 
 <br>
 
@@ -1182,10 +1151,8 @@ flowchart LR
 
 A nightly job pulls the previous day's shipment events from a carrier's REST API, about 2 million records, into a warehouse table a delivery dashboard reads. When the job crashes mid-write the scheduler reruns the whole day, and the API can return the same event on two pages. Each event carries a stable shipment_event_id. Design the ingest so a rerun leaves exactly one row per event.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Dedupe at the sink, on the key the event carries
 
@@ -1223,6 +1190,8 @@ flowchart LR
 2. A redelivered event arrives with a corrected status but the same `shipment_event_id`. Does the upsert still do the right thing?\
    *Choosing between insert-if-absent and update-on-match when copies differ.*
 
+</details>
+
 
 <br>
 
@@ -1251,10 +1220,8 @@ A food-delivery marketplace feeds its warehouse from a single Postgres cluster. 
 
 A clinic-scheduling Postgres database holds a 3M-row appointments table taking about 400K inserts, updates and hard deletes a day, and its managed host does not allow logical replication slots. The primary runs at 30% of write capacity, so it can absorb one extra write per change. Choose the ingestion strategy that captures every row change, deletes included, and lands it in the analytics warehouse fresh within 15 minutes.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Let the constraints pick the strategy
 
@@ -1292,6 +1259,8 @@ flowchart LR
 2. If the host later allows replication slots and writes grow to 10M a day, what would you change?\
    *Recognising the scale and operational context where log-based CDC replaces triggers.*
 
+</details>
+
 
 <br>
 
@@ -1301,10 +1270,8 @@ flowchart LR
 
 A MySQL `listings` table holds 40M rows and takes 6M writes a day, about 300K of them hard deletes when sellers pull a listing. Its primary runs near its CPU limit, so adding per-row write work there is not an option, and a filter on `updated_at` never sees a deleted row. Choose the CDC family that captures the deletes without loading the primary, and publish every change to a topic. The warehouse copy reads that topic at least once, so redelivered changes must not duplicate or resurrect rows, and pulled listings must be gone from it within 15 minutes.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Deletes and headroom decide the CDC family
 
@@ -1345,6 +1312,8 @@ flowchart LR
    *Fan-out from the one change topic instead of a second capture against the primary.*
 2. Capture was down for 4 days and the log kept only three. How do you recover?\
    *When a full snapshot reload must replace incremental capture, and why the idempotent apply makes that reload safe to merge.*
+
+</details>
 
 
 <br>

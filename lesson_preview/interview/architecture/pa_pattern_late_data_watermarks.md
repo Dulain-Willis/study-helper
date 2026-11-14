@@ -153,17 +153,9 @@ The 2,310 pings stamped ahead of arrival are mostly seconds of clock skew plus a
 
 The property that prevents it is a plausibility check at the point where event time is extracted: a record whose event time exceeds its ingestion time by more than a small slack, 30 seconds say, has its event time replaced by ingestion time, or is routed to the side output with a reason code. Records far in the past get the same treatment against a floor, such as 7 days before ingestion, so a replay of ancient data does not silently land in long-closed windows. The check costs 1 comparison per record and removes the single fastest way to break a streaming pipeline.
 
-✓Windows by event time
-
-- Count reflects when things happened, so results match the batch recount
-- Needs a completeness rule and a late path
-- Same windows on replay; which events are late depends on arrival order
-
-✗Windows by processing time
-
-- Count reflects when the pipeline saw things, so a 1 hour outage shows as a hole then a spike
-- Needs no watermark: the wall clock is the completeness rule
-- Changes on every replay, so results cannot be reproduced
+| ✓ Windows by event time | ✗ Windows by processing time |
+| --- | --- |
+| • Count reflects when things happened, so results match the batch recount<br><br>• Needs a completeness rule and a late path<br><br>• Same windows on replay; which events are late depends on arrival order | • Count reflects when the pipeline saw things, so a 1 hour outage shows as a hole then a spike<br><br>• Needs no watermark: the wall clock is the completeness rule<br><br>• Changes on every replay, so results cannot be reproduced |
 
 *Processing-time windows remain the right choice for one question: how much work the pipeline itself did per minute. For any question about the business, the event clock is the only honest one.*
 
@@ -252,17 +244,9 @@ The early firings are optional, from a processing-time trigger that fires before
 
 ### Accumulating or discarding
 
-✓Accumulating mode
-
-- Every firing emits the full current value: 2, then 4, then 5, then 7
-- The sink upserts by (window_start, city), so the latest firing wins
-- A retried firing writes the same value again, which changes nothing
-
-✗Discarding mode
-
-- Every firing emits only what arrived since the last: 2, then 2, then 1, then 2
-- The sink adds deltas, so it must receive each exactly once
-- A retried delta is added twice and the total drifts upward with every retry
+| ✓ Accumulating mode | ✗ Discarding mode |
+| --- | --- |
+| • Every firing emits the full current value: 2, then 4, then 5, then 7<br><br>• The sink upserts by (window_start, city), so the latest firing wins<br><br>• A retried firing writes the same value again, which changes nothing | • Every firing emits only what arrived since the last: 2, then 2, then 1, then 2<br><br>• The sink adds deltas, so it must receive each exactly once<br><br>• A retried delta is added twice and the total drifts upward with every retry |
 
 The retry column decides it. A stream operator that crashes after emitting a firing and before recording that it did so will emit it again on restart. In accumulating mode the second emission is a repeat of a full value and the upsert absorbs it. In discarding mode it is a second delta and the count is wrong by that delta forever. The property that makes the pipeline survive retries is therefore an idempotent sink keyed by the window: accumulating output written as an upsert on (window_start, city). Discarding mode is worth its lower bandwidth only where the sink deduplicates by a firing sequence number itself.
 
@@ -299,19 +283,9 @@ A window with 1 late ping from a courier already counted needs no correction at 
 - **5** — windows held per key at L of 15 min
 - **0.1%** — pings reaching the side output
 
-✓Do
-
-- Emit accumulating results and upsert by window key, so refires and retries converge
-- Store mergeable sketches for distinct counts and percentiles
-- Write every dropped event to a side output with the watermark and a reason
-- Set L from the side output volume you can afford to recompute in batch
-
-✗Don't
-
-- Add late deltas to a published distinct count
-- Delete window state the instant the watermark passes
-- Drop late events silently with no counter and no table
-- Pick L larger than the state budget allows for your key cardinality
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Emit accumulating results and upsert by window key, so refires and retries converge<br><br>• Store mergeable sketches for distinct counts and percentiles<br><br>• Write every dropped event to a side output with the watermark and a reason<br><br>• Set L from the side output volume you can afford to recompute in batch | • Add late deltas to a published distinct count<br><br>• Delete window state the instant the watermark passes<br><br>• Drop late events silently with no counter and no table<br><br>• Pick L larger than the state budget allows for your key cardinality |
 
 
 <br>
@@ -405,10 +379,8 @@ A card payments company computes the approval rate per issuing bank per 1 minute
 
 Step and heart-rate readings sync in bursts, sometimes a full day after they're taken. Today's bucketing by ingest-receipt time breaks analytics: a reading taken at 7am but syncing at 8pm lands in the 8pm hour. Redesign the aggregation to bucket by event time, streaming hourly totals to a live activity chart within a minute, routing late arrivals to durable storage, and running nightly batch reconciliation so monthly rewards eventually count every reading.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The design: split the load
 
@@ -463,6 +435,8 @@ flowchart LR
 2. If a partition goes idle, what happens to watermarks?\
    *Idle source handling.*
 
+</details>
+
 
 <br>
 
@@ -472,10 +446,8 @@ flowchart LR
 
 Most of our technicians' job-completion events upload within a few minutes, but phones working in basements and rural sites hold them offline until signal returns, sometimes a full day later. Design the pipeline that keeps the operations board showing hourly completions current within a minute, routing late-arriving events to an object store so payroll can fold them back under the hour the work was done, with no job missed or counted twice.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem really is
 
@@ -559,6 +531,8 @@ flowchart LR
    *Tests whether the candidate notices the 26-hour tail now outlives the deadline, and names the tradeoff: a later correction cycle, provisional pay with adjustments, or a payroll policy change.*
 3. Operations now wants the board's past hours to reflect late arrivals too. Where does that correction flow?\
    *Tests whether the candidate can route the reconciled hours back into `live_board_store`, or explain why a longer allowed lateness on the live path is the cheaper lever.*
+
+</details>
 
 
 <br>

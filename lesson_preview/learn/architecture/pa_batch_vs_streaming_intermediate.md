@@ -102,10 +102,8 @@ An orders pipeline moves 1 billion events a day from PostgreSQL into a warehouse
 - Orders warehouse mart (storage, warehouse)
 - Executive dashboard (7am) (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Freshness and volume are 2 different axes
 
@@ -145,6 +143,8 @@ flowchart LR
 2. What reader would make latency, not throughput, the constraint on this pipeline?\
    *Looks for a consumer that acts on each order within seconds or a few minutes of it landing.*
 
+</details>
+
 
 <br>
 
@@ -161,10 +161,8 @@ A support-ops dashboard reads Kafka events through an hourly Spark batch, but ag
 - Snowflake support_queue mart (storage, Snowflake)
 - CS ops dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Freshness is a dial, not a switch
 
@@ -200,6 +198,8 @@ flowchart LR
 1. If a second team wants the same `support_queue` data within seconds for an auto-escalation bot, do you tighten this trigger or add a separate path?\
    *Tests whether they match freshness tiers per consumer instead of over-serving everyone from one expensive job.*
 
+</details>
+
 
 <br>
 
@@ -211,17 +211,9 @@ Micro-batch is batch run on a short, fixed timer against a queue. Every trigger 
 
 ![Pipeline diagram 1](images/pa_batch_vs_streaming_intermediate_diagram_1.png)
 
-✓Kept from batch
-
-- Discrete runs, each with a start, an end and one output
-- Fixed per-run overhead shared across many rows
-- A run can be repeated by rereading the same queue range
-
-✗Taken from streaming
-
-- A queue as the source rather than a daily file or table snapshot
-- A job that never exits and never waits for a scheduler
-- Freshness measured in seconds or minutes rather than hours
+| ✓ Kept from batch | ✗ Taken from streaming |
+| --- | --- |
+| • Discrete runs, each with a start, an end and one output<br><br>• Fixed per-run overhead shared across many rows<br><br>• A run can be repeated by rereading the same queue range | • A queue as the source rather than a daily file or table snapshot<br><br>• A job that never exits and never waits for a scheduler<br><br>• Freshness measured in seconds or minutes rather than hours |
 
 
 <br>
@@ -313,10 +305,8 @@ A retailer's revenue pipeline runs Flink streaming at $4,000/month to feed a CFO
 - Snowflake daily_revenue (storage, Snowflake)
 - CFO daily revenue dashboard (reads 7am) (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Pay only for the freshness someone reads
 
@@ -354,6 +344,8 @@ flowchart LR
 2. A fraud team wants alerts on suspicious orders within seconds. Should they read from the revenue mart?\
    *When latency has real dollar value, streaming is justified, but it belongs in a separate pipeline.*
 
+</details>
+
 
 <br>
 
@@ -370,10 +362,8 @@ The transform on the canvas keeps rolling 5-minute click counts per page from a 
 - Page clicks 5-min mart (storage, warehouse)
 - Click analytics dashboard (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The windowed count is state, and state needs a home
 
@@ -412,6 +402,8 @@ flowchart LR
    *Connects late-arriving events and a missing watermark to unbounded state.*
 2. If you added a streaming join of clicks to a `sessions` stream, would that need its own state store?\
    *Checks that the stateful classification extends beyond windowed aggregation to joins.*
+
+</details>
 
 
 <br>
@@ -467,17 +459,9 @@ The premium is justified when a decision made from fresh data is worth more than
 
 Work the arithmetic for the stock example. The store oversells roughly 2 units per hour of staleness, and each oversell costs $15 in refunds and support time. Hourly batch leaves 1 hour of staleness: 48 oversells a day, $720 a day in cost. A 1 minute micro-batch leaves 1 minute of staleness: under 1 oversell a day, around $12. If moving from hourly batch to micro-batch adds $200 a day in compute, it pays back more than 3 times over. Per-event streaming at $2,000 a day would save the last fraction of an oversell and lose money.
 
-✓Latency is worth the premium when
-
-- The consumer is a machine, or a person acting within minutes
-- Each minute of staleness has a cost you can write down
-- Input arrives steadily, so machines are rarely idle
-
-✗Latency is wasted spend when
-
-- The consumer reads on a schedule: a daily report, a weekly review
-- Staleness costs nothing until a threshold measured in hours
-- Input arrives in daily dumps, so the stream waits on an upstream batch anyway
+| ✓ Latency is worth the premium when | ✗ Latency is wasted spend when |
+| --- | --- |
+| • The consumer is a machine, or a person acting within minutes<br><br>• Each minute of staleness has a cost you can write down<br><br>• Input arrives steadily, so machines are rarely idle | • The consumer reads on a schedule: a daily report, a weekly review<br><br>• Staleness costs nothing until a threshold measured in hours<br><br>• Input arrives in daily dumps, so the stream waits on an upstream batch anyway |
 
 **A team proposes replacing a nightly batch that feeds a weekly executive revenue deck with a streaming pipeline. The batch costs $40 a day; the stream estimate is $600 a day. The deck is opened on Monday mornings only. Which judgement is right?**
 
@@ -522,10 +506,8 @@ The nightly Spark batch on the canvas now takes 11 hours for 18 million orders a
 - Executive dashboard (tier 4, daily) (consumer, Looker)
 - Marketing live dashboard (tier 2, < 15min) (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 When a batch job outgrows its window, the right move is rarely a switch to streaming. It is matching each consumer to the cheapest cadence that meets its freshness tier. The executive dashboard reads daily, so batch is still the right engine: only the 11-hour full rebuild is broken. Marketing needs '< 15min', which no nightly clock can reach, so it gets its own **micro-batch** path instead of dragging the executive path into streaming.
 
@@ -571,6 +553,8 @@ flowchart LR
 2. How would you catch the marketing path slipping past '< 15min' while the job still reports success?\
    *Freshness monitoring: alert on data lag, not just job status.*
 
+</details>
+
 
 <br>
 
@@ -587,10 +571,8 @@ Fan 50 billion log events a day from one Kafka topic out to three consumers, pic
 - Live ops dashboard (rolling 5-min) (consumer, Looker)
 - Billing capacity report (daily) (consumer, Tableau)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Match the clock to the branch
 
@@ -637,6 +619,8 @@ flowchart LR
    *Promoting one branch from micro-batch to streaming while it keeps reading the same bronze zone.*
 2. Billing needs to recompute a corrected total after late-arriving events are backfilled. Why does reading from bronze make that possible?\
    *The replay payoff of landing once into a durable raw zone.*
+
+</details>
 
 
 <br>
@@ -746,10 +730,8 @@ The output for a payment depends on earlier payments on the same card. The state
 
 A factory's sensor gateway publishes 3,000 temperature readings a second to a Kafka topic, about 260 million a day. Operators watch a live panel, backed by its own store, that must show every reading within 30 seconds of it arriving on the topic. An hourly Spark batch would clear that volume easily; weigh the latency and the throughput this needs, then design the pipeline from the topic to the panel.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### 2 dials, and only one of them binds here
 
@@ -787,6 +769,8 @@ flowchart LR
 2. If the panel's budget relaxed to one hour, what would you change?\
    *Seeing the decision flip once latency stops being the constraint.*
 
+</details>
+
 
 <br>
 
@@ -796,10 +780,8 @@ flowchart LR
 
 A food-delivery platform publishes 40 million order status events a day to a Kafka topic, and a restaurant-ops panel reads per-restaurant open-order counts from a warehouse. The panel must show a change within 2 minutes, but nothing needs per-event latency, so pay for no more freshness than that. Choose micro-batch or record-at-a-time streaming for the transform, set its freshness to fit, and design the pipeline from the topic to the panel.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Pick the trigger, not the fastest engine
 
@@ -840,6 +822,8 @@ flowchart LR
    *Where a shorter trigger stops amortizing per-batch overhead and per-event processing starts to earn its cost.*
 2. Dinner rush runs five times the average volume. What happens to each one-minute batch?\
    *Whether a fixed trigger absorbs a burst by growing the batch rather than adding latency.*
+
+</details>
 
 
 <br>
@@ -892,17 +876,9 @@ WHERE ingested_ts > (
 
 Stop climbing when the tier is met. If the operations team later needs delays within 2 minutes, the next step is a micro-batch job on the order queue with a 60 second trigger, and only the path feeding the delay board moves. Finance keeps its hourly load: a fresher table gains it nothing and would cost 3 to 10 times more. If a fraud consumer later needs sub-second decisions, that single stateless check becomes a streaming job, while the stateful aggregates stay in micro-batch where state and recovery cost less.
 
-✓Do
-
-- Name the constraint first: a growing backlog is throughput, a waiting consumer with idle machines is latency
-- Process only new rows before shortening the schedule
-- Move one consumer's path up a rung, never the whole table
-
-✗Don't
-
-- Shorten a schedule on a throughput-bound job; extra runs add overhead, not speed
-- Rebuild as streaming because the dashboard is behind
-- Put a stateful aggregate into a stream before pricing its state and checkpoints
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Name the constraint first: a growing backlog is throughput, a waiting consumer with idle machines is latency<br><br>• Process only new rows before shortening the schedule<br><br>• Move one consumer's path up a rung, never the whole table | • Shorten a schedule on a throughput-bound job; extra runs add overhead, not speed<br><br>• Rebuild as streaming because the dashboard is behind<br><br>• Put a stateful aggregate into a stream before pricing its state and checkpoints |
 
 **A daily batch loads 20M click rows in 50 minutes for a marketing dashboard viewed at 09:00. Product wants a live board of clicks per page over the last 5 minutes, refreshed within 1 minute. Marketing's need is unchanged. Which design is the smallest that meets both?**
 
@@ -939,10 +915,8 @@ Each consumer gets its own rung. Worst-case latency is the 30 second interval pl
 
 A metering service writes 200 million API-call events a day to Kafka, and the billing team reads per-customer usage totals once a day, by 6am, to draft invoices. Design the cheapest pipeline that meets that need: the current proposal is an always-on stream processor keeping running totals for 2 million customers, so decide whether its continuous compute and state are worth paying for. Land the raw events durably so any day can be recomputed.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Pay only for freshness someone reads
 
@@ -982,6 +956,8 @@ flowchart LR
 2. Billing switches to drafting invoices every hour. Is an always-on stream now worth it?\
    *Whether hourly freshness is better met by an hourly batch or micro-batch than by continuous compute.*
 
+</details>
+
 
 <br>
 
@@ -1009,10 +985,8 @@ A grocery delivery company runs a nightly batch that rebuilds its orders table f
 
 A payments gateway publishes 50,000 card authorizations a second to Kafka. Mask each card number and archive every event in object storage; separately, count authorizations per card over a 10-minute window and publish cards above 5 to an alerts topic within a minute. Keep the stateless masking and the stateful counting as separate stages, and checkpoint the counter's state to durable storage so a restart resumes the counts.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### 2 boxes on the same topic, opposite sides of the state line
 
@@ -1058,6 +1032,8 @@ flowchart LR
 2. What changes if the window grows from 10 minutes to 24 hours?\
    *How window length drives state size and recovery time while the masking branch stays the same.*
 
+</details>
+
 
 <br>
 
@@ -1067,10 +1043,8 @@ flowchart LR
 
 A mobile game publishes 120 million match results a day to a Kafka topic, and a nightly Spark batch costing about $300 a month computes per-region win rates for a live-ops dashboard that now needs them within 15 minutes. A record-at-a-time job holding per-region counts in state is quoted at $6,000 a month, against a budget of $1,500. Design the pipeline from the topic to the dashboard: choose how the win rates are computed and a trigger interval that meets the 15-minute target inside the budget, and land them in a warehouse the dashboard reads.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Price the freshness, then pick the trigger
 
@@ -1115,6 +1089,8 @@ flowchart LR
    *Staleness is trigger plus processing time, and processing time grows with load.*
 2. The budget drops to $1,000 a month. What do you change, and what do you tell live-ops?\
    *Whether the learner can name the freshness a smaller budget actually buys instead of shaving the trigger blindly.*
+
+</details>
 
 
 <br>

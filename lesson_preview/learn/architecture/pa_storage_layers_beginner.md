@@ -102,10 +102,8 @@ A startup runs every storage job on one Postgres: the app writes orders, analyst
 - Analyst SQL scans (against Postgres) (transform, SQL)
 - Looker dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One database was doing three jobs
 
@@ -158,6 +156,8 @@ flowchart LR
    *Whether freshness is a cadence change on the ingest side while the three storage shapes stay put.*
 2. Orders can be updated after creation (status changes). How does an incremental extract keyed only on `created_at` miss those, and how would you catch them?\
    *Incremental watermarks versus full reloads.*
+
+</details>
 
 
 <br>
@@ -291,10 +291,8 @@ Marketing's dashboard reads revenue totals each morning, scanning only the order
 - Marketing aggregation SQL (Pandas, 18 min/query) (transform, Pandas)
 - Marketing dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A columnar layer between the lake and the dashboard
 
@@ -330,6 +328,8 @@ The load is a batch because of who reads it. Marketing looks at the totals once 
 2. Marketing wants revenue by campaign, a field that only half of the historical files carry. What happens when those rows meet a schema enforced at write time?\
    *Tests what declaring the schema before the write actually buys.*
 
+</details>
+
 
 <br>
 
@@ -346,10 +346,8 @@ A mobile app's clickstream arrives through Kafka and lands as raw JSON in Snowfl
 - Snowflake daily_clicks_mart (storage, Snowflake)
 - Click analytics dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Files in object storage, in 3 zones
 
@@ -399,6 +397,8 @@ flowchart LR
 2. A second team wants hourly totals instead of daily ones. What changes in the curated zone and the batch schedule?\
    *Tests that a curated zone is shaped for one consumer.*
 
+</details>
+
 
 <br>
 
@@ -440,17 +440,9 @@ Raw files arrive in whatever format the source speaks: CSV from a partner, JSON 
 
 Take 1 day of 2 million order events with 40 fields each. As JSON every record repeats all 40 field names, so at roughly 600 bytes per record the day comes to around 1.2 GB. Parquet writes each field name once per file and compresses similar values stored next to each other, so the same day commonly lands at a quarter of that size or less. A query that reads 3 fields then touches 3 small column groups instead of 1.2 GB of text, and takes each field's type from the footer.
 
-✓Do
-
-- Land data in raw exactly as received, in its original format
-- Convert to Parquet in the cleaned zone and read Parquet from there on
-- Name zones so a path tells you what has been done to the data
-
-✗Don't
-
-- Edit a file in the raw zone, ever
-- Run daily reports against JSON or CSV when a Parquet copy exists
-- Skip zones and write a consumer's table straight from raw
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Land data in raw exactly as received, in its original format<br><br>• Convert to Parquet in the cleaned zone and read Parquet from there on<br><br>• Name zones so a path tells you what has been done to the data | • Edit a file in the raw zone, ever<br><br>• Run daily reports against JSON or CSV when a Parquet copy exists<br><br>• Skip zones and write a consumer's table straight from raw |
 
 **A data scientist wants 18 months of order events to test a delivery time model, including 3 fields the cleaning job drops because no dashboard uses them. Where should she read?**
 
@@ -493,10 +485,8 @@ A retailer's checkout app, analyst dashboards and raw order events share one Sno
 - Snowflake checkout_db (warehouse-as-OLTP, wrong shape) (storage, Snowflake)
 - Mobile checkout app (consumer, API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 Row storage and columnar storage are two physical layouts for the same order, and each is fast at a different job. A row store keeps every field of an order side by side on disk, which suits the app's small, frequent reads and writes. A columnar warehouse keeps each field separately, which suits scans of a few columns across millions of orders. One account cannot be both, so the redesign keeps a copy of each order in the layout its reader needs. A nightly **batch load** carries the history to the warehouse, so analytical work never touches the store the app writes to.
 
@@ -550,6 +540,8 @@ flowchart LR
 3. Operations wants orders placed in the last minute on a wall screen. Does the nightly batch still fit?\
    *No: a one-minute view needs a streaming path from the order events, and checkout stays on the row store either way.*
 
+</details>
+
 
 <br>
 
@@ -566,10 +558,8 @@ A growth-stage company serves three readers from one Postgres: a mobile inventor
 - Daily revenue dashboard (analytical SQL) (consumer, Looker)
 - Ad-hoc mobile event analyst (3yr JSON) (consumer, Jupyter)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Read pattern first, then freshness
 
@@ -618,6 +608,8 @@ flowchart LR
    *Freshness flips from a nightly batch to a stream while the warehouse shape stays the same.*
 2. Event volume grows tenfold. Which of the three questions changes its answer?\
    *Scale moves cost and sizing, not the access pattern or the freshness the analyst needs.*
+
+</details>
 
 
 <br>
@@ -725,10 +717,8 @@ A regional grocery chain has three storage needs side by side: POS terminals wri
 - Supply-chain forecasting dashboard (consumer, Metabase)
 - Tax-audit receipt archive (7yr retention) (consumer, API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One sale, three storage shapes
 
@@ -778,6 +768,8 @@ flowchart LR
 3. How would you serve an auditor one receipt from 7 years ago?\
    *Date partitioning in the lake narrows the read to one day's files, with no index lookup.*
 
+</details>
+
 
 <br>
 
@@ -787,10 +779,8 @@ flowchart LR
 
 A subscription billing app writes invoices to a row-oriented MySQL table that now holds 600 million rows across 30 columns. Finance's revenue dashboard sums only two of them, invoice amount and billing month, and each refresh reads every column for 25 minutes. Design a pipeline that copies invoices nightly into a storage layer built for that access pattern and serves the dashboard from it, leaving MySQL to the app.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Read two columns, not thirty
 
@@ -823,6 +813,8 @@ flowchart LR
    *Whether you see that a column store reads only the columns a query names, so three of thirty is still cheap.*
 2. An analyst wants one customer's full invoice history with all 30 fields. Which store fits that read better, and why?\
    *Noticing when the access pattern swings back toward whole rows.*
+
+</details>
 
 
 <br>
@@ -934,10 +926,8 @@ Tens of terabytes a month and growing, changing fields, 1 exploratory reader, no
 
 Delivery trucks send about 300 GB of raw GPS pings a day as JSON, and the fields change whenever new firmware ships. Land every file unchanged in a data lake on object storage, partitioned by ingestion date. A daily Spark job should read only the previous day's partition and write cleaned Parquet to a separate curated zone of the same lake.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Files, folders, and an engine that reads them
 
@@ -979,6 +969,8 @@ flowchart LR
 2. Analysts filter the cleaned data by truck region in every query. Would you lay out the curated zone the same way as the raw one?\
    *Choosing each zone's folder layout by who reads it.*
 
+</details>
+
 
 <br>
 
@@ -988,10 +980,8 @@ flowchart LR
 
 A ticketing app's checkout makes thousands of seat holds a second: each updates one 25-column seat row and inserts one payment row, and both must commit together or not at all. The seat page reads one whole seat row by seat_id per view. Finance needs nightly revenue per tour from two payment columns, via a nightly batch copy of payments into a columnar store. Choose the seat database's storage shape and draw checkout, the seat page and finance's report.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Row storage fits one-row reads and writes
 
@@ -1037,6 +1027,8 @@ flowchart LR
 2. The seat page now also shows how many seats are left in one section. Does that change the storage shape?\
    *Checks whether you can tell a small, indexed lookup apart from a full analytical scan.*
 
+</details>
+
 
 <br>
 
@@ -1065,10 +1057,8 @@ The food delivery app launches a loyalty programme: every tenth order ships with
 
 A helpdesk app writes support tickets to Postgres while agents work them. Every raw ticket must also be kept untouched in a lake for replay, and support leads check average resolution time per team on a dashboard each morning. Lay the pipeline out in bronze, silver and gold layers, putting each copy of the tickets in the storage shape its job needs. Load the gold mart by batch or streaming, whichever those morning readers actually need.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Each layer owns one job
 
@@ -1124,6 +1114,8 @@ flowchart LR
 2. A shift supervisor wants to see the open-ticket queue per team update within a minute. What changes for that copy?\
    *Applies the freshness question to a reader who can tell the difference, which moves that copy from a nightly batch to a stream.*
 
+</details>
+
 
 <br>
 
@@ -1133,10 +1125,8 @@ flowchart LR
 
 Trace one online furniture order through 3 storage shapes. The checkout app writes each order as a single row into PostgreSQL, the operational store. Copy every order into a data lake as raw files under order-date prefixes, then have a nightly batch job load them into a columnar warehouse that enforces the schema on write. Analysts read daily revenue from a dashboard on that warehouse, scanning two columns across 400 million orders.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One order, 3 copies, 3 shapes
 
@@ -1179,6 +1169,8 @@ flowchart LR
    *Whether the lake is recognized as the home for raw and bulk reads.*
 2. The nightly warehouse load fails for one day. How do you rebuild just that day?\
    *Whether immutable date-prefixed lake files let you reload one day without touching the checkout database.*
+
+</details>
 
 
 <br>

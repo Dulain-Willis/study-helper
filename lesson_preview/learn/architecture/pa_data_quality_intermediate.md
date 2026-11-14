@@ -166,10 +166,8 @@ A producer renamed customer_id to user_id, dropped a required column and started
 - Iceberg fct_orders curated table (storage, Iceberg)
 - Orders dashboard (consumer, Metabase)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Schema validation is a contract at the boundary
 
@@ -219,6 +217,8 @@ flowchart LR
 3. Who owns the range thresholds, and how do you keep them from going stale as the business grows?\
    *Tests whether value-range assertions are treated as living contract rather than a one-time guess.*
 
+</details>
+
 
 <br>
 
@@ -235,10 +235,8 @@ One run's order_amount_usd mean fell from its usual 84 dollars (stddev near 32) 
 - Iceberg fct_orders (storage, Iceberg)
 - Revenue dashboard (consumer, Grafana)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Catching valid-but-wrong data
 
@@ -275,6 +273,8 @@ The check computes this run's mean, then takes the mean and stddev of the traili
    *Separating seasonality from anomaly, for example a same-weekday baseline or excluding known campaign days.*
 2. What statistic would catch a bug that hits one small segment and leaves the overall mean near 84?\
    *Pushes toward per-segment means or quantile checks over a single global mean.*
+
+</details>
 
 
 <br>
@@ -431,10 +431,8 @@ Add a referential-integrity check node that reads both Snowflake fct_orders and 
 - Snowflake dim_customer ()
 - Sales dashboard (joins fct to dim; sees inconsistent answers) ()
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A foreign key the warehouse won't enforce
 
@@ -509,6 +507,8 @@ WHERE d.customer_id IS NULL;
 3. What orphan rate should raise an alert instead of just parking rows?\
    *A rising count points to a broken dimension load.*
 
+</details>
+
 
 <br>
 
@@ -526,10 +526,8 @@ The row-count check in this pipeline uses one hard-coded threshold: it passes on
 - daily orders warehouse (storage, warehouse)
 - revenue dashboard (consumer, Metabase)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One assertion, an environment-keyed threshold
 
@@ -582,6 +580,8 @@ expect_row_count_to_be_between(min_value=min_rows)
    *Checks that the fix scales: adding an environment should mean only a new `THRESHOLDS` key, never a new branch in the check.*
 3. How would you catch an over-supply, where `row_count` is far above expected, and not just a shortfall?\
    *Extends the shared assertion to a two-sided `min`/`max` bound, with both values keyed on the environment.*
+
+</details>
 
 
 <br>
@@ -732,10 +732,8 @@ Extend the starter into a quality suite for fct_customer_events, a Snowflake tab
 - Churn model consumer (consumer, Jupyter)
 - Billing report consumer (consumer, API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 A data quality suite splits one trusted table into named, independent pillars (freshness, volume, distribution, schema), each with its own assertion and threshold. That decomposition is what you wired around `fct_customer_events`. A single 'is the table OK?' check only tells you something is wrong; four separate gates tell you **which** thing is wrong, and each pages on its own.
 
@@ -788,6 +786,8 @@ Every gate reads from `fct_customer_events`, the landed curated table, not the K
 2. How would the schema gate accept an additive new column without paging, while still blocking a type change or a dropped column?\
    *Schema evolution: separating backward-compatible changes from breaking ones.*
 
+</details>
+
 
 <br>
 
@@ -809,10 +809,8 @@ Build a data quality program over the existing medallion flow with gates at thre
 - Snowflake daily_orders mart (storage, Snowflake)
 - Revenue dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Quality gates as first-class nodes
 
@@ -898,6 +896,8 @@ flowchart LR
 3. If `dim_customer` is late, `ref_integrity_gate` blocks and `daily_orders` never refreshes. Should the mart serve yesterday's partition instead?\
    *freshness vs correctness tradeoff at the serving layer*
 
+</details>
+
 
 <br>
 
@@ -912,18 +912,9 @@ A check that runs only in production meets real data for the first time at 02:00
 
 ### Which rules travel unchanged
 
-✓Same rule, same threshold
-
-- Required fields and types
-- Nullability
-- Ranges and allowed sets
-- Orphan detection, once test data is sampled by key
-
-✗Same rule, tuned threshold
-
-- Row count bounds
-- Baselines for z-score checks
-- Tight category-mix bands
+| ✓ Same rule, same threshold | ✗ Same rule, tuned threshold |
+| --- | --- |
+| • Required fields and types<br><br>• Nullability<br><br>• Ranges and allowed sets<br><br>• Orphan detection, once test data is sampled by key | • Row count bounds<br><br>• Baselines for z-score checks<br><br>• Tight category-mix bands |
 
 The left column judges each row by itself, whatever its neighbours look like. The right column judges the batch, and a batch summary depends on how big the batch is and how it was built.
 
@@ -1046,10 +1037,8 @@ Right. Chance alone moves the share roughly 0.67 points, so this fires on many c
 
 A logistics partner drops about 40,000 shipment rows per hour as files into a landing area, and a delivery dashboard reads from the warehouse. Add a schema check between the landing area and the warehouse that asserts the partner's declared shape: every required column present, weight numeric and between 0 and 30,000 kg, ship time never null. Send rows that fail to a dead-letter store instead of the warehouse.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The schema check is the partner's contract, enforced
 
@@ -1092,6 +1081,8 @@ flowchart LR
    *Separates columns the contract requires from additions it allows.*
 2. Half of one hour's file fails the check. What should happen besides the dead-letter write?\
    *Acting on failures: when a row-level split should escalate to an alert or a stopped load.*
+
+</details>
 
 
 <br>
@@ -1223,10 +1214,8 @@ Right. It is a per-row schema rule, so failing rows leave and the rest of the ho
 
 A ride-hailing platform loads about 3 million completed trips each night into a published trips table that a pricing dashboard reads. Add a distributional check on `fare_per_km` that compares the run's mean and 95th percentile against a trailing 28-day baseline of past runs. When either statistic moves more than 3 standard deviations from that baseline, hold the run out of the published table and alert the on-call engineer.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Judge the run against its own history
 
@@ -1276,6 +1265,8 @@ flowchart LR
 2. How would the check change if one city's fares run far higher than the rest?\
    *Segmenting the baseline by a dimension instead of comparing against one global distribution.*
 
+</details>
+
 
 <br>
 
@@ -1285,10 +1276,8 @@ flowchart LR
 
 Each night about 5 million viewing sessions load into a warehouse fact table, and every session's title_id must exist in the warehouse's title dimension. Design the pipeline with a referential integrity check that compares the sessions against that dimension before the content dashboard reads them. Route orphan sessions to a dead-letter queue rather than dropping them.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The pipeline now owns the foreign key
 
@@ -1334,6 +1323,8 @@ flowchart LR
 2. What changes if each session also carries a `listener_id` that must exist in a listener dimension?\
    *Whether the check generalises to several foreign keys on one fact table.*
 
+</details>
+
 
 <br>
 
@@ -1363,10 +1354,8 @@ Picture a plays table at Spotify, where each row is one stream and stream counts
 
 A video service lands about 4 million playback events a day, hourly, into a raw table, and publishes them to a warehouse table read by a recommendations model and a royalties report. Build a quality suite before the published table that checks the schema, freshness within two hours, hourly volume and the event-type mix, and blocks a failing load. Page on-call when a check fails, and record lineage so the page names the affected readers.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### 5 pillars, all standing in front of the published table
 
@@ -1438,6 +1427,8 @@ flowchart LR
 2. Volume drops by 40 percent every night between 2 and 5 a.m. What should the volume check compare an hour against?\
    *Choosing a time-of-day baseline over one flat threshold.*
 
+</details>
+
 
 <br>
 
@@ -1447,10 +1438,8 @@ flowchart LR
 
 A utility loads about 8 million smart-meter readings each night from an operational PostgreSQL database into a warehouse table that a demand-forecasting dashboard reads. Validate each load's schema, then run a distributional check that compares its kwh_used mean against a stored historical baseline. A load that fails either check goes to quarantine instead of the warehouse, and the on-call engineer is alerted. The same checks also run in a test environment that loads a 1% sample, so drift thresholds must come from per-environment threshold config, not hard-coded values.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One check, a baseline, and 2 thresholds
 
@@ -1507,6 +1496,8 @@ flowchart LR
    *Refreshing `baseline_stats` from a trailing window of accepted nights instead of widening the threshold.*
 2. The team wants the same drift check on `peak_kw` too. What changes in the design?\
    *Whether baseline and threshold config generalise per column rather than adding a new check stack.*
+
+</details>
 
 
 <br>

@@ -24,19 +24,9 @@ A dead letter queue (DLQ) is a second destination for messages the consumer has 
 
 ### What goes in, and what stays out
 
-✓Send to the DLQ
-
-- A payload that fails to parse, such as an amount of 12,50
-- A value that breaks a rule no retry can change, like a negative fare
-- A schema version this consumer has never seen
-- A message that crashed the consumer on 5 deliveries in a row
-
-✗Keep out of the DLQ
-
-- A timeout from the warehouse
-- A 503 from the currency service
-- A dropped connection
-- A rate-limit response that says when to come back
+| ✓ Send to the DLQ | ✗ Keep out of the DLQ |
+| --- | --- |
+| • A payload that fails to parse, such as an amount of 12,50<br><br>• A value that breaks a rule no retry can change, like a negative fare<br><br>• A schema version this consumer has never seen<br><br>• A message that crashed the consumer on 5 deliveries in a row | • A timeout from the warehouse<br><br>• A 503 from the currency service<br><br>• A dropped connection<br><br>• A rate-limit response that says when to come back |
 
 The left column holds failures that belong to the message: replayed unchanged, it fails again. The right column holds failures of the world around it. Routing those to the DLQ during a 20-minute warehouse outage would bury thousands of valid payments among the broken ones, each needing a manual replay. They get retried instead, and a message whose retries run out stays uncommitted in the main queue to be tried again.
 
@@ -115,16 +105,9 @@ The envelope carries a copy of the payload because the source won't keep one. If
 
 A 7-day DLQ would delete this payment a day before the replay. Set DLQ retention well past the worst case, such as 30 days.
 
-✓Do
-
-- Alert on DLQ arrivals and on the age of the oldest entry
-- Name an owner: the team that owns the consumer
-- Replay through the same loader code, so validation runs again
-
-✗Don't
-
-- Leave the DLQ unwatched: a queue nobody reads is a delete with a delay
-- Edit payloads in place; publish a corrected copy and keep the original
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Alert on DLQ arrivals and on the age of the oldest entry<br><br>• Name an owner: the team that owns the consumer<br><br>• Replay through the same loader code, so validation runs again | • Leave the DLQ unwatched: a queue nobody reads is a delete with a delay<br><br>• Edit payloads in place; publish a corrected copy and keep the original |
 
 **DLQ entries hold only an error string and a timestamp. The decimal-comma fix ships 12 days after the first entry; trip_payments keeps messages 7 days. What happens to the first day's failed payments?**
 
@@ -168,10 +151,8 @@ The order-processing worker gives up after 5 retry attempts and silently drops t
 - Iceberg orders_enriched (idempotent sink) (storage, Iceberg)
 - Orders dashboard (consumer, Metabase)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 A **dead letter queue** is the durable side channel a message goes to once its retry budget is spent. Instead of looping forever on a message that will never succeed, the `process_orders` worker gives up after its 5 attempts and hands the message somewhere it can be inspected and replayed rather than throwing it away. That destination is the DLQ, and the whole trick is that it is a real, persistent queue, not a log line.
 
@@ -207,6 +188,8 @@ The DLQ is only useful if its envelope is rich enough to recover from without th
 2. Why does an idempotent sink like `orders_enriched` make DLQ replay safe?\
    *Checks that replaying a recovered message cannot double-write, so draining the DLQ carries no duplication risk.*
 
+</details>
+
 
 <br>
 
@@ -223,10 +206,8 @@ A pipeline's tax API call retries with max_attempts=5 and a 60-second cap, so th
 - Tax API downstream (per-call 30s timeout) (storage, API)
 - Iceberg orders_enriched (idempotent sink) (storage, Iceberg)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 A retry budget is the set of five numbers that turns "keep trying until it works" into a bounded, predictable operation, and naming them on the transform is how you set it. `max_attempts` caps how many times you call, `base_delay` sets the first backoff, `max_delay` caps any single wait, `jitter` spreads the waits so retries don't synchronize, and `max_total_elapsed` caps wall-clock time across the whole sequence. The starter node carried 4 of them; the missing one, `max_total_elapsed`, is exactly why the real worst case was unbounded.
 
@@ -261,6 +242,8 @@ flowchart LR
    *Whether the budget covers queue wait or only the API call sequence.*
 2. If the tax API returns a `Retry-After` header, how should it interact with `base_delay` and `max_delay`?\
    *Server-directed backoff versus the client's own budget.*
+
+</details>
 
 
 <br>
@@ -399,10 +382,8 @@ The tax API that the order worker calls has been down for 15 minutes, and every 
 - tax_api (consumer, API)
 - orders_enriched (storage, Iceberg)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A breaker in front, a retry budget behind it
 
@@ -442,6 +423,8 @@ The breaker is a three-state machine. In the closed state, calls pass through an
 2. Should a 400 response from the tax API count toward the breaker's failure threshold?\
    *Separates a bad record, which belongs in the dead letter queue, from an unhealthy service, which should trip the breaker.*
 
+</details>
+
 
 <br>
 
@@ -458,10 +441,8 @@ The Spark job aggregate_pageviews feeding a product analytics dashboard fails th
 - Iceberg daily_pageviews (idempotent: partition overwrite by event_date) (storage, Iceberg)
 - Product analytics dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Skip-and-quarantine, and the dead letter queue
 
@@ -500,6 +481,8 @@ flowchart LR
    *Tests whether the learner sees the dead letter queue as rows to reprocess or alert on, not a graveyard.*
 2. How would you set the threshold if the batch size varied from 10,000 to 10 million rows?\
    *Pushes toward a percentage rather than an absolute count, and toward watching the rate trend over time.*
+
+</details>
 
 
 <br>
@@ -586,19 +569,9 @@ def enrich(message, breaker, fx_client):
 
 This function runs inside `call_with_budget`, so every retry attempt counts toward the failure rate. `CircuitOpen` is deliberately a separate error from `TransientError`: the retry loop does not catch it, so an open breaker ends the loop on the spot instead of sleeping through 5 attempts that are certain to fail.
 
-✓Retry budget
-
-- Scope: a single call and its attempts
-- Expects the next attempt to work
-- Adds load: up to 6 calls per message
-- Fits blips that last seconds
-
-✗Circuit breaker
-
-- Scope: every call to a dependency
-- Expects failure until a trial succeeds
-- Removes load: 0 calls while open
-- Fits outages that last minutes
+| ✓ Retry budget | ✗ Circuit breaker |
+| --- | --- |
+| • Scope: a single call and its attempts<br><br>• Expects the next attempt to work<br><br>• Adds load: up to 6 calls per message<br><br>• Fits blips that last seconds | • Scope: every call to a dependency<br><br>• Expects failure until a trial succeeds<br><br>• Removes load: 0 calls while open<br><br>• Fits outages that last minutes |
 
 **A teammate changes the handler so that CircuitOpen sends the message to trip_payments_dlq, since a fast failure is still a failure. What does the next 10-minute currency outage do?**
 
@@ -643,10 +616,8 @@ Extend the starter so the worker survives 3 failures on the tax API call: a one-
 - Snowflake enriched_orders (storage, Snowflake)
 - Orders dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Layered failure handling in one worker
 
@@ -697,6 +668,8 @@ flowchart LR
 2. What signal would tell you a message in the dead letter queue is replayable rather than truly permanent?\
    *Separates budget-exhausted messages (replayable once the API recovers) from validation failures (never replayable) inside the same DLQ.*
 
+</details>
+
 
 <br>
 
@@ -714,10 +687,8 @@ Settlement events flow from Kafka through a worker that calls a tax-jurisdiction
 - Snowflake settlement_mart (MERGE on settlement_id) (storage, Snowflake)
 - Finance dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One question decides every arrow: what kind of failure is this?
 
@@ -774,6 +745,8 @@ flowchart LR
    *Idempotent `MERGE`, not ordering, is the guarantee.*
 3. Where does the circuit breaker keep its open/closed state so every worker instance agrees?\
    *Extends the breaker from one process to a worker fleet.*
+
+</details>
 
 
 <br>
@@ -907,10 +880,8 @@ A filing built from a partial table is wrong without looking wrong, and a 6-minu
 
 A shipment-tracking pipeline reads about 2 million carrier scan events a day from a Kafka topic, parses each one, and writes it to a PostgreSQL tracking table. About 1 in 10,000 events has a payload the parser still rejects after its retries, and today the worker either drops it or stalls every event behind it. Add a dead letter queue so those events are kept for an operator to inspect while the rest keep flowing.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A third exit for events that cannot be parsed
 
@@ -954,6 +925,8 @@ flowchart LR
 2. A carrier ships a bad release and failures jump to 5 percent of events. What should notice?\
    *A fast-filling dead letter queue is a signal that needs watching, not just a place to park events.*
 
+</details>
+
 
 <br>
 
@@ -963,10 +936,8 @@ flowchart LR
 
 An hourly job uses 40 parallel workers to fetch shipping rates for 3,000 lanes from a carrier API that answers bursts with HTTP 429, then loads them into a rates warehouse. On the stage that calls the API, set a retry budget: a capped retry count and an exponential retry backoff with jitter, so the 40 workers stop retrying in lockstep. Requests that exhaust the budget go to a dead letter queue so the run still finishes inside its hour.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A retry budget you can bound before it runs
 
@@ -1011,6 +982,8 @@ flowchart LR
    *Whether the server's hint should replace the computed backoff, and whether it still sits inside the attempt cap and `max_total_elapsed`.*
 2. The lane count grows to 12,000 with the same 40 workers. Which number in the budget breaks first?\
    *Recomputing the worst case per worker against the hourly window.*
+
+</details>
 
 
 <br>
@@ -1135,10 +1108,8 @@ The first write committed before the timeout, so a plain insert on retry duplica
 
 A worker reads 400 delivery orders a minute from a Kafka topic, geocodes each through a partner address API and writes them to a warehouse. Keep exponential-backoff retries on that call for one-off failures, but in a sustained outage every call waits out a 30-second timeout, so put a circuit breaker in front of it that fails fast. Orders the open breaker refuses, and orders out of retries, wait in a queue for replay, and the on-call is paged when the breaker opens.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Stop calling a partner that is already down
 
@@ -1183,6 +1154,8 @@ flowchart LR
 2. When the breaker closes, 40 minutes of orders sit in `replay_queue`. How do you replay them without knocking the partner over again?\
    *Applying the retry budget and pacing to the recovery backlog.*
 
+</details>
+
 
 <br>
 
@@ -1192,10 +1165,8 @@ flowchart LR
 
 A nightly batch loads about 3 million smart-meter readings from CSV files into a warehouse that feeds an energy usage dashboard. Roughly 0.1% of rows fail validation (a missing meter ID or a negative kWh value), and today one bad row aborts the whole run. Design the batch so every valid row still loads and each failing row is quarantined in a separate store where it can be inspected and replayed, never silently dropped.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Skip and quarantine keeps the good rows moving
 
@@ -1235,6 +1206,8 @@ flowchart LR
 2. If these readings also fed a monthly billing run, would that batch use the same strategy?\
    *Telling apart workloads where a partial result is fine from ones where it is worse than none.*
 
+</details>
+
 
 <br>
 
@@ -1263,10 +1236,8 @@ Uber's driver payments pipeline on a Friday evening: a fare event with a decimal
 
 A streaming pipeline reads about 5,000 listing events a minute from Kafka, sends each to a content-moderation API, and writes moderated listings to a warehouse. Compose all three failure paths on that call: 429 and 503 blips retried with backoff, 400s for malformed listings sent straight to a dead letter queue, and timeouts given a small retry budget, then dead-lettered. An outage lasting hours must halt the calls rather than drain every event's retries.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Three failures, three destinations
 
@@ -1308,6 +1279,8 @@ flowchart LR
 2. The API starts returning 429 at 150 requests a second instead of 200. Which part of the design absorbs that, and which part should not react to it?\
    *Separates rate-limit backoff from breaker-worthy outages.*
 
+</details>
+
 
 <br>
 
@@ -1317,10 +1290,8 @@ flowchart LR
 
 A streaming pipeline reads about 2,000 signup events a minute from Kafka, sends each to a fraud-scoring API, and writes the scored signups to a warehouse. Retry transient API errors under a budget of at most 4 attempts and 2 minutes total per event. The API sometimes goes down for 20 minutes at a time: put a circuit breaker in front of it so the pipeline stops calling it during the outage instead of spending every event's retry budget. Events rejected as invalid, or still failing when their budget runs out, must go to a dead letter queue, never dropped.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Let the breaker spend the outage, not the retries
 
@@ -1363,6 +1334,8 @@ flowchart LR
    *Draining a backlog with jitter and a bounded rate so recovery does not trigger a second outage.*
 2. The fraud team fixes the payload format and wants dead-lettered signups replayed. What does the replay path need so no signup is written to the warehouse twice?\
    *Replaying from a DLQ combined with idempotent writes to the warehouse.*
+
+</details>
 
 
 <br>

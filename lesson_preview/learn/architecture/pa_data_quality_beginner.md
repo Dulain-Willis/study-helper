@@ -34,19 +34,9 @@ Three green tasks, 9 seconds, and a `fct_orders` partition holding 3 rows where 
 
 This is a silent failure: a run that completes without error and leaves wrong data behind. The word silent carries the weight. A task that crashes announces itself, turns red, and waits for a human. A silent failure announces nothing. It is found by whoever reads the dashboard first, hours later, and is then traced backwards through 3 layers to a filter someone changed in a different team.
 
-✓What the orchestrator sees
-
-- Exit code 0 on every task
-- Durations inside the usual range
-- Dependencies satisfied in order
-- A run marked success at 02:09
-
-✗What the business sees
-
-- Revenue down 99.9% overnight
-- 3 orders on a weekday
-- A dashboard that contradicts the finance system
-- A morning of analyst time spent on a drop that never happened
+| ✓ What the orchestrator sees | ✗ What the business sees |
+| --- | --- |
+| • Exit code 0 on every task<br><br>• Durations inside the usual range<br><br>• Dependencies satisfied in order<br><br>• A run marked success at 02:09 | • Revenue down 99.9% overnight<br><br>• 3 orders on a weekday<br><br>• A dashboard that contradicts the finance system<br><br>• A morning of analyst time spent on a drop that never happened |
 
 The cost of a silent failure grows with every hour it stays silent. The 3-row partition was written at 02:09. The dashboard refreshed at 08:00. An analyst noticed at 09:30 and spent until 11:00 ruling out a real fall in sales before asking the data team. By then 2 downstream tables had rebuilt from the bad partition and needed rebuilding again. A check at 02:10 would have cost 1 red task and 1 message.
 
@@ -111,10 +101,8 @@ An orders pipeline reads Kafka events, transforms them, and loads a Snowflake ma
 - Snowflake daily_orders mart (revenue 12% low on Tuesday; nobody noticed until Friday) (storage, Snowflake)
 - Revenue dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Green and wrong: an exit code is not a correctness signal
 
@@ -169,6 +157,8 @@ flowchart LR
    *Separates detecting a bad batch from recovering it. Stopping on a gap is only safe when the source can be replayed.*
 2. How would you set the expected volume so a genuinely slow sales day passes but a 12 percent shortfall fails?\
    *Compares fixed bounds with a band built from recent days, and weighs the cost of a check that cries wolf.*
+
+</details>
 
 
 <br>
@@ -321,10 +311,8 @@ A green run loaded a malformed batch into the Snowflake revenue mart, and the da
 - Snowflake daily_orders mart (storage, Snowflake)
 - Revenue dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Green is not correct: check the mart's own data
 
@@ -371,6 +359,8 @@ Each check catches a different silent failure. `check_rowcount_vs_7d_baseline` f
 2. What breaks in `check_freshness_under_24h` when events arrive hours after their event time, and how would you tell a stale feed from expected late data?\
    *Event time versus processing time.*
 
+</details>
+
 
 <br>
 
@@ -390,10 +380,8 @@ Quality checks placed only at the end let bad data run through every transform b
 - daily_orders mart (serving layer) (storage, warehouse)
 - Revenue dashboard (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A gate at every boundary
 
@@ -439,6 +427,8 @@ Name each gate for what it asserts at that boundary. `check_required_fields` sit
 1. Where would a fourth gate go if `curated_orders` fanned out to 2 serving marts?\
    *Tests whether the rule is one gate per hop, not a fixed count of three.*
 
+</details>
+
 
 <br>
 
@@ -475,21 +465,9 @@ The curated gate stands between your transformation and your consumers. `build_f
 
 Suppose the load task appended instead of replacing, as in the retry lesson, and `orders_staging` now holds 96,000 rows for 25 April, each order twice. Follow the bug under 2 designs.
 
-✓One gate, at the end of the run
-
-- 02:05 staging holds 96,000 rows, nothing checks it
-- 02:20 build_fct_orders writes 96,000 rows into fct_orders
-- 02:22 the dashboard refreshes and shows revenue doubled
-- 02:25 the single gate fails on duplicates, after the dashboard already moved
-- Fix means rerunning load, build, refresh, and a summary table built from fct_orders
-
-✗A gate at each boundary
-
-- 02:05 staging holds 96,000 rows
-- 02:06 check_staging finds 48,000 duplicate order_id values and fails
-- build_fct_orders never starts
-- fct_orders and the dashboard still show 24 April with its date
-- Fix means rerunning one load task
+| ✓ One gate, at the end of the run | ✗ A gate at each boundary |
+| --- | --- |
+| • 02:05 staging holds 96,000 rows, nothing checks it<br><br>• 02:20 build_fct_orders writes 96,000 rows into fct_orders<br><br>• 02:22 the dashboard refreshes and shows revenue doubled<br><br>• 02:25 the single gate fails on duplicates, after the dashboard already moved<br><br>• Fix means rerunning load, build, refresh, and a summary table built from fct_orders | • 02:05 staging holds 96,000 rows<br><br>• 02:06 check_staging finds 48,000 duplicate order_id values and fails<br><br>• build_fct_orders never starts<br><br>• fct_orders and the dashboard still show 24 April with its date<br><br>• Fix means rerunning one load task |
 
 The bug is identical. The difference is scope: in the first design it reached 3 tables and a dashboard, and in the second it reached 1 table. A gate at a boundary makes the layer behind it the last layer the bug can touch, which is also the layer whose owner knows how to fix it.
 
@@ -500,19 +478,9 @@ The bug is identical. The difference is scope: in the first design it reached 3 
 
 Each gate is one aggregate query and one task slot, about 2 seconds against a 10-minute run. Over a quarter of 90 nights that is 3 minutes of compute. Skipping it is paid on the one bad night: an analyst's morning from 09:30 to 11:00 and a rebuild of 2 downstream tables.
 
-✓Do
-
-- Put a gate right after each write, before the next read
-- Check at staging what the source could break: count, freshness, key
-- Check at curated what the build could break: nulls and fan-out
-- Compare curated row count with staging to catch join fan-out
-
-✗Don't
-
-- Rely on one gate at the end to cover every layer
-- Skip the staging gate because staging is only a copy
-- Let a build task read a table no gate has passed
-- Treat gate run time as waste: 2 seconds against a 10-minute run
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Put a gate right after each write, before the next read<br><br>• Check at staging what the source could break: count, freshness, key<br><br>• Check at curated what the build could break: nulls and fan-out<br><br>• Compare curated row count with staging to catch join fan-out | • Rely on one gate at the end to cover every layer<br><br>• Skip the staging gate because staging is only a copy<br><br>• Let a build task read a table no gate has passed<br><br>• Treat gate run time as waste: 2 seconds against a 10-minute run |
 
 **The orders pipeline gains a third layer: a daily_revenue summary built from fct_orders by grouping on order_dt. Where does a new gate belong, and what should it check first?**
 
@@ -561,10 +529,8 @@ Five quality checks sit between the transform and the daily_orders mart, each na
 - Snowflake daily_orders mart (storage, Snowflake)
 - Revenue dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Giving each check an authority
 
@@ -610,6 +576,8 @@ flowchart LR
 1. The 80-90% warning fires every day for a week straight. What should change?\
    *Whether a persistent warning is read as a signal to re-baseline or promote the check to blocking, not as noise to mute.*
 
+</details>
+
 
 <br>
 
@@ -626,10 +594,8 @@ Turn the starter pipeline into a DAG with a first quality gate on mart.daily_ord
 - mart.daily_orders (storage, warehouse)
 - Revenue dashboard (consumer)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 A quality gate is a blocking step between a table and everything that reads it. The orchestrator runs your row-count assertion right after `transform_daily_orders` writes `mart.daily_orders`. A pass lets the dashboard read, and a fail halts the DAG and pages on-call. 2 ideas snap together here: orchestration, so the steps run in order at 2am, and a data-quality assertion, so one of those steps is a pass/fail check on the data itself.
 
@@ -703,6 +669,8 @@ WHERE today.actual < 0.5 * baseline.expected
    *A data-quality breach and an upstream-dependency failure need different fixes and different pages.*
 2. How would you let the gate warn instead of halt on a soft breach, say 40 to 50 percent of baseline?\
    *Adding severities and a branch that pages without stopping the DAG.*
+
+</details>
 
 
 <br>
@@ -828,19 +796,9 @@ New checks usually start at warn even when they will end at block. A fresh thres
 >
 > Write the authority next to the check in the DAG as a parameter the next engineer can read, such as `on_fail: block`. A check whose authority lives only in someone's memory gets copied with the wrong one.
 
-✓Block when
-
-- Consumers make money decisions from the table
-- The rows would be wrong, and a delay would cost less
-- A wrong number would stand for hours unnoticed
-- The threshold has 2 weeks of clean history
-
-✗Warn when
-
-- Stale data is already visible as stale
-- The failure degrades a detail, the totals hold
-- The check is new and its threshold unproven
-- A named person reads the channel today
+| ✓ Block when | ✗ Warn when |
+| --- | --- |
+| • Consumers make money decisions from the table<br><br>• The rows would be wrong, and a delay would cost less<br><br>• A wrong number would stand for hours unnoticed<br><br>• The threshold has 2 weeks of clean history | • Stale data is already visible as stale<br><br>• The failure degrades a detail, the totals hold<br><br>• The check is new and its threshold unproven<br><br>• A named person reads the channel today |
 
 **A new check on fct_orders asserts that no amount is negative. On its first run it finds 12 negative rows out of 48,000, all refunds the business records as negative orders. What should its authority have been, and why?**
 
@@ -884,10 +842,8 @@ A daily orders pipeline at a Series B startup treats a green orchestrator run as
 - Snowflake daily_orders mart (storage, Snowflake)
 - Revenue dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A quality gate at the layer boundary
 
@@ -941,6 +897,8 @@ The four cheap checks cover the usual ways this table goes wrong. Row count asks
 3. Where would you add the second gate once this one is trusted?\
    *Extends the boundary idea: a check between Kafka and the transform catches bad input before the mart is built.*
 
+</details>
+
 
 <br>
 
@@ -950,10 +908,8 @@ The four cheap checks cover the usual ways this table goes wrong. Row count asks
 
 A nightly batch job copies yesterday's ride trips, about 400,000 rows a day, from the trips database into a warehouse table that an operations dashboard reads. Add the four cheap quality checks against that loaded table: row count against the seven-day average, null rate on trip ID and fare, freshness of the newest trip, and fares within a sane range. Any failed check must alert the on-call analyst.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Check the rows the job wrote
 
@@ -999,6 +955,8 @@ flowchart LR
    *Tests how a rolling baseline absorbs a weekly pattern in the row count check.*
 2. A new `tip_amount` column starts arriving. Which of the four checks would you extend to cover it?\
    *Tests mapping a new column onto the null rate and range checks.*
+
+</details>
 
 
 <br>
@@ -1126,10 +1084,8 @@ The floor sits above every healthy day, so every healthy day is blocked. The dat
 
 A nightly batch pipeline lands fitness-tracker sync files in a raw layer, a Spark job cleans them into a cleaned layer, and a dbt model builds the daily activity table a dashboard reads. Its only quality check sits between that table and the dashboard, so a bad file surfaces after every transform has run on it. Keep that check and add one at each earlier layer boundary, so a failure is caught in the layer where it starts.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A gate at every boundary, not only the last one
 
@@ -1183,6 +1139,8 @@ flowchart LR
 2. Using the 4 cheap checks from earlier in the lesson, which would you assert at each of the 3 boundaries?\
    *Matching each check to the layer where that kind of failure originates.*
 
+</details>
+
 
 <br>
 
@@ -1192,10 +1150,8 @@ flowchart LR
 
 A nightly job loads about 200,000 hotel bookings from the bookings database into a published table that the revenue dashboard reads. Give it two quality checks with different authorities: a duplicate booking ID check that blocks, so a failure stops the table from being published, and a row count check that only warns when the load lands at 80 to 90 percent of the recent baseline, emailing the data team while the load still publishes.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Where a check sits is its authority
 
@@ -1239,6 +1195,8 @@ flowchart LR
 2. What should change if the row count falls below half of the recent baseline?\
    *The same metric can need a blocking threshold and a warning threshold.*
 
+</details>
+
 
 <br>
 
@@ -1267,10 +1225,8 @@ Spotify ships Wrapped every December from a year of play events rolled up per li
 
 An orchestrator runs a nightly batch job that summarizes the point-of-sale database into a store-level daily sales table, one row per open store (about 1,200 rows), which the regional sales dashboard reads each morning. Add a row-count quality gate that the orchestrator runs after the transform and that halts the run before the table is published when the count falls outside 1,150 to 1,250.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A gate the orchestrator runs before anyone reads
 
@@ -1317,6 +1273,8 @@ flowchart LR
 2. Which other cheap check would you add to this same task next, and would it block or warn?\
    *Reusing the gate pattern and choosing the right authority for the new check.*
 
+</details>
+
 
 <br>
 
@@ -1326,10 +1284,8 @@ flowchart LR
 
 Last Tuesday the billing dashboard showed zero usage for one region: that region's meter file had landed with every reading null, and nothing stopped it on the way. Each night about 2 million smart-meter readings are pulled from the meter API into a raw landing area, cleaned, and built into a daily usage table in the warehouse that the dashboard reads. Put a quality gate at each layer boundary so a failure stops in the layer where it started. Null or missing readings must block the run; a regional usage total outside its usual range only warns the on-call engineer by email.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Catch it in the layer where it started
 
@@ -1384,6 +1340,8 @@ flowchart LR
    *Placing one of the 4 cheap checks at the raw boundary and choosing its authority.*
 2. What if a region's file lands with half its usual row count instead of zero rows?\
    *Splitting a row-count range into a hard block threshold and a softer warn band.*
+
+</details>
 
 
 <br>

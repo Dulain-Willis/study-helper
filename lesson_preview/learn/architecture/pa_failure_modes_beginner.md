@@ -97,10 +97,8 @@ The nightly ingest_orders load hit four errors: HTTP 503 during a downstream CPU
 - Orders warehouse (storage, warehouse)
 - Orders dashboard (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Name the bucket before you pick the response
 
@@ -148,6 +146,8 @@ Run last week's four errors through that question. The '503' came from a downstr
 2. A downstream returns '400 Bad Request' on one order payload. Transient or permanent?\
    *Applying the same would-it-work-next-time question to a new status code.*
 
+</details>
+
 
 <br>
 
@@ -164,10 +164,8 @@ An order-enrichment pipeline calls a pricing API that returns 503 while its back
 - enrich_prices: while-True loop, bare except, no sleep, no max_attempts (transform)
 - Iceberg enriched_orders (idempotent: MERGE on event_id) (storage, Iceberg)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The retry that knows when to quit
 
@@ -243,6 +241,8 @@ def enrich_prices_wait_2s_transient_only(order, max_attempts=5, wait=2):
    *Tests what happens when the retry budget is exhausted.*
 2. What has to change first if the sink were an append that did not `MERGE on event_id`?\
    *Tests whether retry safety depends on the idempotent write, not the loop.*
+
+</details>
 
 
 <br>
@@ -321,19 +321,9 @@ def fetch_with_retry(url):
 
 The table shows the worst case: every attempt times out. The loop spends 50 seconds inside calls and 8 seconds sleeping, and raises at 58 seconds. If the orchestrator kills the task at 30 seconds, attempt 3 is cut off, the real error is never raised, and the task is marked as a timeout. Each orchestrator retry starts a fresh loop at attempt 1, so with 3 orchestrator retries, 4 runs make 12 calls instead of 5, and none ends with the real traceback. The task timeout has to exceed the loop's worst case, which you compute rather than guess.
 
-✓Do
-
-- Name the exact exception classes and status codes that count as transient
-- Set a fixed attempt budget and re-raise the real error when it is spent
-- Sleep between attempts, even in the smallest loop
-- Log each failed attempt with its number and the error
-
-✗Don't
-
-- Catch Exception and retry whatever lands in it
-- Retry inside while True with no exit
-- Swallow the last error with pass or a silent None
-- Set the task timeout shorter than the loop's worst case
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Name the exact exception classes and status codes that count as transient<br><br>• Set a fixed attempt budget and re-raise the real error when it is spent<br><br>• Sleep between attempts, even in the smallest loop<br><br>• Log each failed attempt with its number and the error | • Catch Exception and retry whatever lands in it<br><br>• Retry inside while True with no exit<br><br>• Swallow the last error with pass or a silent None<br><br>• Set the task timeout shorter than the loop's worst case |
 
 **This loop wraps a CSV parse. What happens when the file has a malformed row that parse_csv rejects with ValueError?**
 
@@ -386,10 +376,8 @@ except Exception retries the permanent ValueError, and when the loop ends there 
 - Pricing API (external, overloaded by the synchronized retry wave) (consumer, API)
 - Enriched order events (storage, PostgreSQL)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The retry became the load
 
@@ -428,6 +416,8 @@ flowchart LR
    *Tests whether the learner caps attempts with a max-retries budget and drains exhausted messages to the same dead-letter path.*
 2. What does full jitter (`delay * random()`) trade off against equal jitter (`delay/2 + random()*delay/2`)?\
    *Tests that full jitter spreads arrivals most aggressively while equal jitter keeps a guaranteed minimum wait.*
+
+</details>
 
 
 <br>
@@ -526,10 +516,8 @@ Exponential backoff in one sentence: each successive retry waits roughly twice a
 - Tax API downstream (storage, API)
 - Iceberg enriched_orders (idempotent: MERGE on event_id) (storage, Iceberg)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Bounded exponential backoff
 
@@ -576,6 +564,8 @@ Retries and idempotency are two halves of one design: once you retry, the same o
    *Backoff bounds each wait, but you still need a max-attempts ceiling so a broken event doesn't loop forever.*
 2. If the Tax API returns a 429 with a `Retry-After` header, how should that override the computed `cap`?\
    *Server-directed backoff should win over the client's own schedule.*
+
+</details>
 
 
 <br>
@@ -681,10 +671,8 @@ Give transient errors capped exponential-backoff retries, but stop retrying thre
 - Iceberg processed_events (downstream sink) (storage, Iceberg)
 - Events dashboard (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### When retrying can't change the outcome
 
@@ -726,6 +714,8 @@ flowchart LR
 2. What metadata would you attach to a quarantined validation record so a human can reproduce and fix it?\
    *Checks that quarantine storage carries the offset, the raw payload and the error, not just the rejected event.*
 
+</details>
+
 
 <br>
 
@@ -743,10 +733,8 @@ A logistics ETL enriches Kafka shipment events against a route API that returns 
 - Snowflake shipments_enriched (idempotent: MERGE on shipment_id) (storage, Snowflake)
 - Logistics dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The catch block that couldn't tell failures apart
 
@@ -787,6 +775,8 @@ Only transient errors, `503`s and timeouts, flow back into the loop, and `enrich
 
 1. If the route API starts returning `429` with a `Retry-After` header, where does that fit your classification?\
    *Checks whether rate-limiting is treated as transient but honors the server's clock instead of blind backoff.*
+
+</details>
 
 
 <br>
@@ -884,10 +874,8 @@ The credential was refused and will keep being refused. Failing at once gets the
 
 A job pulls JSON order documents from a partner API and loads them into a warehouse. Warehouse writes sometimes time out during restarts, and some documents are malformed and will never parse. Retry the timed-out writes up to 3 times, never retry a malformed document, and set aside malformed documents and writes still failing after the last attempt in a quarantine store.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Name the bucket, then pick the response
 
@@ -926,6 +914,8 @@ Read the 2 edges into `quarantine` as the two halves of the classification. The 
 2. The warehouse credential expires overnight. Should the 3 retries on `write_to_warehouse` still apply?\
    *Spots a permanent failure arriving at a stage built for transient ones.*
 
+</details>
+
 
 <br>
 
@@ -935,10 +925,8 @@ Read the 2 edges into `quarantine` as the two halves of the classification. The 
 
 An hourly job fetches currency exchange rates from a rates API and loads them into a warehouse. The API returns 503s during its deploys, which last up to two minutes. Set the fetch step's retry backoff to exponential (a setting of its own, not just a retry count), with waits doubling from one second and capped at one minute, and enough retry attempts that the waits outlast a deploy. When the retries run out, page the on-call engineer instead of retrying further.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Doubling waits, with a ceiling
 
@@ -976,6 +964,8 @@ flowchart LR
 2. 40 hourly jobs share this API and all hit the same deploy at the same second. What would you add to the waits?\
    *Whether doubling alone keeps the retries from arriving together, and how jitter spreads them.*
 
+</details>
+
 
 <br>
 
@@ -1003,10 +993,8 @@ A marketplace's nightly settlement DAG has 250 workers, each pulling one seller'
 
 An hourly Spark job reads payment rows from a PostgreSQL replica, checks each row's currency code against the reference list, and writes the rows to a data lake. Retry lake write timeouts a bounded number of times with exponential backoff. Do not retry the permanent failures: rows with an unknown currency code go to a quarantine store a person can inspect, and a 403 from the lake stops the job and alerts the on-call engineer.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Retry what can heal, route what cannot
 
@@ -1052,6 +1040,8 @@ flowchart LR
 2. What should happen when all three write retries on `load_payments` fail?\
    *The hand-off once a transient failure stops looking transient.*
 
+</details>
+
 
 <br>
 
@@ -1061,10 +1051,8 @@ flowchart LR
 
 Two hundred parallel workers in a nightly batch geocode customer addresses through a shared geocoding service and load the results into a warehouse. When the service is overloaded it slows down and returns 503s. Retry each 503 with exponential backoff, capped at 60 seconds per wait and spread with random jitter so the workers never retry in lockstep. Give each request a total retry budget of 5 minutes and page the on-call engineer when it runs out. A 400 for a malformed address is never retried: send it to a dead letter store for review.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A retry policy that knows when to stop
 
@@ -1107,6 +1095,8 @@ flowchart LR
    *Using a server-provided wait instead of a computed one, while still respecting the total budget.*
 2. Every worker exhausts its budget in the same minute and the on-call engineer gets hundreds of pages. What would you change?\
    *Escalating once per outage rather than once per failed request.*
+
+</details>
 
 
 <br>

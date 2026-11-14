@@ -174,21 +174,9 @@ The cost sits inside the 2 boxes labeled batch layer and speed layer. Each holds
 
 Jay Kreps published 'Questioning the Lambda Architecture' in 2014 with a simpler shape, later called Kappa: keep the log long enough, and when the logic changes, start a second instance of the same stream job from the beginning of the log, let it catch up, and switch readers to its output. Reprocessing becomes a replay in place of a separate batch program. The step after that came from engines that treat a batch as a bounded stream: the same job definition runs over yesterday's files as a batch and over the live log as a stream, with 1 planner, 1 set of tests and 1 deploy. The batch layer survives as a replay of the stream code.
 
-✓Lambda (2 code paths)
-
-- Batch layer and speed layer written separately
-- Correctness comes from the batch overwrite
-- Reprocessing: rerun the batch job
-- Serving layer merges at the boundary hour
-- Drift between layers is a standing risk
-
-✗Converged (1 code path)
-
-- 1 job definition runs bounded or unbounded
-- Correctness comes from handling late data in the stream
-- Reprocessing: replay the log through the same job
-- 1 output table, no merge
-- Needs log retention long enough to replay
+| ✓ Lambda (2 code paths) | ✗ Converged (1 code path) |
+| --- | --- |
+| • Batch layer and speed layer written separately<br><br>• Correctness comes from the batch overwrite<br><br>• Reprocessing: rerun the batch job<br><br>• Serving layer merges at the boundary hour<br><br>• Drift between layers is a standing risk | • 1 job definition runs bounded or unbounded<br><br>• Correctness comes from handling late data in the stream<br><br>• Reprocessing: replay the log through the same job<br><br>• 1 output table, no merge<br><br>• Needs log retention long enough to replay |
 
 
 > **TIP**
@@ -299,19 +287,9 @@ LIMIT 20
 
 Reading the output follows a pattern. A diff on every key for 1 hour points at an offset or partition the shadow job skipped. A diff of a few units on random keys points at late events the shadow dropped and the bounded run kept, which means the lateness allowance is too short for real arrival delays. Zero rows for 24 hours is the release criterion.
 
-✓Do
-
-- Derive the watermark from the fixture's event times, never the machine clock
-- Keep 1 golden file per scenario and name the scenario in the file
-- Include a duplicate and a too-late event in every fixture
-- Compare the shadow run to a bounded run of the same code
-
-✗Don't
-
-- Test windows with sleep() calls and hope the timing holds
-- Reuse the batch job's golden output for the stream without the lateness rule
-- Declare a release good on throughput alone
-- Let the fixture grow past a few hundred events
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Derive the watermark from the fixture's event times, never the machine clock<br><br>• Keep 1 golden file per scenario and name the scenario in the file<br><br>• Include a duplicate and a too-late event in every fixture<br><br>• Compare the shadow run to a bounded run of the same code | • Test windows with sleep() calls and hope the timing holds<br><br>• Reuse the batch job's golden output for the stream without the lateness rule<br><br>• Declare a release good on throughput alone<br><br>• Let the fixture grow past a few hundred events |
 
 > **TIP**
 >
@@ -344,23 +322,9 @@ Take a 10 second trigger. The timeline below follows 2 events through 1 cycle. A
 
 Shrinking the trigger lowers the floor but raises the overhead. Each cycle pays a fixed cost for planning and committing offsets, around 1 second on a typical cluster, so a 2 second trigger spends half its time on overhead and a 100 ms trigger spends almost all of it. Below about 1 second the micro-batch model stops paying, and that is the line the record-at-a-time engine exists to cross.
 
-✓Micro-batch
-
-- Latency floor: the trigger plus the run, 1 s to minutes
-- Throughput: high per node, the batch planner optimizes each cycle
-- State: snapshotted once per cycle with the offsets
-- Code: the same functions and cluster as the batch jobs
-- Failure unit: 1 cycle reruns whole
-- Skills: the batch team already has them
-
-✗Record-at-a-time
-
-- Latency floor: the processing path, 10 to 100 ms
-- Throughput: high, with per-event overhead on hot keys
-- State: kept per operator, snapshotted on an interval
-- Code: a separate API, often a separate cluster
-- Failure unit: the job restores from its last checkpoint
-- Skills: a second runtime to learn and page on
+| ✓ Micro-batch | ✗ Record-at-a-time |
+| --- | --- |
+| • Latency floor: the trigger plus the run, 1 s to minutes<br><br>• Throughput: high per node, the batch planner optimizes each cycle<br><br>• State: snapshotted once per cycle with the offsets<br><br>• Code: the same functions and cluster as the batch jobs<br><br>• Failure unit: 1 cycle reruns whole<br><br>• Skills: the batch team already has them | • Latency floor: the processing path, 10 to 100 ms<br><br>• Throughput: high, with per-event overhead on hot keys<br><br>• State: kept per operator, snapshotted on an interval<br><br>• Code: a separate API, often a separate cluster<br><br>• Failure unit: the job restores from its last checkpoint<br><br>• Skills: a second runtime to learn and page on |
 
 
 <br>
@@ -494,10 +458,8 @@ The infection-prevention lead noticed Monday's surveillance report undercounted 
 - microbiology_cultures (source, HL7 microbiology cultures)
 - adt_admission_feed (source, HL7 ADT)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why this problem exists in real interviews
 
@@ -571,6 +533,8 @@ flowchart LR
 2. A nightly run fails halfway and is restarted at 5am. What guarantees the 6am report is correct?\
    *Tests idempotency and orchestration together: an overwrite keyed by date means the restart replaces the day instead of double-counting, and the orchestrator reruns the job and pages if the 6am SLA is at risk.*
 
+</details>
+
 
 <br>
 
@@ -580,10 +544,8 @@ flowchart LR
 
 Design the pipeline behind a payouts view that shows each of the marketplace's 150,000 sellers what they are owed. The head of seller operations has asked for it to be 'real-time', and it is built from the roughly 3 million orders and refunds a day in the orders database. Finance pays sellers once a day from the same figures, so what a seller sees must match that payout to the cent, even when a failed run is retried or a refund lands after the day has closed.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The wish, the number, and the design
 
@@ -668,6 +630,8 @@ flowchart LR
    *Tests whether the SLA drives the design: the run moves to twice daily and the `delete_write` key widens to the settlement window. It stays batch, because 12 hours is nowhere near the streaming band.*
 3. A fee bug overpaid sellers for the last 30 days. How do you correct it?\
    *Tests reprocessing: rerun each affected `settlement_date` with `partition_overwrite`, then have finance net the difference against the next payout instead of reversing money already sent.*
+
+</details>
 
 
 <br>

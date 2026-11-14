@@ -127,10 +127,8 @@ Turn the curated fct_orders table into a written data contract: set its slaFresh
 - ML feature store (storage, Feast)
 - Ops runbook (consumer, Grafana)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A table with a promise attached
 
@@ -176,6 +174,8 @@ flowchart LR
 2. If an upstream field is legitimately new, how does the expectation suite evolve without accepting every future drift?\
    *Connects the contract to deliberate schema evolution.*
 
+</details>
+
 
 <br>
 
@@ -192,10 +192,8 @@ A daily Python script, triggered by cron, pulls from Postgres into Snowflake for
 - Production warehouse (storage, Snowflake)
 - BI dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### 4 loose ends, 4 named owners
 
@@ -254,6 +252,8 @@ flowchart LR
    *Extends the secrets concern to shared credentials and access scoping.*
 3. The monitor flags a table that landed late. Should it page a human or block the dashboard from reading the stale data?\
    *Pushes on what monitoring should do once it detects a problem.*
+
+</details>
 
 
 <br>
@@ -352,10 +352,8 @@ One Airflow instance owns a 60-task mega-DAG spanning three teams: ingestion, an
 - BI dashboard (consumer, dashboard)
 - ML feature store (storage, Feast)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Split the DAG along ownership boundaries
 
@@ -438,6 +436,8 @@ with DAG("ml_features_dag", schedule=[silver_ready], ...):
 2. How would you let analytics run on a schedule AND when silver updates, whichever comes first?\
    *Combining time-based and Dataset schedules.*
 
+</details>
+
 
 <br>
 
@@ -455,10 +455,8 @@ Redraw this hand-rolled fintech reporting stack so ingestion, storage and cleani
 - Custom attribution Python script (transform, Pandas)
 - Attribution dashboard (consumer, Metabase)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Buy the plumbing, load first, keep the model
 
@@ -502,6 +500,8 @@ flowchart LR
 2. A new source sends personal data that must never reach the warehouse. Does all of its cleaning still belong after the load?\
    *When transforming before the load is still the right call.*
 
+</details>
+
 
 <br>
 
@@ -516,19 +516,9 @@ A DAG, a directed acyclic graph, is one scheduled graph of steps that runs as a 
 
 ### The 3 splitting signals
 
-✓Split when
-
-- 2 teams own steps in the same graph, and 1 team's bug pages the other
-- Steps need different cadences: an hourly step inside a nightly DAG runs 24 times or once, never right
-- A failure in 1 consumer's steps should not block another consumer: 2 consumers of 1 source each get their own graph
-- A rerun of 1 half rescans the other half for no reason
-
-✗Merge when
-
-- A step exists only to feed the next, and no other consumer reads its output
-- Both sides are owned by the same team and run at the same cadence
-- The boundary would need its own contract and a ready-time check with an alert on it, and nobody would own them
-- Each half would be fewer than 3 steps and the halves would always run together
+| ✓ Split when | ✗ Merge when |
+| --- | --- |
+| • 2 teams own steps in the same graph, and 1 team's bug pages the other<br><br>• Steps need different cadences: an hourly step inside a nightly DAG runs 24 times or once, never right<br><br>• A failure in 1 consumer's steps should not block another consumer: 2 consumers of 1 source each get their own graph<br><br>• A rerun of 1 half rescans the other half for no reason | • A step exists only to feed the next, and no other consumer reads its output<br><br>• Both sides are owned by the same team and run at the same cadence<br><br>• The boundary would need its own contract and a ready-time check with an alert on it, and nobody would own them<br><br>• Each half would be fewer than 3 steps and the halves would always run together |
 
 
 <br>
@@ -592,10 +582,8 @@ Postgres, Stripe and Salesforce feed six point-to-point Python jobs that write s
 - single_airflow (one orchestrator owns everything) (transform, Airflow)
 - 3 consumers (Finance, Product, ML) (consumer, Tableau)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Untangling the graph along ownership seams
 
@@ -660,6 +648,8 @@ flowchart LR
 3. A bad Stripe deploy writes malformed rows into the raw layer. Where do you catch them before a dashboard shows them?\
    *Tests where quality checks sit once raw and curated are separated.*
 
+</details>
+
 
 <br>
 
@@ -678,10 +668,8 @@ A fintech runs 412 DAGs under one shared Airflow: 80 feed Finance, Product, and 
 - single_airflow (owns every DAG) (transform, Airflow)
 - 3 consumer surfaces (Finance, Product, ML) (consumer, Tableau)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Pipelines as products, at platform scale
 
@@ -746,6 +734,8 @@ flowchart LR
 2. When Stripe adds a field, where is the schema change absorbed, and what should the quality gate do with it?\
    *Schema evolution against declared expectations.*
 
+</details>
+
 
 <br>
 
@@ -783,17 +773,9 @@ Every layer of a pipeline can be built in-house or bought as a managed service: 
 
 The listening data team needs sessions from a third-party podcast host's API. A managed connector costs $1,500 a month. Building takes 1 engineer for 6 weeks, and the API changes often enough that it needs 1 engineer-day a month after that. At a loaded cost of $15,000 a month per engineer, the build is $22,500 up front and $750 a month to maintain. Year 1 costs $31,500 built against $18,000 bought. Year 3 cumulative is $49,500 built against $54,000 bought. The crossover lands in month 30. Because the connector is undifferentiated, the team buys it and spends the 6 weeks on transforms instead. The same arithmetic with a $5,000 a month connector crosses over in month 6 and points the other way, so each layer needs the calculation redone with its own prices.
 
-✓Do
-
-- Decide per layer; buying storage and building transforms is the common shape
-- Count maintenance in the build cost, in engineer-days per month, forever
-- Ask which layer your data and logic would be stuck in if the vendor vanished
-
-✗Don't
-
-- Build a connector to a public API because it looks like a 2-week job
-- Buy transform logic; the active-user definition is the product
-- Compare year-1 costs only; the crossover is usually in year 2 or 3
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Decide per layer; buying storage and building transforms is the common shape<br><br>• Count maintenance in the build cost, in engineer-days per month, forever<br><br>• Ask which layer your data and logic would be stuck in if the vendor vanished | • Build a connector to a public API because it looks like a 2-week job<br><br>• Buy transform logic; the active-user definition is the product<br><br>• Compare year-1 costs only; the crossover is usually in year 2 or 3 |
 
 **A team is choosing where the transform that defines a 'paying customer' lives. Finance and sales disagree on that definition, and support has a third version. A vendor sells a package that computes paying customers from billing data. Which weight decides this, and which way?**
 
@@ -830,10 +812,8 @@ Transform logic is the layer where the company's own definitions live. Buying it
 
 Design a pipeline that enforces the written contract for a daily customer-activity feed: the producer is the app's PostgreSQL database, the consumer is a churn model that retrains every morning, and each day's data must land in the warehouse within 24 hours. Enforce the contract's expectations (no null customer ids, row count within 20% of yesterday's) before the warehouse load, and when a check fails, stop the load and page the producing team.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A contract only counts when the pipeline enforces it
 
@@ -877,6 +857,8 @@ flowchart LR
 2. The producer wants to switch the extract to hourly to save cost. How should the contract surface that before it ships?\
    *Cadence as a contract term that every named consumer has to agree to.*
 
+</details>
+
 
 <br>
 
@@ -886,10 +868,8 @@ flowchart LR
 
 Each night a partner API export and a CRM file drop are loaded and combined into a revenue mart that a dashboard reads. Today each step starts at a fixed clock time, so a late API export leaves the mart built on half the data. Redesign it as a dependency graph run by an orchestrator: the mart build waits on both loads, each load retries its own failures, and any failed task pages on-call.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Ordering by dependency, not by clock
 
@@ -940,6 +920,8 @@ flowchart LR
    *Whether a task can succeed while delivering nothing, and where a check belongs in the graph.*
 2. A load half-wrote its rows before it failed. What has to be true for its retry to be safe?\
    *Whether task-level retries assume the write can be repeated without duplicating rows.*
+
+</details>
 
 
 <br>
@@ -1046,10 +1028,8 @@ This is the deprecation path: new name, parallel window, the consumer list as ch
 
 One Airflow DAG runs an hourly load of app events from Kafka and a daily revenue rollup together, so the rollup is scheduled hourly too and a slow rollup run holds back the next load. Split it at the cadence boundary: an hourly DAG that lands the events in the warehouse, and a daily DAG that reads the landed events and builds the revenue table a finance dashboard reads.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Split where the schedules disagree
 
@@ -1095,6 +1075,8 @@ flowchart LR
 2. The rollup drops to 5 minutes. Is the split still worth keeping?\
    *Weighs coupling against coordination once the symptom shrinks but the cadences still differ.*
 
+</details>
+
 
 <br>
 
@@ -1104,10 +1086,8 @@ flowchart LR
 
 Orders from an app's Postgres arrive through a bought change-data-capture connector and CRM accounts through a bought API connector; both land rows unchanged in the warehouse. A payment partner's legacy API has no connector, so you build its extractor, and raw card numbers from it must never reach the warehouse. Decide where each source is transformed, ELT or ETL, so a daily revenue dashboard reads SQL models built from all three.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The connector you buy decides where the transform lives
 
@@ -1157,6 +1137,8 @@ flowchart LR
 2. Analysts later need each card's issuing country, which comes from the leading digits of the raw number. Where does that derivation run?\
    *Whether a new derivation must move before load when the field it depends on is masked, rather than into the warehouse models.*
 
+</details>
+
 
 <br>
 
@@ -1185,10 +1167,8 @@ A food delivery company has 1 nightly graph that feeds driver payouts, the resta
 
 Six DAGs each read Postgres orders directly and compute their own weekly active users, so one schema change breaks all six. Redesign it as layers: an orchestrated ingestion task with retries lands orders in a shared raw store, and one curated build writes the shared tables to a warehouse. The reporting dashboard reads only the curated layer, and a failed ingestion pages the owning team.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One owner per layer, not one DAG per team
 
@@ -1240,6 +1220,8 @@ flowchart LR
 2. The curated build fails after ingestion succeeds. What should rerun?\
    *Task-level reruns: only the curated build reruns, reading raw data that already landed.*
 
+</details>
+
 
 <br>
 
@@ -1249,10 +1231,8 @@ flowchart LR
 
 A grocery-delivery platform runs one 48-task Airflow DAG holding the platform team's hourly Postgres orders load and the finance team's nightly payout reconciliation, so a failed finance task holds back the hourly load. The platform team also runs a separate hourly DAG for inventory from the fulfillment API, started 20 minutes later by clock. Redraw the boundaries as one DAG per owner and cadence. At the seam, the platform's hourly output must state a freshness under one hour and pass a contract check before the nightly side reads it, with the platform team paged on failure.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Draw the boundary where the owner or the cadence changes
 
@@ -1303,6 +1283,8 @@ flowchart LR
    *Applies the cadence rule on its own, with the owner held constant.*
 2. The hand-off check fails at 1am. What should the nightly DAG do, and who reruns what?\
    *Tests that the contract names the failure behavior on both sides of the seam.*
+
+</details>
 
 
 <br>

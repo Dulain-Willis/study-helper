@@ -156,10 +156,8 @@ Three transforms write to three differently-shaped destinations: a time-partitio
 - Plain Snowflake dim_customer (non-idempotent) (storage, Snowflake)
 - Plain Snowflake daily_customer_summary (non-idempotent) (storage, Snowflake)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Match the write to the access shape
 
@@ -206,6 +204,8 @@ flowchart LR
 1. What if `daily_orders` arrives late and spans 2 partitions?\
    *Tests whether you overwrite every affected partition, not just today's.*
 
+</details>
+
 
 <br>
 
@@ -222,10 +222,8 @@ A MERGE pipeline keys dim_customer on email. A customer updated their email, the
 - Plain Snowflake dim_customer (no ACID, MERGE on email) (storage, Snowflake)
 - CRM dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The natural key moved
 
@@ -268,6 +266,8 @@ flowchart LR
    *Pushes from a Type 1 overwrite toward an SCD Type 2 design: the `customer_sk` still keys each version, but `customer_id` plus a validity window becomes the natural key, and the uniqueness assertion changes to 'one current row per `customer_id`'.*
 2. The upstream system occasionally reissues a `customer_id` after merging 2 accounts on its side. How does your uniqueness check behave, and what would you add?\
    *Tests whether the learner treats even the upstream id as fallible and reaches for a reconciliation or remap step rather than trusting any single upstream id forever.*
+
+</details>
 
 
 <br>
@@ -385,17 +385,9 @@ GROUP BY booking_code
 HAVING COUNT(*) > 1
 ```
 
-✓Do
-
-- Merge on a key that exists in the source before the pipeline touches it
-- Hash the natural key when a surrogate is needed
-- Deduplicate the batch with a tie-breaking second sort column
-
-✗Don't
-
-- Merge on a uuid() or sequence generated during the run
-- Put changing columns like updated_at in the key
-- Key on values a person can edit, such as email
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Merge on a key that exists in the source before the pipeline touches it<br><br>• Hash the natural key when a surrogate is needed<br><br>• Deduplicate the batch with a tie-breaking second sort column | • Merge on a uuid() or sequence generated during the run<br><br>• Put changing columns like updated_at in the key<br><br>• Key on values a person can edit, such as email |
 
 **dim_booking should hold a row per booking. Its MERGE matches on (booking_code, updated_at). A booking is created on Monday and edited 3 times later that week. How many rows does that booking have by Sunday?**
 
@@ -439,10 +431,8 @@ The daily_active_users SQL transform filters with WHERE event_ts >= NOW() - 1 da
 - daily_active_users storage (storage, warehouse)
 - DAU dashboard (numbers shift between 11:30 and 2:15 runs) (consumer, dashboard)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Binding the window to a logical date
 
@@ -495,6 +485,8 @@ Now the query is a pure function of `:ds`. Re-run it 10 times for '2026-06-01' a
 2. How do you make the write step itself idempotent so a re-run for `:ds` never double-counts `activity_date`?\
    *Delete-insert or partition overwrite keyed on `activity_date` rather than a blind append.*
 
+</details>
+
 
 <br>
 
@@ -511,10 +503,8 @@ Finance found a rounding bug in daily_revenue covering the last 30 days, and eac
 - Snowflake daily_revenue table (storage, Snowflake)
 - Finance dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What makes a pipeline backfillable
 
@@ -586,6 +576,8 @@ COMMIT;
    *Extends full partition replacement toward incremental, change-scoped backfills.*
 3. If `orders.order_date` can be `NULL`, where does the parameterized transform quietly drop rows?\
    *Checks that the learner sees the `:run_date` predicate silently excludes undated orders.*
+
+</details>
 
 
 <br>
@@ -724,10 +716,8 @@ Make this daily payments ETL idempotent: it pulls Stripe charges with a NOW() mi
 - Plain Snowflake fct_payments (no payment_date partition; no ACID; INSERT-only) (storage, Snowflake)
 - Finance dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Idempotency: the same run, the same answer
 
@@ -800,6 +790,8 @@ JOIN customers c USING (customer_id);
    *Probes late-arriving and boundary data and whether overwrite-by-partition still guarantees exactly-once per day.*
 3. Would a `MERGE` on `payment_id` give you the same guarantee as `INSERT OVERWRITE` on the partition? When would you pick each?\
    *Distinguishes row-level upsert from partition replacement, and the cost and correctness trade-off between them.*
+
+</details>
 
 
 <br>
@@ -935,10 +927,8 @@ Nightly transforms that stamp their window from NOW() and append with plain INSE
 - Snowflake dim_customer (duplicate rows from email-key MERGE) (storage, Snowflake)
 - Q1 audit consumer (10-Q file due in two weeks) (consumer, Jupyter)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 Every transform here has to become **idempotent**: run twice for the same day, it leaves the warehouse exactly as if it ran once. The broken transforms stamped their window from `NOW()` and appended with a plain `INSERT`, so every rerun read a different slice of time and stacked fresh rows on top of the old ones. That is why three of the last 90 partitions carry duplicates, and why a naive backfill would only deepen the mess.
 
@@ -992,6 +982,8 @@ flowchart LR
    *Tests seeing idempotent overwrite as the mechanism for late-arriving corrections, not just for reruns.*
 2. If two backfill runs for different `run_date` values overlap in time, why is the result still correct?\
    *Checks that each partition write is independent of the others.*
+
+</details>
 
 
 <br>
@@ -1104,10 +1096,8 @@ Fresh uuid() keys never match, so the retry inserted every guest again. Hash the
 
 A nightly batch job reads settled card payments from PostgreSQL, computes one row per merchant for a single business day, and writes them to a warehouse table that is not partitioned by date. Runs are repeated after failures and corrections, and a correction can remove a merchant from that day entirely. Design the pipeline so any rerun leaves exactly the recomputed rows for its day, using the idempotent write pattern that fits.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Replacing a slice that is not a partition
 
@@ -1143,6 +1133,8 @@ flowchart LR
 2. A typical correction touches only a handful of the 40,000 merchants. Is rewriting the whole day still right?\
    *Trading write volume against the guarantee that removed merchants disappear.*
 
+</details>
+
 
 <br>
 
@@ -1152,10 +1144,8 @@ flowchart LR
 
 A nightly batch job merges orders from two systems into one warehouse orders table: a web store's PostgreSQL database and an in-store point-of-sale API. Both systems number orders from 1, so order 1042 exists in each, and the POS API re-sends the last 3 days of orders on every pull. Design the pipeline so each real order lands exactly once and a rerun leaves the table unchanged, choosing a business key that keeps the two systems' orders apart.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A key has to name one sale in one system
 
@@ -1193,6 +1183,8 @@ flowchart LR
 2. A marketplace becomes a third order source with its own ids. What changes in the design?\
    *Whether the key holds at a new seam: only a new `source_system` value, no new logic.*
 
+</details>
+
 
 <br>
 
@@ -1221,10 +1213,8 @@ Picture the Airbnb currency fix from the opening. Ninety days, 2026-01-01 throug
 
 A nightly scheduled job appends every smart-meter reading file that landed in the last 24 hours of wall-clock time to a readings fact table in the warehouse. A rerun after a failure double-counts readings, and a rerun weeks later loads the wrong day. Refactor it so a run for a given date reads only that date's files and running that date twice leaves the table unchanged; a meter never reports twice for the same timestamp.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Bound the read, key the write
 
@@ -1264,6 +1254,8 @@ flowchart LR
 2. Could overwriting a date partition replace the merge here, and what decides it?\
    *Partition overwrite only works when the partition matches the unit a run owns; here runs own landing dates while rows are keyed by reading time.*
 
+</details>
+
 
 <br>
 
@@ -1273,10 +1265,8 @@ flowchart LR
 
 A change data capture feed from a PostgreSQL accounts table emits a before image and an after image for every update, both carrying the same account_id, and resends events whenever the connector restarts; several changes can share one commit timestamp. Land the raw change events in object storage, then MERGE them into a current-state accounts table in the warehouse so each account ends with exactly one row holding its latest change, even after a rerun. A scheduler runs each load for one explicit change date, and the same job must backfill any past range of dates from the retained raw events.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A merge is only as idempotent as its key
 
@@ -1323,6 +1313,8 @@ flowchart LR
    *Partition overwrite on a change-date partitioned history table versus `MERGE` on current state.*
 2. A second source recycles account numbers after two years of inactivity. What does the business key become?\
    *Composing a key from the ID plus something that separates its lifetimes, such as the account's creation date.*
+
+</details>
 
 
 <br>

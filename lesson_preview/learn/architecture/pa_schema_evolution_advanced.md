@@ -152,10 +152,8 @@ Capture row-level changes from the payments database with log-based CDC (Debeziu
 - Payments lakehouse (storage, Iceberg)
 - Regulatory reporting (consumer, API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Capture the log, then decide what a schema change may do
 
@@ -197,6 +195,8 @@ flowchart LR
 2. A metrics dashboard that tolerates a missing column also reads this stream. Does it need the same policy?\
    *Matching the policy to each consumer's tolerance.*
 
+</details>
+
 
 <br>
 
@@ -214,10 +214,8 @@ Three streams feed one Flink aggregator behind a risk dashboard: mobile events w
 - Flink unified streaming aggregator (transform, Flink)
 - Risk dashboard (consumer, Grafana)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Match the watermark to the lateness, not to the source
 
@@ -266,6 +264,8 @@ flowchart LR
    *Tests whether you weigh completeness against dashboard freshness rather than always widening the bound to cover the tail.*
 2. What happens to the merged watermark if Source C's producer crashes and stops emitting session markers?\
    *Tests whether you see that a purely punctuated source can stall the minimum-based merge, the same failure mode `withIdleness` solves for Source B.*
+
+</details>
 
 
 <br>
@@ -410,10 +410,8 @@ Set an allowed-lateness budget on the Flink aggregation that writes the metrics 
 - Iceberg minute_metrics (streaming output target) (storage, Iceberg)
 - Real-time metrics dashboard (consumer, Grafana)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Bounded lateness with a reconciliation backstop
 
@@ -468,6 +466,8 @@ flowchart LR
 3. How does the reconciliation pass avoid double-counting windows the live job already wrote?\
    *Rewriting the affected window keys in `minute_metrics`, rather than appending, is what keeps the correction from double-counting.*
 
+</details>
+
 
 <br>
 
@@ -486,10 +486,8 @@ Add a daily reconciliation pass so the audit consumer gets correct revenue for e
 - Real-time dashboard (consumer, Grafana)
 - Audit-grade consumer (regulatory reports) (consumer, API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The reconciliation pass
 
@@ -544,6 +542,8 @@ flowchart LR
 
 1. If a correction lands in `PostgreSQL` a week after a day was reconciled, how do you re-settle just that day?\
    *Extends the idempotent partition overwrite to a backfill: re-run the pass for one past window and read the spike in the delta log.*
+
+</details>
 
 
 <br>
@@ -629,19 +629,9 @@ The smallest L that clears 99% and fits under 2 GB.
 
 </details>
 
-✓Raise L
-
-- Live number closer to final
-- State grows with every key and window
-- Restarts reload more state
-- More re-emissions downstream
-
-✗Keep L, reconcile the tail
-
-- Live number labeled provisional
-- State sized to the knee of the curve
-- Tail corrected in batch from raw events
-- Exactness arrives on the pass's schedule
+| ✓ Raise L | ✗ Keep L, reconcile the tail |
+| --- | --- |
+| • Live number closer to final<br><br>• State grows with every key and window<br><br>• Restarts reload more state<br><br>• More re-emissions downstream | • Live number labeled provisional<br><br>• State sized to the knee of the curve<br><br>• Tail corrected in batch from raw events<br><br>• Exactness arrives on the pass's schedule |
 
 *Each re-emission replaces the window's earlier result, so a consumer that appends results counts that window twice.*
 
@@ -689,10 +679,8 @@ Trading desks need minute bars seconds after each minute closes; regulators need
 - Algorithmic trading desks (sub-minute SLA real-time consumer) (consumer, API)
 - Regulatory reporting consumer (audit-grade) (consumer, Tableau)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### 2 writers, one table: lambda architecture
 
@@ -760,6 +748,8 @@ flowchart LR
 3. If the delta metric shows streaming consistently under-counting a symbol, what does that tell you about the watermark?\
    *Connects the reconciliation delta back to how much lateness the watermark tolerates.*
 
+</details>
+
 
 <br>
 
@@ -781,10 +771,8 @@ Trading desks need minute bars within seconds, and an audit consumer needs the s
 - Algorithmic trading desks (real-time consumer) (consumer, API)
 - Regulatory reporting consumer (audit-grade) (consumer, Tableau)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Lambda in one table: a streaming writer and a batch writer
 
@@ -876,6 +864,8 @@ The batch side is guarded the same way. Change data capture off the settlement P
 3. The market-data producer stops emitting end-of-session markers for one symbol. What does the punctuated watermark do, and how do you detect it?\
    *Extends the punctuated-watermark idea to its failure mode and monitoring.*
 
+</details>
+
 
 <br>
 
@@ -963,19 +953,9 @@ Roll those rows up into the day's delta metric: the share of windows whose amoun
 >
 > Publish the delta as a metric with its own history and thresholds, the way the data quality lessons tuned checks against history. A delta that creeps from 0.07% to 0.3% over a month usually means the lateness tail grew, and L or D needs revisiting before it becomes an incident.
 
-✓Do
-
-- Recompute from raw landed events, kept in every schema version
-- Match the stream's keys and dedupe rules exactly
-- Give the delta an expected band and alert on both sides of it
-- Replace whole partitions so reruns leave one copy
-
-✗Don't
-
-- Diff the stream against a copy of its own output
-- Let consumers mix provisional and final rows without a status column
-- Raise L to shrink the delta when the pass already corrects it
-- Treat a zero delta as proof of health
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Recompute from raw landed events, kept in every schema version<br><br>• Match the stream's keys and dedupe rules exactly<br><br>• Give the delta an expected band and alert on both sides of it<br><br>• Replace whole partitions so reruns leave one copy | • Diff the stream against a copy of its own output<br><br>• Let consumers mix provisional and final rows without a status column<br><br>• Raise L to shrink the delta when the pass already corrects it<br><br>• Treat a zero delta as proof of health |
 
 **The daily pass reports 2.4% of events counted only by the pass, all stamped 09:58 to 10:26 and all from p2, which went quiet at 09:58 and resumed at 11:28. Other days sit near 0.07%. What happened?**
 
@@ -1012,10 +992,8 @@ At 11:28 the watermark is about 11:27:30, past every one of those windows' end p
 
 Capture row-level changes from an order-management MySQL database with log-based CDC, not table re-reads, and carry the 2,000 change events per second through a message broker. Enforce an allow-additive policy at a schema check: added columns pass, while events with a renamed or dropped column go to a dead-letter queue instead of the warehouse. Accepted changes must land in the warehouse within 15 minutes.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Where an allow-additive policy draws the line
 
@@ -1059,6 +1037,8 @@ flowchart LR
 2. Once the warehouse adds the renamed column, how do you replay `schema_dlq` without double-loading orders?\
    *Replaying quarantined change events idempotently.*
 
+</details>
+
 
 <br>
 
@@ -1068,10 +1048,8 @@ flowchart LR
 
 Refrigeration sensors at 2,000 stores publish readings to a Kafka topic partitioned by store, 50,000 a second at peak; open stores' readings arrive up to 10 seconds out of order, and closed stores go silent for up to 8 hours. Compute one-minute event-time windows per store and page the on-call technician within a minute when a window's average exceeds the safe temperature. Pick the watermark strategy so silent stores never stall the open ones.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One silent partition can freeze every window
 
@@ -1110,6 +1088,8 @@ flowchart LR
    *Idleness is judged per partition, so a partly quiet partition behaves differently from a silent one.*
 2. Older freezers buffer readings and upload them every 5 minutes. Which strategy fits that source?\
    *Reading a new lateness profile and giving that source its own watermark.*
+
+</details>
 
 
 <br>
@@ -1217,10 +1197,8 @@ At 15:40 the watermark is around 15:39:30, past the end of each of those minutes
 
 Road sensors on 20,000 segments stream 30,000 vehicle detections a second into Kafka; build per-segment 1-minute counts for a live congestion map that refreshes within a minute. Lateness is long-tailed: p99 is 4 minutes, but sensors that lose backhaul replay up to 6 hours late. The map takes corrections for one hour after a window closes and ignores them after. Size the allowed lateness to that, and keep every event past it rather than dropping it.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Let the reader set the lateness budget
 
@@ -1262,6 +1240,8 @@ flowchart LR
 2. What changes if the map switches from 1-minute to 15-minute windows with the same one-hour horizon?\
    *The budget stays a duration, but the number of held windows per segment drops from about 60 to about 4.*
 
+</details>
+
 
 <br>
 
@@ -1290,10 +1270,8 @@ Picture a ride-hailing company like Uber showing drivers their earnings minutes 
 
 Smart meters publish readings to Kafka, and a meter that loses its connection buffers readings for up to 72 hours before sending them. Build hourly usage per household that a grid-operations dashboard reads within a minute, and keep every raw reading. Add a reconciliation pass: a nightly batch job that recomputes each day once it is 72 hours old and overwrites that day's partitions in the same table. Billing reads that table and must never see a half-rewritten day.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A late batch that overwrites the stream
 
@@ -1338,6 +1316,8 @@ flowchart LR
 2. What goes wrong if the pass closes a day at hour 60 instead of hour 72?\
    *Why the pass must wait out the full lateness tail before overwriting.*
 
+</details>
+
 
 <br>
 
@@ -1347,10 +1327,8 @@ flowchart LR
 
 Technician handhelds sync completed jobs into a PostgreSQL job database whenever they get signal, and each of 400 regions goes silent for 8 hours overnight. Capture row-level changes from that database and build per-region 15-minute completed-job counts in a table a live dashboard reads, fresh within a minute even while some regions are silent. Sync lateness is p99 6 minutes, p99.9 45 minutes and max 30 hours, and window state can be held open at most one hour. A nightly reconciliation pass rewrites each closed day's counts in that same table from a landed copy of the changes.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### 3 answers to when a count is final
 
@@ -1396,6 +1374,8 @@ flowchart LR
    *Sizing per source: either give the slow regions their own stream and budget, or leave their tail to the reconciliation pass.*
 2. The jobs table gains a nullable `job_type` column next week. Where does that change hit this design?\
    *Carrying an additive schema change through the change stream to both the live path and the nightly path.*
+
+</details>
 
 
 <br>

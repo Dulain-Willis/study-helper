@@ -151,19 +151,9 @@ In-place retry means the consumer holds the record and sleeps between attempts. 
 
 Retry streams move the waiting out of the main consumer. The consumer writes a failed record to `retry.orders.1m` and commits the offset without waiting. A second consumer reads that stream and holds each record until its `not_before` timestamp before attempting again. On failure the record moves on to `retry.orders.10m` and later `retry.orders.1h` before it reaches the dead letter store. The main partition never stalls. Besides the extra streams and the late arrival listed below, the tiers hide a cap problem: a record in the 1h tier during a long sink outage retries once an hour, so a 6 hour outage exhausts a 5 attempt budget and diverts records that would have succeeded in the seventh hour. Teams cap the final tier in hours of wall time for that reason.
 
-✓In-place retry
-
-- Zero extra infrastructure
-- Preserves per-key order through the retry
-- Stalls the partition for the full backoff sum
-- Needs a circuit breaker for whole-sink outages
-
-✗Retry streams
-
-- 3 extra streams and consumers to operate
-- A record may land an hour after its neighbors
-- The main partition never waits
-- Cap the last tier in wall time, since each attempt is an hour apart
+| ✓ In-place retry | ✗ Retry streams |
+| --- | --- |
+| • Zero extra infrastructure<br><br>• Preserves per-key order through the retry<br><br>• Stalls the partition for the full backoff sum<br><br>• Needs a circuit breaker for whole-sink outages | • 3 extra streams and consumers to operate<br><br>• A record may land an hour after its neighbors<br><br>• The main partition never waits<br><br>• Cap the last tier in wall time, since each attempt is an hour apart |
 
 ```sql
 TRANSIENT = {"SINK_TIMEOUT", "CONNECTION_RESET"}
@@ -332,37 +322,15 @@ Read across the weeks and the story changes. The 28,931 violations in the week o
 
 The full path has real costs. You run a dead letter stream and table plus 3 retry tiers, and you build a replay tool, which takes roughly an engineer week and then a few hours a month to operate. Someone also has to carry an alert rotation and run a weekly review of error classes. Before paying that for a stream, ask 3 questions. Does a lost record change a ledger or a payout, or any report someone signs? Is the time to detect a bug longer than the source stream's retention, so the evidence is gone before anyone looks? Does the consumer run several stages with external lookups, so failures have causes worth telling apart? A yes to any justifies the path. If all 3 answers are no, a drop behind a counter, with the loss tolerance written down and agreed with the dashboard's consumer, is the correct design.
 
-✓Drop behind a metric
-
-- Sampled telemetry where 1 in 100 events is already discarded by design
-- Dashboards refreshed hourly with an agreed tolerance such as 0.5 percent
-- Streams nothing reconciles against
-- Source retention longer than the longest plausible time to detect
-
-✗Full dead letter path
-
-- Order lifecycle, payments, refunds, anything with a ledger
-- Compliance and audit events where every record must be accounted for
-- Streams with a reconciliation report on the other end
-- Consumers with lookups and sinks that fail for different reasons
+| ✓ Drop behind a metric | ✗ Full dead letter path |
+| --- | --- |
+| • Sampled telemetry where 1 in 100 events is already discarded by design<br><br>• Dashboards refreshed hourly with an agreed tolerance such as 0.5 percent<br><br>• Streams nothing reconciles against<br><br>• Source retention longer than the longest plausible time to detect | • Order lifecycle, payments, refunds, anything with a ledger<br><br>• Compliance and audit events where every record must be accounted for<br><br>• Streams with a reconciliation report on the other end<br><br>• Consumers with lookups and sinks that fail for different reasons |
 
 A dead letter table that nobody drains is a drop with a longer delay, so the queue needs its own objective: 99 percent of envelopes resolved within 24 hours of landing, whether by replay or by an explicit decision to discard. Put the oldest open age on the weekly review, and give every error class an owner before the next week. Batch pipelines follow the same pattern under different names: a reject table beside the target, a rejection reason per row, a rate alert on rejections against input, and a rerun that reads the reject table through corrected code. You still ask about rate and age, and about who owns each class and how it gets replayed.
 
-✓Do
-
-- Put the original bytes on every envelope, with the source position and consumer version beside them
-- Alert on rate against input and on oldest open age, per error class
-- End every retry path in the dead letter store after a bounded number of attempts
-- Replay through a different consumer version and dedupe at the sink on event_id
-- Report violations per producer and hand that table to the producer team
-
-✗Don't
-
-- Retry deterministic errors in place and stall the partition
-- Delete envelopes on replay; mark them and keep the evidence
-- Set retention on the dead letter table shorter than the source stream
-- Page on a count of 1 and train the on-call to ignore the queue
-- Build the full path for a sampled telemetry stream that tolerates loss
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Put the original bytes on every envelope, with the source position and consumer version beside them<br><br>• Alert on rate against input and on oldest open age, per error class<br><br>• End every retry path in the dead letter store after a bounded number of attempts<br><br>• Replay through a different consumer version and dedupe at the sink on event_id<br><br>• Report violations per producer and hand that table to the producer team | • Retry deterministic errors in place and stall the partition<br><br>• Delete envelopes on replay; mark them and keep the evidence<br><br>• Set retention on the dead letter table shorter than the source stream<br><br>• Page on a count of 1 and train the on-call to ignore the queue<br><br>• Build the full path for a sampled telemetry stream that tolerates loss |
 
 
 <br>
@@ -404,10 +372,8 @@ A payments platform ingests merchant settlement events from 300 acquiring banks 
 
 In-app events from the mobile app arrive on one event stream at about 30,000 per second, and since the latest release one event type carries a nested payload the consumer cannot parse, so the consumer crashes on that message, restarts, reads it again and crashes again while product dashboards go stale. Design the path from that stream into the analytics warehouse so ingestion resumes with dashboards back under 15 minutes of freshness, every malformed event is kept with the reason it failed and can be loaded once the parser is fixed, and the next bad release reaches on-call within minutes instead of stopping the flow. The warehouse also times out for a few seconds several times a day, and those writes must land on their own without piling in with the malformed events.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this incident really is
 
@@ -497,6 +463,8 @@ flowchart LR
 3. 6 months of dead letter categories show the same producer breaking its payload on most releases. What do you do with that?\
    *Tests the data-quality-signal move: trend categories by producer and `app_version`, and push the fix upstream as a contract the producer checks before it ships.*
 
+</details>
+
 
 <br>
 
@@ -506,10 +474,8 @@ flowchart LR
 
 Our payments consumer is stuck in a crash loop: one message with a corrupted payload kills it on every restart, blocking 200,000 queued payments, and the ledger write also times out for a few seconds under load. Design a pipeline where a record that fails to parse or fails ledger validation is separated from the flow without blocking the queue, where transient timeouts get retry chances, and where new failures trigger alerts so the team responds in minutes. Once the producer is fixed, those quarantined payments must be replayable into the ledger.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem really is
 
@@ -600,6 +566,8 @@ flowchart LR
    *Tests whether the candidate sees that bounded retries during a full outage would flood the quarantine with healthy payments, and whether they would alert on a sudden '`ledger_write`' spike and replay those payments once the ledger is back.*
 2. The reprocessor replays a batch and half of it fails again with the same error. What does the design do with them?\
    *Tests the reprocessing workflow: records return to the quarantine with an incremented attempt count and stay visible on the producer dashboard instead of looping forever or being dropped.*
+
+</details>
 
 
 <br>

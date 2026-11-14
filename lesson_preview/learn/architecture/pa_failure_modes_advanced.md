@@ -134,10 +134,8 @@ Add three failure classifiers (quality gates) to this order pipeline, one each f
 - Iceberg orders_enriched (write-side) (storage, Iceberg)
 - Orders dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The failure surface decides the retry
 
@@ -201,6 +199,8 @@ On a real team, this classification is what the runbook is built from. When the 
 3. How would you add a fourth failure mode, 'data arrived late', to the read classifier, and what response fits it?\
    *Extending the classification to a mode that is neither transient nor poison.*
 
+</details>
+
 
 <br>
 
@@ -216,10 +216,8 @@ Records that `enrich_worker` fails to process are currently lost. Divert them to
 - enrich_worker (transform, Flink)
 - enriched_orders (storage, warehouse)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The DLQ is a stream, not a mailbox
 
@@ -276,6 +274,8 @@ flowchart LR
    *Attaching sample `correlation_id` values and the `exception_type` makes the page itself diagnostic.*
 3. A brief downstream blip spikes `TimeoutError` then recovers. How do you avoid paging for something that self-heals?\
    *Sustained-deviation logic: require the z-score to hold for N consecutive windows.*
+
+</details>
 
 
 <br>
@@ -399,10 +399,8 @@ Turn the orders DLQ into a recovery surface: add a replay transform off it whose
 - orders_dlq (source, Kafka)
 - orders_enriched (storage, warehouse)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A dead-letter queue is only as good as its drain
 
@@ -448,6 +446,8 @@ flowchart LR
 2. How would you make bounded replay resumable if the replay transform crashes mid-drain?\
    *Pushes on batch processing plus offset and attempt tracking so a restart resumes instead of replaying everything.*
 
+</details>
+
 
 <br>
 
@@ -464,10 +464,8 @@ A producer streams events through an unbounded queue to a worker pool, and the s
 - worker pool (transform)
 - slow downstream service (consumer, API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Backpressure: the queue that pushes back
 
@@ -506,6 +504,8 @@ Blocking alone only moves the pressure: the producer now stalls, and whatever fe
    *Telemetry or live-state feeds can afford to lose stale events; order or billing events cannot, so their shed path needs durable room.*
 2. The downstream recovers to 100ms. How does a blocking `put()` design return to full throughput on its own?\
    *Backpressure relieves itself: once workers drain faster than the producer fills, `put()` stops waiting with no operator action.*
+
+</details>
 
 
 <br>
@@ -622,10 +622,8 @@ A Geo-IP config change pushed enrichment p99 from 80ms to 4 seconds, and with no
 - enriched_clicks store (idempotent inserts) (storage, Redshift)
 - Product analytics dashboards (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The failure a dead-letter queue prevents
 
@@ -666,6 +664,8 @@ Durability alone isn't enough: a `dead_letter` topic that grows silently is just
 1. When Geo-IP recovers and you drain `dead_letter` back through the worker, what stops a click being written to `enriched_clicks` twice?\
    *Tests whether idempotent inserts make reprocessing safe to repeat.*
 
+</details>
+
 
 <br>
 
@@ -684,10 +684,8 @@ Redesign a clickstream pipeline so the next latency spike, schema drift, credent
 - Clickhouse enriched_clicks (idempotent) (storage, Clickhouse)
 - Product analytics dashboard (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Resilience is routing: every failure gets a lane
 
@@ -778,6 +776,8 @@ def publish_dlq(event, exc, klass):
 2. What makes the `enriched_clicks` sink safe to replay into twice, and what breaks if it were not idempotent?\
    *Tests why at-least-once delivery from replay requires an idempotent sink.*
 
+</details>
+
 
 <br>
 
@@ -830,19 +830,9 @@ Shedding needs a priority on every record, set at design time. Payment events fe
 
 Classification picks the tactic. Timeouts on every call are transient systemic, so the breaker opens and backpressure keeps records in the log. Routing those timeouts to the DLQ would turn a slowdown into millions of good orders awaiting replay.
 
-✓Do
-
-- Cap every in-memory buffer and stop pulling when it is full
-- Retry at a single layer, inside a retry budget
-- Tag each record with a priority before the pipeline needs to shed
-- Alert when source lag passes half of the log's retention
-
-✗Don't
-
-- Let any stage buffer without a size limit
-- Stack client, task and orchestrator retries on the same call
-- Send records to the DLQ because a dependency was slow
-- Shed records without logging what was dropped
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Cap every in-memory buffer and stop pulling when it is full<br><br>• Retry at a single layer, inside a retry budget<br><br>• Tag each record with a priority before the pipeline needs to shed<br><br>• Alert when source lag passes half of the log's retention | • Let any stage buffer without a size limit<br><br>• Stack client, task and orchestrator retries on the same call<br><br>• Send records to the DLQ because a dependency was slow<br><br>• Shed records without logging what was dropped |
 
 **The tax service goes fully down. The breaker opens, every buffer is capped, and backpressure holds orders in the log, which keeps 72 hours of events. The outage lasts 80 hours. What happens to the orders?**
 
@@ -879,10 +869,8 @@ From hour 72, each further outage hour expires the oldest hour of unread orders,
 
 A stream job reads shipment events from a queue, enriches each via a carrier API and writes to a warehouse. Classify its failures and give each class its own path: carrier timeouts are transient and retry with exponential backoff, up to 5 attempts; malformed events are poison and go straight to a dead letter queue; an expired carrier credential pages the on-call engineer. An event still timing out after its last attempt also goes to the dead letter queue.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Classify by cause, not by node
 
@@ -920,6 +908,8 @@ flowchart LR
 2. The carrier starts returning rate-limit responses during peak hours. Which class is that, and does it change the backoff?\
    *Checks that a new failure mode is placed by its cause rather than by the service it came from.*
 
+</details>
+
 
 <br>
 
@@ -929,10 +919,8 @@ flowchart LR
 
 A stream job parses 40,000 smart-meter readings per second from a queue into a warehouse, and readings it fails to parse are currently skipped. Route those failures to a dead letter queue, then read the DLQ as a quality signal: compute its per-second arrival rate broken down by exception type, chart that rate on a dashboard, and page the on-call engineer when any one type's rate climbs.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A DLQ is a sensor, not a bin
 
@@ -979,6 +967,8 @@ flowchart LR
    *Adding a second dimension so a spike traces back to the rollout that caused it.*
 2. How would you alert on an exception type that has never appeared before?\
    *Telling a brand-new failure type apart from growth in a known one.*
+
+</details>
 
 
 <br>
@@ -1107,10 +1097,8 @@ Rows from the first pass now match the stored seq, so the guard skips them and n
 
 A stream job reads payment webhook events from a queue, converts currencies and loads them into a warehouse; events it fails on already land in a dead letter queue, about 3,000 a day. Make that DLQ drainable: add an inspection view operators can filter by exception type, and a replay stage that applies their fixes and sends a chosen batch back into the input queue. Show replay progress on a dashboard.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A DLQ is only as good as its drain
 
@@ -1161,6 +1149,8 @@ flowchart LR
 2. How would you replay every missing-rate failure from last Tuesday without touching newer ones?\
    *Bounding a replay by exception type and time range.*
 
+</details>
+
 
 <br>
 
@@ -1170,10 +1160,8 @@ flowchart LR
 
 A sensor gateway pushes 20,000 readings per second straight into a stream job that writes them to a time-series store. When the store slows to 5,000 writes per second, the job's memory fills and the crash spreads back to the gateway. Redesign the path with backpressure so a 30-minute store slowdown buffers durably instead of crashing anything upstream, with no reading lost. In normal running, readings land within a minute.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Where the pressure lands
 
@@ -1215,6 +1203,8 @@ flowchart LR
 2. The log keeps one hour of data and the store stays slow for 3 hours. What happens?\
    *Retention is the edge of the durable buffer; past it, backpressure has nowhere left to land.*
 
+</details>
+
 
 <br>
 
@@ -1243,10 +1233,8 @@ Uber has published how payments for its Driver Injury Protection program move th
 
 A stream job reads 8,000 ride events per second from a queue, calls a fare-pricing service per event, and writes the priced events to a warehouse. Its postmortem found that a two-hour pricing slowdown silently dropped every event whose first call failed. Apply the action items: retry pricing calls with exponential backoff up to a fixed limit, route events that exhaust retries to a dead letter queue, and page on-call when that queue grows.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A retry policy decides whether a failure stays transient
 
@@ -1288,6 +1276,8 @@ flowchart LR
 2. The outage lasts 6 hours instead of two. How do you drain the dead letter queue without recreating the overload?\
    *Rate-limited replay against a recovering dependency.*
 
+</details>
+
 
 <br>
 
@@ -1297,10 +1287,8 @@ flowchart LR
 
 A stream job reads 15,000 inventory events per second, published by three fulfillment services to a queue, and writes them to a warehouse. Last week its dead letter queue jumped from 40 to 6,000 records an hour, nearly all 'missing field' errors from one service, while timeouts stayed flat. Redesign it so a validation check sends contract violations to the dead letter queue, the stream job retries timeouts with exponential backoff before parking them in the dead letter queue, a monitor on the dead letter queue pages when one error type's hourly rate spikes, and a replay tool sends fixed records back through validation.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Read the dead letter queue by error type, then act on what it says
 
@@ -1355,6 +1343,8 @@ flowchart LR
    *Whether the dead letter queue retention and the replay tool are sized for a long backlog, and whether replay preserves update order per item.*
 2. How would the design change if the missing field were optional and the stream job could fill a safe default?\
    *Reclassifying a failure from permanent to recoverable at validation, which shrinks what the dead letter queue has to hold.*
+
+</details>
 
 
 <br>

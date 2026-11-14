@@ -120,19 +120,9 @@ The answer interviewers want ends in a policy, and the policy differs by layer, 
 
 Every compatibility statement compares 2 schemas: the one that wrote the data and the one reading it. Backward compatible means code on the new schema can read data written with the old one. Forward compatible means code still on the old schema can read data written with the new one. Full compatibility means both hold. The names get swapped under pressure, so tie each to a deployment: backward compatibility lets readers upgrade first, forward compatibility lets writers upgrade first.
 
-✓Backward: readers upgrade first
-
-- Readers on the new schema meet old data during rollout
-- Fields the old data lacks need a default
-- Lets a field be removed: readers stop using it, then writers stop sending it
-- Fits lake tables whose old files stay readable for years
-
-✗Forward: writers upgrade first
-
-- Readers on the old schema meet new data during rollout
-- Old readers must skip fields they do not know
-- Lets a field be added: writers send it before any reader uses it
-- Fits streams whose consumers deploy on their own schedules
+| ✓ Backward: readers upgrade first | ✗ Forward: writers upgrade first |
+| --- | --- |
+| • Readers on the new schema meet old data during rollout<br><br>• Fields the old data lacks need a default<br><br>• Lets a field be removed: readers stop using it, then writers stop sending it<br><br>• Fits lake tables whose old files stay readable for years | • Readers on the old schema meet new data during rollout<br><br>• Old readers must skip fields they do not know<br><br>• Lets a field be added: writers send it before any reader uses it<br><br>• Fits streams whose consumers deploy on their own schedules |
 
 
 <br>
@@ -233,19 +223,9 @@ A schema registry stores every version of a schema under a subject, usually 1 su
 
 ![Pipeline diagram 2](images/pa_pattern_schema_evolution_diagram_2.png)
 
-✓Registry catches
-
-- A field removed that had no default
-- A type changed from bigint to string
-- A rename with no alias
-- A new field with no default, under backward mode
-
-✗Registry passes, contract catches
-
-- amount_cents switching from US cents to minor units
-- status gaining a new value, PARTIAL_REFUND
-- created_at switching from UTC to local time
-- customer_id going from 0% to 30% null
+| ✓ Registry catches | ✗ Registry passes, contract catches |
+| --- | --- |
+| • A field removed that had no default<br><br>• A type changed from bigint to string<br><br>• A rename with no alias<br><br>• A new field with no default, under backward mode | • amount_cents switching from US cents to minor units<br><br>• status gaining a new value, PARTIAL_REFUND<br><br>• created_at switching from UTC to local time<br><br>• customer_id going from 0% to 30% null |
 
 Everything in the right column is a valid value of a valid type. The registry's work ends at shape, and the Japan plan would have passed it on the first try.
 
@@ -307,19 +287,9 @@ Ownership decides who can change what. The producer owns the contract and is the
 
 The earlier a check runs, the cheaper its failure. At the gate, the choice is between halting and flowing. Blocking the whole stream on one bad event stops the revenue fact for every consumer; routing bad events to a dead-letter table keeps it flowing but leaves it quietly incomplete. The usual answer is per-event quarantine plus a rate alarm: page when more than 0.5% of events fail within 10 minutes, since a failure rate that high almost always traces to a producer deploy.
 
-✓Do
-
-- Give every contract a named owning team and a list of consumers
-- Write the unit and timezone of every numeric and time field
-- Run compatibility checks in the producer's build, before deploy
-- Replay dead-lettered events through the same gate after a fix
-
-✗Don't
-
-- Treat a passing registry check as proof that a change is safe
-- Let consumers register schemas for data they do not produce
-- Halt a shared stream because one event fails validation
-- Write contracts for every table at once instead of starting with money and shared sources
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Give every contract a named owning team and a list of consumers<br><br>• Write the unit and timezone of every numeric and time field<br><br>• Run compatibility checks in the producer's build, before deploy<br><br>• Replay dead-lettered events through the same gate after a fix | • Treat a passing registry check as proof that a change is safe<br><br>• Let consumers register schemas for data they do not produce<br><br>• Halt a shared stream because one event fails validation<br><br>• Write contracts for every table at once instead of starting with money and shared sources |
 
 > **TIP**
 >
@@ -414,19 +384,9 @@ def to_latest(event: dict) -> dict:
 
 Each step rests on a fact about its version. The checkout service wrote every v1 and v2 event before it accepted any non-USD order, since yen sales open only with v3, so every one of them is in US cents and copying `amount_cents` into `amount_minor` is exact. Upcasters are deterministic, so a replay produces identical rows and the staging merge on `order_id` absorbs the duplicates a retry creates. An upcaster can be deleted only when no retained store holds its version. With 3 years of raw history, that means keeping it for 3 years or rewriting the raw table, which costs a full scan and cannot be undone; a 3-line function is usually the cheaper of the two.
 
-✓Evolve in place
-
-- One stream and one table to reason about
-- Each field migrates on its own timeline
-- Overlap lives inside one schema, as extra fields
-- Fits field-level changes: renames, units, types
-
-✗Publish orders_v2 alongside
-
-- Clean break, with the old stream frozen as it was
-- Producer writes twice and storage doubles during the overlap
-- Consumers switch endpoints, and ordering across the 2 streams is lost
-- Fits changes of grain or key, such as orders becoming order lines
+| ✓ Evolve in place | ✗ Publish orders_v2 alongside |
+| --- | --- |
+| • One stream and one table to reason about<br><br>• Each field migrates on its own timeline<br><br>• Overlap lives inside one schema, as extra fields<br><br>• Fits field-level changes: renames, units, types | • Clean break, with the old stream frozen as it was<br><br>• Producer writes twice and storage doubles during the overlap<br><br>• Consumers switch endpoints, and ordering across the 2 streams is lost<br><br>• Fits changes of grain or key, such as orders becoming order lines |
 
 > **TIP**
 >
@@ -550,10 +510,8 @@ A marketplace that has sold only in US dollars launches in Japan. The payments t
 
 A payments topic has two readers: a daily finance ledger job and a fraud-scoring consumer that scores each payment within seconds. The payments team is changing that topic's `amount` field from string to decimal, and every schema published to it is checked against full compatibility, a guarantee that stays on through this change. Design how the change reaches production so neither consumer breaks mid-migration and the ledger table auditors query picks up the decimal amount without its history being rewritten.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -635,6 +593,8 @@ flowchart LR
 3. A replay of last quarter's payments runs through the migrated ledger job. What does it see in `amount_decimal`, and is that correct?\
    *Tests backward compatibility in practice: old events resolve the new field to its null default, so the ledger job must fall back to the string for pre-change events.*
 
+</details>
+
 
 <br>
 
@@ -644,10 +604,8 @@ flowchart LR
 
 A staging replay of the payments topic with `amount` sent as a decimal instead of today's string crashed the ledger loader and blanked the finance dashboard's revenue tiles, and nothing refused those events before they landed on the topic. The fraud scorer reads that topic as payments arrive, the ledger loader appends to a ledger table holding years of audited history that the finance dashboard reads, and none of the three can switch to the new type on the same day. Design how the payments team's type change reaches all three without any of them breaking, so that a change shipped the way this one was is refused before it reaches the topic and the ledger table takes the new amount without rewriting its history.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -730,6 +688,8 @@ flowchart LR
    *Tests read-time reconciliation: coalesce `amount_decimal` with a cast of `amount` for older rows instead of rewriting audited files.*
 2. A fourth consumer owned by another org reads `payment_events` and nobody can find its owner. When is it safe to contract?\
    *Tests whether the candidate sees that contract depends on knowing every reader: consumer-group inventory, a published deprecation date, and watching for readers still touching `amount`.*
+
+</details>
 
 
 <br>

@@ -143,10 +143,8 @@ Turn the customer_events data contract into enforcement on the pipeline. Before 
 - Iceberg fct_customer_events (storage, Iceberg)
 - Three downstream consumers (consumer, API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A contract the pipeline enforces on every run
 
@@ -195,6 +193,8 @@ flowchart LR
 | --- |
 | The tempting shortcut is to load everything into `fct_customer_events` and check the curated table afterward. By then the bad batch has already reached the consumers, so you detect corruption instead of preventing it. Enforce the contract upstream of curate, so a breach is stopped before it lands. |
 
+</details>
+
 
 <br>
 
@@ -211,10 +211,8 @@ Instrument the curated Iceberg table for all five pillars of data observability.
 - Iceberg fct_curated (storage, Iceberg)
 - Three downstream consumers (consumer, API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 The five pillars of data observability (freshness, distribution, volume, schema and lineage) give you a diagnostic order to walk when a consumer reports a wrong number. They are not a checklist. Each pillar rules out one class of cause: the data is late, a column's shape has drifted, row counts spiked or vanished, the contract changed, or a bad value came in from some upstream source. The monitors you placed give every pillar a reading, so you walk that order with instruments instead of guesses.
 
@@ -259,6 +257,8 @@ The four monitors attach to `fct_curated`, not to `transform_curate`, and that i
    *The type is unchanged, so only the distribution pillar sees the shift.*
 2. How would you scope the freshness monitor so it only fires when a consumer's actual read window is affected?\
    *Ties a raw staleness threshold to how the data product is actually read.*
+
+</details>
 
 
 <br>
@@ -357,10 +357,8 @@ The status page shows one uptime number, so consumers cannot tell 'late but corr
 - Iceberg fct_orders curated (storage, Iceberg)
 - Status page (consumer)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### One table, two promises
 
@@ -419,6 +417,8 @@ flowchart LR
 2. How would you add a third promise, 'schema unchanged by 6am', without folding it back into the quality monitor?\
    *Checks that one monitor and one alert per promise generalizes beyond two SLAs.*
 
+</details>
+
 
 <br>
 
@@ -435,10 +435,8 @@ The distributional check on fct_orders pages on-call 20 times a week, and only 3
 - Snowflake fct_orders (live mart) (storage, Snowflake)
 - PagerDuty quality alerts (consumer, PagerDuty)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Tuning a check against its own history
 
@@ -476,6 +474,8 @@ The transform reads the lake, not the mart. A 90-day backtest wants a stable cop
 2. Where do you store the known-anomaly list so a human logging a new incident and the nightly backtest read the same source?\
    *Tests whether the list is a durable shared artifact, not a baked-in constant.*
 
+</details>
+
 
 <br>
 
@@ -485,19 +485,9 @@ The transform reads the lake, not the mart. A 90-day backtest wants a stable cop
 
 The orchestration lessons treated an SLA as a promise that a run finishes on time. That is an operational SLA, a commitment about how the pipeline executes. A quality SLA is a commitment about the data a run publishes, and the 2 fail independently. During the EU currency incident every task succeeded and every table landed before 06:00, so the operational SLA held all day while consumers read wrong numbers. Treat them as 2 promises with separate measurements and separate owners, because fixing one does nothing for the other.
 
-✓Operational SLA
-
-- Promises the partition is published by 06:00 UTC
-- Measured from run records: start, end, status
-- Broken by stuck tasks, slow inputs, cluster outages
-- Improved by retries, concurrency, earlier upstream schedules
-
-✗Quality SLA
-
-- Promises the published partition is correct
-- Measured from check results and the corrections log
-- Broken by wrong values, missing rows, broken joins
-- Improved by contracts, producer-side checks, tuned thresholds
+| ✓ Operational SLA | ✗ Quality SLA |
+| --- | --- |
+| • Promises the partition is published by 06:00 UTC<br><br>• Measured from run records: start, end, status<br><br>• Broken by stuck tasks, slow inputs, cluster outages<br><br>• Improved by retries, concurrency, earlier upstream schedules | • Promises the published partition is correct<br><br>• Measured from check results and the corrections log<br><br>• Broken by wrong values, missing rows, broken joins<br><br>• Improved by contracts, producer-side checks, tuned thresholds |
 
 
 <br>
@@ -616,10 +606,8 @@ A four-year-old Kafka topic of customer events feeds a leadership dashboard, a c
 - Churn model (consumer, Jupyter)
 - Billing aggregator (consumer, API)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Treating the stream as a product
 
@@ -660,6 +648,8 @@ Enforcement belongs where events are born, not where they are read. If each cons
 
 1. A producer needs to rename `customer_id` to `account_id`. How do you ship that without breaking the churn model mid-flight?\
    *Think additive: write both fields for a while, migrate readers, then retire the old one, rather than a hard rename the registry would reject.*
+
+</details>
 
 
 <br>
@@ -762,17 +752,9 @@ WHERE h.table_name = 'orders_curated'
 
 After annotation, `k = 2.5` catches all 4 incidents with 5 alerts, inside the budget. Give blocking checks a looser `k` than warning checks. A false warning costs an hour of reading. A false block holds a partition past 06:00 and spends the single spare day in the operational target.
 
-✓Do
-
-- Backtest every new threshold against 90 days before it goes live
-- Compare each day with the same weekday in earlier weeks
-- Give every annotation an end date and a named owner
-
-✗Don't
-
-- Copy one k across all 40 checks
-- Annotate a day only because it raised an alert
-- Let annotated days feed the baseline
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Backtest every new threshold against 90 days before it goes live<br><br>• Compare each day with the same weekday in earlier weeks<br><br>• Give every annotation an end date and a named owner | • Copy one k across all 40 checks<br><br>• Annotate a day only because it raised an alert<br><br>• Let annotated days feed the baseline |
 
 **After an alert nobody could explain, a colleague annotates orders_curated from 2026-10-20 with no end date. What follows?**
 
@@ -818,10 +800,8 @@ Design one representative data-contract pipeline that the other 7 legacy pipelin
 - Snowflake serving mart (storage, Snowflake)
 - Three downstream consumers (consumer, Looker)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Writing the contract down
 
@@ -881,6 +861,8 @@ flowchart LR
 2. A metric looks wrong but every `Quality assertions` check passed. Which plane failed?\
    *Separates a green check from a check nobody wrote.*
 
+</details>
+
 
 <br>
 
@@ -890,10 +872,8 @@ flowchart LR
 
 An orders service publishes events to Kafka, and its team adds, drops or retypes fields most sprints. Build the data contract: each producer schema change passes a compatibility check in CI before it is registered in a schema registry, and incoming events are validated against the registered schema. Failing events go to a dead letter queue, and the lakehouse orders table must take on added columns without a rebuild.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Check the contract twice: at change time and at arrival
 
@@ -938,6 +918,8 @@ flowchart LR
    *Treating a rename as an add, a dual-write window, then a separate checked removal.*
 2. A consumer needs `order_total` changed from integer cents to a decimal amount. What path does that change take?\
    *Handling a breaking type change through a new field and a versioned migration instead of an in-place retype.*
+
+</details>
 
 
 <br>
@@ -1061,10 +1043,8 @@ A rename needs 3.0.0 and notice to the 8 v2 readers, while an added field is add
 
 About 2 million orders a night load from the order database into a warehouse that feeds a finance dashboard, and last week revenue fell 30% while every job reported success. Redesign the nightly batch so freshness, volume, schema and distribution each get their own check before the dashboard reads the data. A failed check must page the on-call engineer, and lineage must be captured so a bad number traces back to its source table.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Each pillar answers a different question
 
@@ -1121,6 +1101,8 @@ flowchart LR
 2. Distribution fires but volume and schema pass. Where do you look first?\
    *Walking the pillars as a diagnosis rather than a checklist.*
 
+</details>
+
 
 <br>
 
@@ -1130,10 +1112,8 @@ flowchart LR
 
 About 40 million smart-meter readings load nightly into a warehouse behind a billing dashboard, and a fixed null-rate check pages on-call fifteen times a month, nearly all false. Keep 180 days of raw readings and backtest the proposed threshold against them, counting the pages it would have fired, before the check goes live. The tuned check must block a bad load from the warehouse and page on-call when it fires.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### A threshold earns its place in history first
 
@@ -1182,6 +1162,8 @@ flowchart LR
 2. Sunday loads are always sparser than weekdays. How would the replay account for that?\
    *Seasonality in thresholds tuned against history.*
 
+</details>
+
 
 <br>
 
@@ -1211,10 +1193,8 @@ A grocery delivery company builds driver_payouts nightly from delivery events an
 
 A six-year-old nightly shipments export lands in a warehouse table read by two scheduled reports and unknown analyst queries. The producer is switching the export to a v2 shape that retypes weight from text to a number and renames 3 columns. Check each load against the v2 contract before it lands in a v2 table, then map it back into a v1 table in the old shape so existing readers keep working through the deprecation window.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Let the producer evolve, keep the readers' shape fixed
 
@@ -1264,6 +1244,8 @@ flowchart LR
 2. What changes if one report can never migrate off v1?\
    *Keeping a compatibility version alive past the window, and what it costs to maintain.*
 
+</details>
+
 
 <br>
 
@@ -1273,10 +1255,8 @@ flowchart LR
 
 A nightly batch loads about 30 million song plays from the playback database into a warehouse behind a royalty dashboard, and a rights holder just reported its royalty total fell 12 percent while every job ran on time. Design the pipeline so a wrong number like that is caught before the dashboard reads it: check each load's freshness, volume, schema and value distribution, and record lineage so a bad figure traces back to its source. Have the check read its paging threshold from a store of the last 90 days of check results, so it pages the on-call engineer only on real breaks.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### From a complaint to a check people trust
 
@@ -1325,6 +1305,8 @@ flowchart LR
    *Segmenting the distribution check so a local break is not averaged away.*
 2. What changes if rights holders need totals within an hour of each play instead of nightly?\
    *Moving volume and distribution checks onto shorter windows and redefining what history means.*
+
+</details>
 
 
 <br>
