@@ -11,6 +11,7 @@ pipeline diagram as an image next to the Markdown.
 
 For personal study use. Output defaults to ./lesson_preview/.
 """
+import base64
 import json
 import os
 import re
@@ -657,7 +658,7 @@ def screenshot_schema_diagrams(url, out_dir, slug, challenges):
 # itself once scrolled into view, with a step counter ("3/9") and sometimes mode toggles.
 # Each mode is recorded as a screen video of the player alone, cropped, and made into a GIF.
 GIF_FILTER = ("fps=15,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];"
-              "[b][p]paletteuse=dither=bayer:bayer_scale=4")
+              "[b][p]paletteuse=dither=sierra2_4a")
 _STEP = re.compile(r"(\d+)\s*/\s*(\d+)")
 _PLAYER_BOX = """(block) => { const bs = [...block.querySelectorAll('button')]; if (!bs.length) return null;
     let a = bs[0]; while (a && !bs.every(b => a.contains(b))) a = a.parentElement;
@@ -667,7 +668,7 @@ _PLAYER_BOX = """(block) => { const bs = [...block.querySelectorAll('button')]; 
 def record_animations(url, out_dir, slug, info):
     """Save every animation block's playback as a GIF: one per mode (toggle) if it has any.
 
-    Returns {block number: [(mode label or None, file name)]}. The recording runs from the
+    Returns {block number: [(mode label or None, file name)]}. The capture runs from the
     moment the mode starts until the step counter reaches its last step (two seconds' grace),
     so it needs no fixed length. The crop is the smallest box holding all the player's buttons,
     which leaves out the caption paragraph that sits below it (that goes into the Markdown).
@@ -690,30 +691,37 @@ def record_animations(url, out_dir, slug, info):
         for k, entry in enumerate(info):
             for m, label in enumerate(entry["labels"] or [None]):
                 with tempfile.TemporaryDirectory() as tmp:
-                    ctx = browser.new_context(viewport={"width": 1000, "height": 900}, color_scheme="light",
-                                              record_video_dir=tmp,
-                                              record_video_size={"width": 1000, "height": 900})
+                    ctx = browser.new_context(viewport={"width": 1000, "height": 900}, color_scheme="light")
                     page = ctx.new_page()
-                    t0 = time.monotonic()
                     page.goto(url, wait_until="domcontentloaded")
                     page.wait_for_timeout(3000)
                     block = page.locator('[data-note-block-type$="_animation"]').nth(k)
-                    if m == 0:
-                        start = time.monotonic() - t0  # plays by itself once scrolled into view
-                        block.scroll_into_view_if_needed()
-                    else:
-                        block.scroll_into_view_if_needed()
+                    block.scroll_into_view_if_needed()  # the first mode plays by itself once in view
+                    if m > 0:
                         page.wait_for_timeout(300)
-                        start = time.monotonic() - t0
-                        block.locator("button[role=radio]").nth(m).click()
-                    page.wait_for_timeout(600)
                     box = block.evaluate(_PLAYER_BOX)
                     if not box:
                         ctx.close()
                         print(f"warning: animation {k + 1} has no player controls; not captured", file=sys.stderr)
                         break
-                    done_since, last_hash, still_since = None, None, time.monotonic()
-                    while time.monotonic() - t0 - start < 150:
+                    # Frames come straight from the browser's screencast, uncompressed. Playwright's
+                    # recorded video is compressed, which made text and glows look fuzzy in the GIF.
+                    cdp = ctx.new_cdp_session(page)
+                    frames = []
+                    cdp.on("Page.screencastFrame", lambda event: frames.append(event))
+                    cdp.send("Page.startScreencast", {"format": "png", "maxWidth": 1000, "maxHeight": 900,
+                                                      "everyNthFrame": 1})
+                    if m > 0:
+                        block.locator("button[role=radio]").nth(m).click()
+                    stamps, done_since, last_hash = [], None, None
+                    began = still_since = time.monotonic()
+                    while time.monotonic() - began < 150:
+                        while frames:  # save each frame and tell the browser it can send the next
+                            event = frames.pop(0)
+                            with open(os.path.join(tmp, f"f{len(stamps):05d}.png"), "wb") as fh:
+                                fh.write(base64.b64decode(event["data"]))
+                            stamps.append(event["metadata"]["timestamp"])
+                            cdp.send("Page.screencastFrameAck", {"sessionId": event["sessionId"]})
                         steps = _STEP.findall(block.inner_text())
                         if steps and int(steps[-1][0]) >= int(steps[-1][1]):
                             done_since = done_since or time.monotonic()
@@ -725,17 +733,24 @@ def record_animations(url, out_dir, slug, info):
                                 last_hash, still_since = h, time.monotonic()
                             elif time.monotonic() - still_since >= 3:
                                 break
-                        page.wait_for_timeout(500)
-                    length = time.monotonic() - t0 - start + 0.3
-                    video = page.video.path()
+                        page.wait_for_timeout(80)
+                    cdp.send("Page.stopScreencast")
                     ctx.close()
+                    if len(stamps) < 2:
+                        print(f"warning: animation {k + 1} produced no frames; not captured", file=sys.stderr)
+                        break
+                    with open(os.path.join(tmp, "list.txt"), "w") as fh:  # each frame lasts until the next
+                        for i, stamp in enumerate(stamps):
+                            span = stamps[i + 1] - stamp if i + 1 < len(stamps) else 1.0
+                            fh.write(f"file 'f{i:05d}.png'\nduration {max(span, 0.001):.4f}\n")
+                        fh.write(f"file 'f{len(stamps) - 1:05d}.png'\n")
                     name = f"{slug}_animation_{k + 1}" + (f"_{re.sub(r'[^a-z0-9]+', '-', label.lower()).strip('-')}"
                                                           if label else "") + ".gif"
                     x, y = int(box["x"]), int(box["y"])
                     w = int(box["w"] + 0.999) + (int(box["w"] + 0.999) % 2)
                     h = int(box["h"] + 0.999) + (int(box["h"] + 0.999) % 2)
-                    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{max(0, start - 0.3):.2f}",
-                                    "-i", video, "-t", f"{length:.2f}",
+                    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0",
+                                    "-i", os.path.join(tmp, "list.txt"),
                                     "-vf", f"crop={w}:{h}:{x}:{y},{GIF_FILTER}", "-loop", "0",
                                     os.path.join(img_dir, name)], check=True)
                     saved.setdefault(k, []).append((label, name))
