@@ -202,7 +202,7 @@ Airflow reads this file to learn the graph, and it reads it again on a timer to 
 
 ### Wiring the order
 
->> reads as 'then'. a >> b makes b downstream of a: b may start only after a finishes with success. << is the same edge written from the other side. A list on either end fans out or fans in: [a, b] >> c draws 2 edges into c, and a >> [b, c] draws 2 edges out of a. Chains compose, so the last line of the file draws 3 edges in one expression.
+\>\> reads as 'then'. a >> b makes b downstream of a: b may start only after a finishes with success. << is the same edge written from the other side. A list on either end fans out or fans in: [a, b] >> c draws 2 edges into c, and a >> [b, c] draws 2 edges out of a. Chains compose, so the last line of the file draws 3 edges in one expression.
 
 | Expression | Edges drawn |
 | --- | --- |
@@ -263,21 +263,10 @@ with DAG("weekly_payroll", schedule=None):
 
 **Graph, deployed (your starter code)**
 
-![Graph, deployed (your starter code)](images/airflow_dag_anatomy_beginner_ex1_graph.png)
+<img src="images/airflow_dag_anatomy_beginner_ex1_graph.png" alt="Graph, deployed (your starter code)" width="262">
 
 <details>
 <summary><strong>Solution</strong></summary>
-
-**Expected grid after the fix**
-
-| task |  |
-|---|---|
-| `merge` | ✅ success |
-| `publish` | 🟧 upstream_failed |
-| `pull_hr` | ✅ success |
-| `check_hrs` | ❌ failed |
-| `check_pay` | ✅ success |
-| `pull_time` | ✅ success |
 
 #### Edges say who waits, and nothing more
 
@@ -465,18 +454,10 @@ row_report()
 
 **Graph, deployed (your starter code)**
 
-![Graph, deployed (your starter code)](images/airflow_dag_anatomy_beginner_ex2_graph.png)
+<img src="images/airflow_dag_anatomy_beginner_ex2_graph.png" alt="Graph, deployed (your starter code)" width="262">
 
 <details>
 <summary><strong>Solution</strong></summary>
-
-**Expected grid after the fix**
-
-| task |  |
-|---|---|
-| `find_file` | ✅ success |
-| `summarize` | ✅ success |
-| `count_rows` | ✅ success |
 
 #### Calls build the graph
 
@@ -607,23 +588,23 @@ rep = build_report()
 
 **Tasks**
 
-![Tasks](images/airflow_dag_anatomy_beginner_ex3_tasks.png)
+<img src="images/airflow_dag_anatomy_beginner_ex3_tasks.png" alt="Tasks" width="330">
 
 **airflow.cfg**
 
-![airflow.cfg](images/airflow_dag_anatomy_beginner_ex3_cfg.png)
+<img src="images/airflow_dag_anatomy_beginner_ex3_cfg.png" alt="airflow.cfg" width="330">
 
 **Grid as given (your starter code)**
 
-![Grid as given (your starter code)](images/airflow_dag_anatomy_beginner_ex3_grid_given.png)
+<img src="images/airflow_dag_anatomy_beginner_ex3_grid_given.png" alt="Grid as given (your starter code)" width="491">
 
 **Target grid (match this)**
 
-![Target grid (match this)](images/airflow_dag_anatomy_beginner_ex3_grid_target.png)
+<img src="images/airflow_dag_anatomy_beginner_ex3_grid_target.png" alt="Target grid (match this)" width="491">
 
 **Graph as given (your starter code)**
 
-![Graph as given (your starter code)](images/airflow_dag_anatomy_beginner_ex3_graph.png)
+<img src="images/airflow_dag_anatomy_beginner_ex3_graph.png" alt="Graph as given (your starter code)" width="491">
 
 <details>
 <summary><strong>Solution</strong></summary>
@@ -698,19 +679,19 @@ def daily_totals():
 
 **Tasks**
 
-![Tasks](images/airflow_dag_anatomy_beginner_ex4_tasks.png)
+<img src="images/airflow_dag_anatomy_beginner_ex4_tasks.png" alt="Tasks" width="330">
 
 **Grid as given (your starter code)**
 
-![Grid as given (your starter code)](images/airflow_dag_anatomy_beginner_ex4_grid_given.png)
+<img src="images/airflow_dag_anatomy_beginner_ex4_grid_given.png" alt="Grid as given (your starter code)" width="490">
 
 **Target grid (match this)**
 
-![Target grid (match this)](images/airflow_dag_anatomy_beginner_ex4_grid_target.png)
+<img src="images/airflow_dag_anatomy_beginner_ex4_grid_target.png" alt="Target grid (match this)" width="490">
 
 **Graph as given (your starter code)**
 
-![Graph as given (your starter code)](images/airflow_dag_anatomy_beginner_ex4_graph.png)
+<img src="images/airflow_dag_anatomy_beginner_ex4_graph.png" alt="Graph as given (your starter code)" width="490">
 
 <details>
 <summary><strong>Solution</strong></summary>
@@ -782,20 +763,10 @@ with DAG("nightly_retail", schedule="@daily",
 
 **Graph, deployed (your starter code)**
 
-![Graph, deployed (your starter code)](images/airflow_dag_anatomy_beginner_ex5_graph.png)
+<img src="images/airflow_dag_anatomy_beginner_ex5_graph.png" alt="Graph, deployed (your starter code)" width="262">
 
 <details>
 <summary><strong>Solution</strong></summary>
-
-**Expected grid after the fix**
-
-| task |  |  |
-|---|---|---|
-| `merge` | 🟧 upstream_failed | ✅ success |
-| `publish` | 🟧 upstream_failed | 🟧 upstream_failed |
-| `validate` | 🟧 upstream_failed | ❌ failed |
-| `pull_orders` | ❌ failed | ✅ success |
-| `pull_returns` | ✅ success | ✅ success |
 
 #### One file, 2 moments
 

@@ -414,6 +414,16 @@ def convert(html, diagram_images=(), exercises=(), animations=None):
     for div in soup.find_all("div"):
         if div.get_text(strip=True) in ("Daily Life", "Interviews") and not div.find("div"):
             div.decompose()
+    # Text that starts with ">" (e.g. Airflow's ">> reads as 'then'") would become a Markdown
+    # blockquote; escape it. Code is left alone, and the quotes the converter builds are
+    # <blockquote> tags, not text, so they are unaffected.
+    for text in soup.find_all(string=re.compile(r"^\s*>")):
+        # only where a line starts: first text of a paragraph, list item or div (table cells and
+        # text after other inline tags are not line starts, so ">=" there stays as it is)
+        if text.find_parent(["code", "pre", "script", "style"]) or not starts_line(text):
+            continue
+        text.replace_with(re.sub(r"^(\s*)((?:>\s*)+)",
+                                 lambda m: m.group(1) + "".join("\\>" for _ in m.group(2).replace(" ", "")), str(text)))
     # escape_underscores=False keeps names like fare_amount readable
     # BACKSLASH line breaks survive the per-line rstrip in add_section_breaks;
     # the default two trailing spaces would not
@@ -424,6 +434,23 @@ def convert(html, diagram_images=(), exercises=(), animations=None):
             md = md.replace(token, text)
     md = md.rstrip("\n") + (tokens[None] if None in tokens else "") + "\n"
     return add_section_breaks(md)
+
+
+def starts_line(text):
+    """True if this text is the very first thing in its paragraph, list item or div, even
+    when wrapped in inline tags (the site styles inline code as a span, not <code>)."""
+    node = text
+    while True:
+        prev = node.previous_sibling
+        if prev is not None and (not isinstance(prev, str) or prev.strip()):
+            return False
+        node = node.parent
+        if node is None:
+            return False
+        if node.name in ("p", "li", "div", "blockquote"):
+            return True
+        if node.name not in ("span", "strong", "em", "b", "i", "a"):
+            return False  # table cells etc.: the line starts with the pipe, not this text
 
 
 def add_section_breaks(md):
@@ -713,8 +740,11 @@ def airflow_widgets(url, out_dir, slug, shoot):
                 if not shoot:
                     return
                 name = f"{slug}_ex{i + 1}_{key}.png"
-                loc.first.screenshot(path=os.path.join(img_dir, name))
-                shots[key] = (caption, name)
+                path = os.path.join(img_dir, name)
+                loc.first.screenshot(path=path)
+                with open(path, "rb") as fh:  # PNG header: width at bytes 16-20
+                    pixels = int.from_bytes(fh.read(24)[16:20], "big")
+                shots[key] = (caption, name, round(pixels / 2.5))  # shown 2.5x smaller than full size
 
             def click(text):
                 root.get_by_text(re.compile(rf"^{text}$", re.I)).first.click()
@@ -763,17 +793,16 @@ def airflow_exercise_markdown(c, n, total, shots):
     starter = (cfg.get("starter") or {}).get("source") or (files[0]["source"] if files else "")
     out.append(f"**Starter** — `{challenge_path(c)}`\n\n```python\n{starter}\n```")
     if shots:  # panes the page really shows, as the page draws them
-        out += [f"**{shots[k][0]}**\n\n![{shots[k][0]}](images/{shots[k][1]})" for k in SHOT_ORDER if k in shots]
+        out += [f'**{shots[k][0]}**\n\n<img src="images/{shots[k][1]}" alt="{shots[k][0]}" width="{shots[k][2]}">'
+                for k in SHOT_ORDER if k in shots]
     elif form == "grid_match":  # no screenshots: text versions of the same panes
         if sc.get("target"):
             out.append("**Target grid**\n\n" + grid_table(sc["target"]))
         if sc.get("behaviors"):
             out.append("**Tasks**\n\n" + task_lines(sc["behaviors"]))
     out.append("<details>\n<summary><strong>Solution</strong></summary>")
-    if form == "dag_repair" and (sc.get("expect") or {}).get("runs"):
-        runs = [{"logicalDate": f"run {i}", "tasks": r["tasks"]}
-                for i, r in enumerate(sc["expect"]["runs"], 1)]
-        out.append("**Expected grid after the fix**\n\n" + grid_table(runs))
+    # The graph after a correct fix only appears once the code is Run, and Run needs a login,
+    # so it is not captured; the correct code is in the walkthrough below.
     out += [m for m in (solution_block(b) for b in (c.get("deep_dive") or {}).get("blocks") or []) if m]
     out.append("</details>")
     return "\n\n".join(out)
@@ -958,6 +987,10 @@ def record_animations(url, out_dir, slug, info):
                     clip = {"x": box["x"], "y": box["y"], "width": box["w"], "height": box["h"], "scale": 2}
                     if m > 0:
                         block.locator("button[role=radio]").nth(m).click()
+                        page.wait_for_timeout(300)
+                        play = block.locator('button[aria-label="Play"]')
+                        if play.count():  # a switched mode starts paused (Airflow animations)
+                            play.first.click()
                     stamps, done_since, last_hash = [], None, None
                     began = still_since = time.monotonic()
                     while time.monotonic() - began < 150:
