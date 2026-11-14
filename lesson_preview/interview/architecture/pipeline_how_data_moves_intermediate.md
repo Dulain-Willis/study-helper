@@ -87,19 +87,9 @@ WHERE rn = 1
 
 A row deleted from the source has no updated timestamp to cross the mark, so the warehouse copy stays and the row count drifts upward month after month. The answers that score are a soft-delete flag the application sets instead of removing the row, or a change feed from the database's transaction log that emits the delete as a record of its own. Raising deletes before the interviewer does signals that you have run this in production and been paged for the drift.
 
-✓Do
-
-- Store the largest value actually loaded, in the same transaction as the load
-- Subtract a lookback wider than the longest source transaction
-- Deduplicate the overlap on the business key, newest version wins
-- Ask how deletes reach the source before choosing the pattern
-
-✗Don't
-
-- Record the run's wall-clock end time, or any clock other than the source's, as the mark
-- Advance the mark before the load commits
-- Use an auto-increment id as the mark on a table that gets updated in place
-- Assume the source's clocks agree with each other
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Store the largest value actually loaded, in the same transaction as the load<br><br>• Subtract a lookback wider than the longest source transaction<br><br>• Deduplicate the overlap on the business key, newest version wins<br><br>• Ask how deletes reach the source before choosing the pattern | • Record the run's wall-clock end time, or any clock other than the source's, as the mark<br><br>• Advance the mark before the load commits<br><br>• Use an auto-increment id as the mark on a table that gets updated in place<br><br>• Assume the source's clocks agree with each other |
 
 > **TIP**
 >
@@ -162,19 +152,9 @@ HAVING COUNT(*) > 1
 
 The ordering follow-up comes next. The log orders events within 1 partition and makes no promise across partitions, so a cancel and the order it cancels can arrive in either sequence if they hash to different partitions. The answer is to key both by the order id so they share a partition, and to accept that this concentrates all of 1 busy customer's traffic on 1 consumer. Naming that cost shows you have chosen a key under pressure before.
 
-✓Do
-
-- Say which side of processing the commit happens on before naming the guarantee
-- Mint the event id on the producer so retries carry the same key
-- Name the dedup window and what a duplicate older than it does
-- Key related events together when their order matters
-
-✗Don't
-
-- Claim exactly-once without describing the sink's part in it
-- Treat the log's ordering as global
-- Commit offsets before the write has been acknowledged
-- Forget the producer retry as a duplicate source
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Say which side of processing the commit happens on before naming the guarantee<br><br>• Mint the event id on the producer so retries carry the same key<br><br>• Name the dedup window and what a duplicate older than it does<br><br>• Key related events together when their order matters | • Claim exactly-once without describing the sink's part in it<br><br>• Treat the log's ordering as global<br><br>• Commit offsets before the write has been acknowledged<br><br>• Forget the producer retry as a duplicate source |
 
 
 <br>
@@ -195,10 +175,8 @@ An ad platform bills advertisers from a real-time count of impression events, bu
 - Counter (replays on restart) (transform, Flink)
 - Billable counts (storage, PostgreSQL)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The pattern under the costume
 
@@ -279,6 +257,8 @@ A streaming aggregate trades correctness for latency on purpose. A running sum i
 3. An advertiser was already billed from the live count before the gap surfaced. What happens to that money?\
    *Whether `Authoritative totals` feed a credit or correction path, not only an alert.*
 
+</details>
+
 
 <br>
 
@@ -321,19 +301,9 @@ Row group statistics only help when values are clustered. If user_id is scattere
 
 ### When the answer is a row format
 
-✓Row formats win (JSON lines, Avro)
-
-- Appending 1 record at a time from a stream
-- Fetching 1 whole record by key
-- Landing raw payloads before any parsing
-- Schemas that change weekly
-
-✗Column formats win (Parquet, ORC)
-
-- Scans over millions of rows and a few columns
-- Wide tables with 50 or more columns
-- Partitions that are written once and read many times
-- Output of a compaction job
+| ✓ Row formats win (JSON lines, Avro) | ✗ Column formats win (Parquet, ORC) |
+| --- | --- |
+| • Appending 1 record at a time from a stream<br><br>• Fetching 1 whole record by key<br><br>• Landing raw payloads before any parsing<br><br>• Schemas that change weekly | • Scans over millions of rows and a few columns<br><br>• Wide tables with 50 or more columns<br><br>• Partitions that are written once and read many times<br><br>• Output of a compaction job |
 
 The common mistake is writing column files directly from a stream. A job that flushes a file every 10 seconds produces 8,640 files per day per partition, each with its own footer, and the query planner opens every footer before reading a byte of data. Past a few thousand files the planning time exceeds the scan time. The standard fix lands stream output in a row format, then compacts it on a schedule into column files sized between 128 megabytes and 1 gigabyte, which keeps row groups large enough for their statistics to mean something.
 
@@ -513,10 +483,8 @@ A food delivery marketplace pays restaurants every Monday for the previous week'
 
 How do we get a year of history out of a vendor's rate-limited REST API into tables our analysts query, and then keep those tables current every day? Records move between pages while we crawl, and the response fields have changed twice this year and will change again. A multi-hour vendor outage must not cost us a day of records or load any record twice.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem really is
 
@@ -604,6 +572,8 @@ flowchart LR
 2. Marketing now wants the tables refreshed hourly, but the rate limit stays at 60 requests a minute. What changes, and what does not?\
    *Tests whether the candidate recognizes the same mark, token paging and upsert work at a shorter cadence, and budgets hourly requests against the limit alongside any running backfill window.*
 
+</details>
+
 
 <br>
 
@@ -618,10 +588,8 @@ Billing has been counting some orders twice every time the stream consumer resta
 - Order events (source, Kafka)
 - Stream processor (transform, Flink)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The pattern under the costume
 
@@ -686,6 +654,8 @@ One malformed order, a bad schema or a null where a price should be, will throw 
    *Probes the serving-layer merge: provisional speed values overwritten by authoritative batch results.*
 3. Your dead-letter queue holds 10k events after a bad deploy. What is your replay story?\
    *A dead-letter queue with no drain-and-reprocess path is just a slower way to lose data.*
+
+</details>
 
 
 <br>

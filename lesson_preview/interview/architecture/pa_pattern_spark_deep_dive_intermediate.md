@@ -364,10 +364,8 @@ An online marketplace runs a nightly attribution job: 3 TB of click events joine
 
 Every seller's settlement totals have to be exact to the cent by the time finance signs off each morning. Since one very large seller joined, the nightly Spark job that totals `settlement_events` per seller spends 45 minutes on a single task of that stage while the other 199 finish in seconds. Redesign the nightly pipeline so no one seller's volume can stall it, land the totals in the table finance reads, and make sure on-call is alerted when a straggler task shows up again.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -433,6 +431,8 @@ flowchart LR
 2. Finance adds a unique-buyer count per seller to the settlement. Is your remedy still exact?\
    *Tests whether the candidate knows salting is exact only for aggregates that re-combine. Sums re-add across buckets, but unique buyers counted per bucket overcount a buyer who lands in two. The fix is to derive the bucket from the buyer id.*
 
+</details>
+
 
 <br>
 
@@ -442,10 +442,8 @@ flowchart LR
 
 The nightly pipeline ingests shipment scans, joins them to a 40MB shipper accounts table, and lands the daily scan rollup in a table the dispatch dashboard reads at 5am. The on-call engineer sees the join stage's 200 tasks finish in about 30 seconds except one that runs 45 minutes, because this week one retailer owns a third of all scans under a single shipper ID. Redesign the pipeline so no single shipper can stall the run, and alert on the join stage so someone is paged when a task falls far behind the stage median.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What the stage summary is telling you
 
@@ -518,6 +516,8 @@ flowchart LR
    *Tests whether the candidate weighs executor memory and driver collect cost against the shuffle it saves, and knows when to switch to salting.*
 2. A second retailer of the same size moves in next quarter. What does your skew alert show, and does your fix already cover it?\
    *Tests whether the candidate sees that a broadcast lookup is indifferent to how many hot keys exist, while a salt tuned for one key is not.*
+
+</details>
 
 
 <br>

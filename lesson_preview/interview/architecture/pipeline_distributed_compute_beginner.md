@@ -80,19 +80,9 @@ The driver records how every partition was derived from its inputs, a chain call
 > - Side effects inside a task, such as posting each row to an API, happen again on every attempt.
 > - A dead driver ends the application. Executors are replaceable; the driver holds the plan and every task's state, so it has no stand-in.
 
-✓Claim heard in interviews
-
-- The code runs line by line as written
-- More executors always make a job faster
-- A failed task fails the job
-- The driver processes the rows
-
-✗What the system does
-
-- Nothing runs until an action, and then the whole plan is optimized together
-- Only while a stage has more tasks than slots
-- The task gets up to 4 attempts first
-- The driver plans and schedules; executors read and transform the rows
+| ✓ Claim heard in interviews | ✗ What the system does |
+| --- | --- |
+| • The code runs line by line as written<br><br>• More executors always make a job faster<br><br>• A failed task fails the job<br><br>• The driver processes the rows | • Nothing runs until an action, and then the whole plan is optimized together<br><br>• Only while a stage has more tasks than slots<br><br>• The task gets up to 4 attempts first<br><br>• The driver plans and schedules; executors read and transform the rows |
 
 > **TIP**
 >
@@ -118,10 +108,8 @@ A daily Spark job joins a large event feed against a small lookup table for a re
 - Join (large + small side) (transform, Spark)
 - Output table (storage, Delta Lake)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 This is a shuffle you were never supposed to pay for, dressed up as a slow morning report. The lesson's name for it is the **broadcast join**: one side of the join is small enough to sit in memory on every executor, so it should be shipped there once and joined locally, never redistributed by key. The trap this instance sets is the reflex to add machines. More executors give you more parallelism for the shuffle, but the shuffle itself is the cost, so the job stays slow and now costs more per run. Get this wrong and you keep buying cluster to move a large event feed across the network every single morning to meet a lookup table that would fit in a laptop's RAM.
 
@@ -211,6 +199,8 @@ enriched = events.join(
 3. The morning run finishes on time but the numbers are stale by an hour, why?\
    *Separates job duration from source freshness and upstream Kafka lag.*
 
+</details>
+
 
 <br>
 
@@ -288,17 +278,9 @@ The query runs in 4 stages. Stage 1 scans viewing_events, applies the WHERE filt
 
 Lineage makes narrow failures cheap. If the stage 1 task for partition 37 dies, the rerun reads the same input file and repeats the same filter: 1 file, about 15 seconds of work. A wide step has no such clean edge. One partition of the aggregate depends on shuffle files written by all 10,000 scan tasks, and if an executor holding some of those files is gone, those scan tasks run again before the aggregate can retry.
 
-✓A chain of narrow steps
-
-- Runs inside a single task, with no disk write or network hop between steps
-- A failure reruns 1 partition from its source file
-- Partition count stays whatever the input produced
-
-✗A wide step
-
-- Ends a stage, and the next stage waits for every upstream task
-- A lost executor can force upstream tasks to rerun
-- Partition count resets to the shuffle setting, 200 by default
+| ✓ A chain of narrow steps | ✗ A wide step |
+| --- | --- |
+| • Runs inside a single task, with no disk write or network hop between steps<br><br>• A failure reruns 1 partition from its source file<br><br>• Partition count stays whatever the input produced | • Ends a stage, and the next stage waits for every upstream task<br><br>• A lost executor can force upstream tasks to rerun<br><br>• Partition count resets to the shuffle setting, 200 by default |
 
 *Each action is its own job. Calling count and then write on the same DataFrame scans the input twice, unless the DataFrame is cached before the first action.*
 
@@ -319,10 +301,8 @@ Lineage makes narrow failures cheap. If the stage 1 task for partition 37 dies, 
 
 A nightly Spark batch job reads the previous day's raw listening-event files from the data lake and rolls them up into a daily totals table the analysts open each morning, yet last night it finished in seconds having written nothing. Lay the job out on the canvas from the lake to that once-a-day output table, with the driver that turns the read and the roll-up into a plan of tasks kept apart from the executors that each process one partition in parallel, and wire the write so it is the step that sets that plan running.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Driver plans, executors execute, an action triggers
 
@@ -381,6 +361,8 @@ flowchart LR
    *Tests task reassignment: the driver hands the failed tasks to another executor, and a lost partition is recomputed from the lake files using the plan's lineage.*
 2. The analyst adds a `.count()` before the `.write()`. How many times does Spark read the lake now?\
    *Tests that each action triggers its own run of the plan: 2 actions mean 2 executions unless the result is kept around.*
+
+</details>
 
 
 <br>
@@ -478,10 +460,8 @@ enriched = watched.join(broadcast(titles), "title_id")
 
 A ride-hailing platform's daily batch job reads raw trip events from a lakehouse and writes a per-city count of completed trips to the operations warehouse. Roughly 2 billion events arrive each day, and under a tenth are completed trips. The current job groups all events by city first, then filters to completed trips, pushing the entire feed across the network before discarding most of it. Redesign the pipeline so data crosses between executors only once, carrying as little payload as possible.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem is really about
 
@@ -549,6 +529,8 @@ flowchart LR
 2. Which of these also force a crossing: `distinct`, `select`, `join`, `withColumn`?\
    *Narrow vs wide recall: `distinct` and `join` are wide (they shuffle); `select` and `withColumn` are narrow (per-partition).*
 
+</details>
+
 
 <br>
 
@@ -605,19 +587,9 @@ More partitions divide the keys among more tasks, yet every row for a given key 
 
 ### Fix the region that ran out
 
-✓Do
-
-- Read spill and the largest task's input in the stage view before changing any setting
-- Size shuffle partitions from shuffle bytes divided by a target of a few hundred MB
-- Raise memory overhead when the cluster manager kills containers for exceeding limits
-- Compare the largest task to the median when 1 executor keeps dying
-
-✗Don't
-
-- Double executor memory as a first move; it hides skew and doubles the bill
-- Call collect() on a result whose size you have not checked
-- Cache a DataFrame that is read only once; it takes memory execution could use
-- Broadcast a table without checking its size once loaded as rows
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Read spill and the largest task's input in the stage view before changing any setting<br><br>• Size shuffle partitions from shuffle bytes divided by a target of a few hundred MB<br><br>• Raise memory overhead when the cluster manager kills containers for exceeding limits<br><br>• Compare the largest task to the median when 1 executor keeps dying | • Double executor memory as a first move; it hides skew and doubles the bill<br><br>• Call collect() on a result whose size you have not checked<br><br>• Cache a DataFrame that is read only once; it takes memory execution could use<br><br>• Broadcast a table without checking its size once loaded as rows |
 
 > **TIP**
 >
@@ -636,10 +608,8 @@ More partitions divide the keys among more tasks, yet every row for a given key 
 
 We run the metering platform for an energy utility, and a nightly Spark job reads about 2 billion raw smart-meter readings from the lakehouse and rolls them up into a daily per-household usage table that billing reads by 6am. The job keeps dying with out-of-memory errors, and the executor logs show heavy spill-to-disk during the aggregation, which joins a cached meter-dimension table that sits pinned in memory. Design the batch pipeline so the rollup finishes inside each executor's memory budget and still lands the summary in the warehouse on time.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem is really testing
 
@@ -697,6 +667,8 @@ flowchart LR
 2. What is the difference between `persist()` and `cache()`, and which would you use for the dimension table here?\
    *Tests that `cache()` is memory-only while `persist()` picks a storage level, and that the right move here is to unpersist or broadcast rather than pin it in memory.*
 
+</details>
+
 
 <br>
 
@@ -736,19 +708,9 @@ Spark's file reader limits the damage by packing small files into shared read ta
 
 Take an output with no partition column first. The 1,000 aggregate tasks would write 1,000 files of about 2 MB, and the instinct is to reduce the task count right before the write. The 2 methods for that look alike in code and behave very differently on the cluster.
 
-✓coalesce(16)
-
-- Narrow: merges whole partitions in place, with no shuffle
-- Adds no stage boundary, so the aggregate stage itself shrinks to 16 tasks
-- Each of those 16 tasks then reads 40 GB of shuffle data and spills heavily
-- Fits when the step before the write is a scan or filter of modest size
-
-✗repartition(16)
-
-- Wide: adds a shuffle of the 2 GB result
-- The aggregate keeps its 1,000 tasks; only the final write runs as 16
-- Rows spread evenly, giving 16 files of roughly 128 MB
-- Fits after a large shuffle, which is this job's case
+| ✓ coalesce(16) | ✗ repartition(16) |
+| --- | --- |
+| • Narrow: merges whole partitions in place, with no shuffle<br><br>• Adds no stage boundary, so the aggregate stage itself shrinks to 16 tasks<br><br>• Each of those 16 tasks then reads 40 GB of shuffle data and spills heavily<br><br>• Fits when the step before the write is a scan or filter of modest size | • Wide: adds a shuffle of the 2 GB result<br><br>• The aggregate keeps its 1,000 tasks; only the final write runs as 16<br><br>• Rows spread evenly, giving 16 files of roughly 128 MB<br><br>• Fits after a large shuffle, which is this job's case |
 
 With partitionBy("country") the file count is tasks times countries per task, so the fix is to make each task hold fewer countries. Repartitioning on country sends every row for a country to the same task, so each country folder receives 1 file: 50 files for the day, averaging 41 MB. The biggest country then lands on a single task, and the maxRecordsPerFile option caps rows per file so that task writes several files instead of a giant one.
 
@@ -813,10 +775,8 @@ A streaming service runs a nightly job that rolls 1.28 TB of viewing events into
 
 60 gigabytes of patient visit records sit in the lake's raw zone as 480 Parquet files, and a notebook's chain of filter and derived-column cells over them returned instantly while the single cell writing the result to the curated zone ran for an hour. Midway through that write one executor died, yet the output still completed with every row, because each task gets up to four attempts before the job gives up. Draw the batch job so the process that plans the work and the workers that run it are separate stages, and so it is visible how the dead executor's share was redone from the untouched raw files.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What the notebook was really showing
 
@@ -890,6 +850,8 @@ flowchart LR
 3. One raw file is corrupt and fails to decode every time. What does the retry budget do with it?\
    *Tests that the retry budget is per task: a bad input file fails the same way on every attempt and ends the job after the fourth.*
 
+</details>
+
 
 <br>
 
@@ -904,10 +866,8 @@ A distributed Spark job rolls up each day's clickstream events against a small p
 - Events (source, Kafka)
 - Spark job (transform, Spark)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -988,6 +948,8 @@ Even with a perfect join, a naive write leaves you with the exact problem you st
    *Separates the join-side small-files problem from the read-side one; the answer is compaction upstream, not the join.*
 3. How would you make the daily write safe to re-run after a partial failure?\
    *Probes idempotency: `replaceWhere` / partition overwrite and the table format's atomic commit versus append duplicates.*
+
+</details>
 
 
 <br>

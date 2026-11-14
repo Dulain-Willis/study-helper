@@ -77,19 +77,9 @@ Ask these before choosing
 - **Source access.** Can you read the log at all? Vendor-hosted and SaaS databases often expose only a query interface.
 - **Load and blast radius.** What may the pipeline do to the primary? A log reader can pin disk, a poller adds queries, and a snapshot adds heavy reads for hours.
 
-✓Log-based CDC earns its cost when
-
-- Consumers need deletes or every status transition
-- Freshness targets are seconds to a minute
-- You can get replication access to the source
-- Several consumers want the same change stream
-
-✗Polling or snapshots are enough when
-
-- The table is small enough to reread each run
-- Rows are append-only and never updated
-- Daily freshness satisfies every consumer
-- The source exposes nothing beyond SQL queries
+| ✓ Log-based CDC earns its cost when | ✗ Polling or snapshots are enough when |
+| --- | --- |
+| • Consumers need deletes or every status transition<br><br>• Freshness targets are seconds to a minute<br><br>• You can get replication access to the source<br><br>• Several consumers want the same change stream | • The table is small enough to reread each run<br><br>• Rows are append-only and never updated<br><br>• Daily freshness satisfies every consumer<br><br>• The source exposes nothing beyond SQL queries |
 
 > Try it: the vendor database
 >
@@ -167,19 +157,9 @@ Ordering survives only as far as partitioning carries it. Keying the topic by `o
 
 ### Where the log itself bites
 
-✓Reader-pinned retention
-
-- The database keeps every log segment the slowest reader still needs
-- Nothing is lost while the connector is down
-- Failure mode: the primary's disk fills and writes stop
-- Guard: alert on retained size, cap it, drop the reader past the cap
-
-✗Time-based rotation
-
-- The database deletes segments past a fixed age, readers or not
-- The primary's disk stays safe
-- Failure mode: a long-stalled connector resumes at a deleted position
-- Guard: alert on lag versus retention, re-snapshot after a gap
+| ✓ Reader-pinned retention | ✗ Time-based rotation |
+| --- | --- |
+| • The database keeps every log segment the slowest reader still needs<br><br>• Nothing is lost while the connector is down<br><br>• Failure mode: the primary's disk fills and writes stop<br><br>• Guard: alert on retained size, cap it, drop the reader past the cap | • The database deletes segments past a fixed age, readers or not<br><br>• The primary's disk stays safe<br><br>• Failure mode: a long-stalled connector resumes at a deleted position<br><br>• Guard: alert on lag versus retention, re-snapshot after a gap |
 
 The running example uses reader-pinned retention. The `orders` primary writes about 18 GB of log per day and has 54 GB of free disk. If the connector stalls on a Friday evening and nobody is paged, the database keeps every byte of that log for the stalled reader.
 
@@ -191,19 +171,9 @@ That is a production outage caused by an analytics pipeline, so the lag alert be
 
 DDL changes the shape of every event committed after it. Adding a nullable `coupon_code` column adds a field, and consumers that ignore unknown fields keep working. Renaming `amount` to `total_amount` removes `amount` from the next event, and a consumer reading it gets nulls or crashes. Changing `amount` from decimal dollars to integer cents keeps the name and changes the meaning, which is the most dangerous of the 3 because no check on field names catches it.
 
-✓Do
-
-- Register each event schema and reject incompatible versions before publishing
-- Allow additive changes: new nullable columns and new tables
-- Rename in steps: add the column, backfill, move readers, then drop
-- Give a column a new name when its units change
-
-✗Don't
-
-- Treat a captured table's layout as private once consumers read its events
-- Rename or retype a captured column in a single migration
-- Let a consumer default a missing field to zero without an alert
-- Drop a column before every consumer has stopped reading it
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Register each event schema and reject incompatible versions before publishing<br><br>• Allow additive changes: new nullable columns and new tables<br><br>• Rename in steps: add the column, backfill, move readers, then drop<br><br>• Give a column a new name when its units change | • Treat a captured table's layout as private once consumers read its events<br><br>• Rename or retype a captured column in a single migration<br><br>• Let a consumer default a missing field to zero without an alert<br><br>• Drop a column before every consumer has stopped reading it |
 
 > Try it: a 9-day outage
 >
@@ -518,10 +488,8 @@ A food delivery marketplace runs its order service on a single OLTP primary. Thr
 
 How would you rebuild the path that carries orders to the warehouses, which today writes each order to PostgreSQL and publishes an 'order placed' message to Kafka from the same request handler, so that warehouses see exactly the orders that committed, within a minute, with every change to an order arriving in the order it committed? The fulfillment on-call engineer is seeing both failures at the 2,000-orders-per-minute peak (rolled-back orders on pick lists, confirmed orders that never show up), and no warehouse may ship the same order twice when the new pipeline restarts or replays.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem really is
 
@@ -597,6 +565,8 @@ flowchart LR
 2. Warehouses complain the events expose internal columns that change whenever the checkout schema does. What would you change?\
    *Tests decoupling the event contract from the `orders` table, for example capturing a purpose-built table written in the same transaction.*
 
+</details>
+
 
 <br>
 
@@ -606,10 +576,8 @@ flowchart LR
 
 Because the listing service saves each product to PostgreSQL and then calls the search index directly from the same request handler, the on-call search engineer keeps fielding seller tickets about delisted items that stay searchable for days and quick successive edits that surface in the wrong order. Redesign how catalog changes reach the index so it stays a faithful copy of the `products` table, deletes included, without putting extra query load on the catalog database.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem really is
 
@@ -688,6 +656,8 @@ flowchart LR
    *Tests understanding of delete events plus tombstones on the product key, and that compaction eventually drops the tombstone, so a full rebuild should start from a fresh snapshot.*
 3. Search now also needs each product's seller rating, which lives in a different table. Where does that join happen without bringing back a second write?\
    *Tests whether the candidate keeps capture per table and enriches downstream of the change stream rather than having the application write the rating into the index.*
+
+</details>
 
 
 <br>

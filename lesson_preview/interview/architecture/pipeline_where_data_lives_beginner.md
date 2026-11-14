@@ -98,19 +98,9 @@ Here the filter reads 2 of 4 row groups. The skip depends on clustering: if long
 
 The layout that speeds up reads slows down some writes, and a full answer says which. Appending 1 row means adding a value to 40 separate column runs, so writers buffer thousands of rows in memory and flush a whole row group at a time. Changing 1 row means rewriting its file, because a Parquet file can't be edited once it is closed. Reading 1 complete record means visiting 40 places in the file instead of 1.
 
-✓Row formats fit
-
-- An application database reading and writing a single order at a time
-- A stream of events where each message is a complete record
-- Landing files from a source as they arrive, before any query runs
-- Lookups that need every field of a single record
-
-✗Columnar formats fit
-
-- Queries that aggregate a few columns across millions of rows
-- Tables written in large batches and rarely changed afterwards
-- Long histories where compressed size drives the storage bill
-- Filters that can rule out whole row groups by statistics
+| ✓ Row formats fit | ✗ Columnar formats fit |
+| --- | --- |
+| • An application database reading and writing a single order at a time<br><br>• A stream of events where each message is a complete record<br><br>• Landing files from a source as they arrive, before any query runs<br><br>• Lookups that need every field of a single record | • Queries that aggregate a few columns across millions of rows<br><br>• Tables written in large batches and rarely changed afterwards<br><br>• Long histories where compressed size drives the storage bill<br><br>• Filters that can rule out whole row groups by statistics |
 
 > **TIP**
 >
@@ -178,19 +168,9 @@ A codec shrinks data by finding byte patterns it has seen recently and replacing
 
 Engines go fast by cutting a large file into byte ranges and handing each range to a different worker. That requires a worker to be able to start decoding in the middle. A CSV compressed with Gzip as a whole is a single stream: byte 5,000,000 decodes only after every byte before it, so the engine gives the entire file to 1 worker.
 
-✓events.csv.gz, 40 GB
-
-- A single Gzip stream from first byte to last
-- Can't be cut into ranges
-- One worker reads all 40 GB while the rest wait
-- Runtime grows with file size
-
-✗events.parquet, 40 GB, Gzip codec
-
-- Compressed page by page inside each column chunk
-- Row groups decode independently of each other
-- Each row group can go to a different worker
-- Runtime grows with file size divided by worker count
+| ✓ events.csv.gz, 40 GB | ✗ events.parquet, 40 GB, Gzip codec |
+| --- | --- |
+| • A single Gzip stream from first byte to last<br><br>• Can't be cut into ranges<br><br>• One worker reads all 40 GB while the rest wait<br><br>• Runtime grows with file size | • Compressed page by page inside each column chunk<br><br>• Row groups decode independently of each other<br><br>• Each row group can go to a different worker<br><br>• Runtime grows with file size divided by worker count |
 
 The codec stayed the same and the container changed. Parquet compresses inside its own structure, so the file splits on row group boundaries whatever codec it uses, and at a common row group size of 128 MB a 40 GB file offers hundreds of ranges. Splittable codecs for plain text do exist, but the usual pipeline fix is to land raw files as they arrive and convert them to Parquet in the first transform.
 
@@ -356,10 +336,8 @@ A daily batch lands the raw clickstream as one giant Parquet file in cheap objec
 - Daily writer (transform, Spark)
 - Unpartitioned Parquet (storage, S3)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -448,6 +426,8 @@ raw = spark.read.parquet("s3://lake/raw/clickstream/")
 4. A teammate proposes partitioning by hour 'for finer pruning'. What do you tell them?\
    *Tests the over-partitioning pitfall: pruning gains versus per-file overhead.*
 
+</details>
+
 
 <br>
 
@@ -531,10 +511,8 @@ Raw events land cheaply in object storage, but the BI team needs fast SQL aggreg
 - Landing zone (storage, S3)
 - Cleaner (transform, Spark)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### 2 tiers, 2 jobs
 
@@ -597,6 +575,8 @@ flowchart LR
    *Why date partitioning turns late data into a rewrite of one partition.*
 3. The cleaning logic had a bug all last week. How do you fix the warehouse?\
    *Why keeping raw data is load-bearing: reprocess from the lake instead of patching the serving copy.*
+
+</details>
 
 
 <br>
@@ -665,19 +645,9 @@ The guarantees come with upkeep, and naming it is the practical awareness interv
 - **8,760** — snapshots a year at hourly commits
 - **35,040** — snapshots a year at 15-minute commits
 
-✓Do
-
-- Expire snapshots on a schedule that matches how far back time travel must reach
-- Run orphan-file cleanup so failed writes stop holding storage
-- Compact tables fed by frequent small appends
-- Retry a rejected commit against the latest version
-
-✗Don't
-
-- Copy files into a table's directory with a tool that skips the commit step
-- Delete data files by hand to reclaim space
-- Keep every snapshot forever because nobody set a retention
-- Assume a plain Parquet directory gives readers transactional reads
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Expire snapshots on a schedule that matches how far back time travel must reach<br><br>• Run orphan-file cleanup so failed writes stop holding storage<br><br>• Compact tables fed by frequent small appends<br><br>• Retry a rejected commit against the latest version | • Copy files into a table's directory with a tool that skips the commit step<br><br>• Delete data files by hand to reclaim space<br><br>• Keep every snapshot forever because nobody set a retention<br><br>• Assume a plain Parquet directory gives readers transactional reads |
 
 
 <br>
@@ -729,10 +699,8 @@ A video streaming service ingests about 1 billion playback events a day as gzip-
 
 An analyst's weekly revenue dashboard uses six of the roughly one hundred columns in the nightly order export and only the last 7 order dates, yet every query scans the entire flat folder of CSV files the finance job dumps into object storage. Redesign where and how those orders are stored so her queries read only the columns and order dates they ask for, and so a nightly load that dies halfway never shows her a partial day.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why this problem exists in real interviews
 
@@ -804,6 +772,8 @@ flowchart LR
 2. Finance restates last Tuesday's orders and sends a corrected export. How does the table take it without the dashboard seeing a mix of old and new rows?\
    *Tests using the table format: rewrite only Tuesday's `order_date` partition and commit it as one transaction, so readers see either the old day or the corrected one.*
 
+</details>
+
 
 <br>
 
@@ -819,10 +789,8 @@ Put it all together: design end-to-end storage for a clickstream platform. Raw e
 - Landing zone (storage, S3)
 - Cleaner / compactor (transform, Spark)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 Strip the costume off and this is the **raw lake with a lakehouse on top** you just learned, sized down to one page. The words 'end-to-end storage' make it sound like one decision; it is three, because no single storage choice satisfies 'land cheaply', 'query by day', and 'reliable concurrent writes' at once. The trap is treating the object-storage landing zone as the thing BI queries. It lands as thousands of tiny row-oriented files, so pointing a query engine at it means full scans over unindexed JSON and, worse, readers seeing half-written partitions. Get the tiering wrong and the demo works on a day of data and falls over at a month.
 
@@ -883,6 +851,8 @@ flowchart LR
    *Tests understanding of table-format `MERGE`/upsert and partition rewrites versus naive append.*
 3. Why keep the raw landing zone at all once data is curated?\
    *Tests the reprocessing and replay argument for a cheap immutable raw tier.*
+
+</details>
 
 
 <br>

@@ -110,19 +110,9 @@ The table is `dim_order_profile`: one row per combination of the 5 order-level f
 
 ### Pre-build every combination, or insert what appears
 
-✓Cartesian, built once
-
-- All 240 rows exist before the first fact row arrives
-- The fact load only looks keys up and never inserts
-- Filter panels offer combinations that never happen, such as a point-of-sale order awaiting fulfillment
-- A new value in any field forces a rebuild
-
-✗Observed, grown by each load
-
-- A row appears the first time its combination does
-- Each load inserts new combinations before the fact rows land
-- The row count reports real combinations, often a fraction of the ceiling
-- Kimball Group's published modeling techniques recommend this form
+| ✓ Cartesian, built once | ✗ Observed, grown by each load |
+| --- | --- |
+| • All 240 rows exist before the first fact row arrives<br><br>• The fact load only looks keys up and never inserts<br><br>• Filter panels offer combinations that never happen, such as a point-of-sale order awaiting fulfillment<br><br>• A new value in any field forces a rebuild | • A row appears the first time its combination does<br><br>• Each load inserts new combinations before the fact rows land<br><br>• The row count reports real combinations, often a fraction of the ceiling<br><br>• Kimball Group's published modeling techniques recommend this form |
 
 Cartesian fits when the ceiling is in the hundreds and every value list is governed, such as an enum in the source schema. The build is a cross join of the value lists. Once any field comes from a free-form source, observed growth is the safer default, because the source can send a value no list anticipated.
 
@@ -381,19 +371,9 @@ Nearly every web order is placed 'unfulfilled' and becomes 'fulfilled' days late
 
 ### Adding a field to a live junk dimension
 
-✓Sequential keys
-
-- Add device_type with 'not captured' on every existing row
-- Every existing fact key stays valid, so no fact rows are rewritten
-- New combinations get new keys as they appear
-- A full rebuild can renumber keys, so keep a stored key map
-
-✗Value-hash keys
-
-- The hash input gains a field, so every combination gets a new key
-- All 2 billion fact rows need their key recomputed and rewritten
-- Any rebuild, in any environment, produces the same keys
-- The fact load computes keys without a lookup join
+| ✓ Sequential keys | ✗ Value-hash keys |
+| --- | --- |
+| • Add device_type with 'not captured' on every existing row<br><br>• Every existing fact key stays valid, so no fact rows are rewritten<br><br>• New combinations get new keys as they appear<br><br>• A full rebuild can renumber keys, so keep a stored key map | • The hash input gains a field, so every combination gets a new key<br><br>• All 2 billion fact rows need their key recomputed and rewritten<br><br>• Any rebuild, in any environment, produces the same keys<br><br>• The fact load computes keys without a lookup join |
 
 Hash keys can stay stable if the new field enters the hash input only when its value differs from 'not captured'. Existing combinations then hash exactly as before, and a phone order gets a new key from the longer string. The catch is that key stability now depends on a convention every future engineer must keep, so it belongs in the dimension's written contract and in a test that recomputes old keys. The alternative with zero rewrite is a second junk dimension for the new fields, at the cost of one more key on the fact.
 
@@ -452,19 +432,9 @@ Of those replies, 2 give ground on purpose. When you concede that storage is clo
 
 ### The same answer, recited or reasoned
 
-✓Recites the pattern
-
-- 'Junk dimensions save space by combining flags.'
-- 'Degenerate dimensions are dimensions without tables.'
-- 'I'd use a junk dimension because it's the standard pattern.'
-- 'It might get big, so we'd monitor it.'
-
-✗Reasons about this schema
-
-- 'Encoded, 5 flags cost about the same as 1 key; I want governed labels.'
-- 'The order number has 800 million values and no attribute the star lacks.'
-- 'Each row of the profile is a combination; there can be 240.'
-- 'A 50,000-value coupon code would push the ceiling to 12 million, so it gets a promotion dimension.'
+| ✓ Recites the pattern | ✗ Reasons about this schema |
+| --- | --- |
+| • 'Junk dimensions save space by combining flags.'<br><br>• 'Degenerate dimensions are dimensions without tables.'<br><br>• 'I'd use a junk dimension because it's the standard pattern.'<br><br>• 'It might get big, so we'd monitor it.' | • 'Encoded, 5 flags cost about the same as 1 key; I want governed labels.'<br><br>• 'The order number has 800 million values and no attribute the star lacks.'<br><br>• 'Each row of the profile is a combination; there can be 240.'<br><br>• 'A 50,000-value coupon code would push the ceiling to 12 million, so it gets a promotion dimension.' |
 
 
 <br>
@@ -484,21 +454,9 @@ Of those replies, 2 give ground on purpose. When you concede that storage is clo
 
 A complete answer also says who owns the dimension. A junk dimension is a shared contract: a relabel reaches every dashboard that filters on it, so someone has to approve new fields and new labels. Sharing it across facts needs the same care. A returns fact might want `payment_status` too, but status at return time and status at placement describe different moments. One profile dimension that means 'as placed' in one fact and 'as returned' in another misleads whoever compares them, so give each moment its own named profile, such as `dim_return_profile`.
 
-✓Do
-
-- State what one row of each table means before listing its columns.
-- Quote the ceiling as a product of cardinalities, then the observed count.
-- Map missing values to an explicit 'unknown' before hashing or joining.
-- Store order-level money once, in an order-grain fact keyed by the order number.
-- Record status as placed and keep the lifecycle in its own fact.
-
-✗Don't
-
-- Rest the case for a junk dimension on fact width.
-- Put a 50,000-value code or free text into a junk dimension.
-- Copy an order fee onto every line of a line-grain fact.
-- Update a profile key on a loaded fact row when status moves.
-- Share one profile dimension between facts that capture values at different moments.
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • State what one row of each table means before listing its columns.<br><br>• Quote the ceiling as a product of cardinalities, then the observed count.<br><br>• Map missing values to an explicit 'unknown' before hashing or joining.<br><br>• Store order-level money once, in an order-grain fact keyed by the order number.<br><br>• Record status as placed and keep the lifecycle in its own fact. | • Rest the case for a junk dimension on fact width.<br><br>• Put a 50,000-value code or free text into a junk dimension.<br><br>• Copy an order fee onto every line of a line-grain fact.<br><br>• Update a profile key on a loaded fact row when status moves.<br><br>• Share one profile dimension between facts that capture values at different moments. |
 
 > Practice it aloud
 >
@@ -534,10 +492,8 @@ An online grocer launches a third-party marketplace channel and a coupon program
 
 A health-insurance analytics team runs a claims warehouse where every claim carries six yes/no attributes: whether it was an emergency, whether it was pre-authorized, whether it went out-of-network, whether the drug was on formulary, whether it was appealed, and whether it was delivered via telehealth. A prior team gave each flag its own dimension table, and analysts now bolt six extra joins onto every query and complain about the cost. Redesign the model so those flags stop multiplying the join count, and decide where each claim's identifier belongs given that it is unique to one claim and carries nothing else worth storing.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem is really testing
 
@@ -600,6 +556,8 @@ Beneath the insurance framing this is the dimension-explosion clean-up: a prior 
 3. Analysts want to filter claims by `is_out_of_network` without touching the fact. How does the junk dimension help?\
    *Tests understanding that consolidated flags remain independently queryable through the single dimension join.*
 
+</details>
+
 
 <br>
 
@@ -609,10 +567,8 @@ Beneath the insurance framing this is the dimension-explosion clean-up: a prior 
 
 A mobile carrier is building a warehouse over its call-detail records, one row per completed call. Every record carries two stable yes/no attributes, whether the call roamed off the home network and whether it crossed an international boundary, alongside two codes that keep expanding as partners are onboarded: the roaming-partner code and the call-disposition code. Each record also holds a globally unique call identifier that dispute agents look up but that carries no other attributes. Model the star so the network and outcome attributes get a home, the call identifier is stored without its own lookup table, and the design absorbs new partner and disposition codes without the flag combinations exploding into an unmanageable table.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why this problem exists in real interviews
 
@@ -675,6 +631,8 @@ The star below carries the real dimensions plus two domain-grouped junk dimensio
 3. How would you keep the junk-dimension lookup fast during a high-volume fact load?\
    *Tests insert-on-demand implementation detail: caching seen combinations, a unique constraint on the attribute set, avoiding duplicate junk rows under concurrency.*
 
+</details>
+
 
 <br>
 
@@ -684,10 +642,8 @@ The star below carries the real dimensions plus two domain-grouped junk dimensio
 
 We run a ride-hailing marketplace and are building a warehouse over completed trips, one row per finished trip, each with a rider, a driver, a pickup timestamp, and the fare. Three attributes analysts filter on constantly ride on every trip: whether it was a pooled ride, whether surge pricing applied, and how the rider paid. Every trip also carries its own confirmation code, trip_id, unique to that single row. Design the dimensional model, and be ready to defend where trip_id lives and how the three low-cardinality attributes get a home.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why this problem exists in real interviews
 
@@ -749,6 +705,8 @@ The anchor is that `trip_id` is a degenerate dimension inside the fact, while th
    *Tests that a degenerate dimension is fully queryable despite having no table.*
 3. A new requirement adds a free-text driver note per trip. Does that belong in the junk dimension?\
    *Tests the low-cardinality boundary: high-cardinality or free-text attributes break the junk-dim row-count bound.*
+
+</details>
 
 
 <br>

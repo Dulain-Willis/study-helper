@@ -124,19 +124,9 @@ The order of 2 steps decides what a crash costs. A consumer that writes its resu
 
 In a request-driven design, the service where something happens calls every service that cares about it. When a trip completes, the trip service calls billing, then receipts, then driver ratings, then the analytics loader, and waits for each answer. In an event-driven design, the trip service appends a single `TripCompleted` event to a topic and moves on, and each of the 4 systems reacts when its own consumer group reads the event.
 
-✓Request-driven: 4 calls
-
-- Completing a trip takes as long as all 4 calls added together, or as long as the slowest one if they run in parallel
-- If receipts is down, the trip service either retries or gives up, and giving up means failing the trip or losing the receipt
-- Adding a 5th consumer means changing and redeploying the trip service
-- The caller gets each answer back, so it knows the work succeeded
-
-✗Event-driven: 1 event
-
-- Completing a trip takes a single write to the log
-- If receipts is down, its group falls behind and catches up after restart
-- A 5th consumer subscribes with a new group, and the trip service never changes
-- The trip service cannot know when, or whether, each consumer finished
+| ✓ Request-driven: 4 calls | ✗ Event-driven: 1 event |
+| --- | --- |
+| • Completing a trip takes as long as all 4 calls added together, or as long as the slowest one if they run in parallel<br><br>• If receipts is down, the trip service either retries or gives up, and giving up means failing the trip or losing the receipt<br><br>• Adding a 5th consumer means changing and redeploying the trip service<br><br>• The caller gets each answer back, so it knows the work succeeded | • Completing a trip takes a single write to the log<br><br>• If receipts is down, its group falls behind and catches up after restart<br><br>• A 5th consumer subscribes with a new group, and the trip service never changes<br><br>• The trip service cannot know when, or whether, each consumer finished |
 
 ![Pipeline diagram 2](images/pipeline_streaming_systems_beginner_diagram_2.png)
 
@@ -314,10 +304,8 @@ Mobile clients buffer events offline and upload them hours later, long after the
 - Windowed counter (drops late) (transform, Flink)
 - Counts (storage, PostgreSQL)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 Strip the mobile-analytics costume and this is **event-time windowing over a bimodal lateness distribution**. There are 2 crowds of stragglers: events a few minutes behind, and events hours behind because a phone was in a tunnel. The starter's `Windowed counter (drops late)` firing on real-time freshness treats both crowds the same way it treats normal traffic, so anything arriving after the window closes is silently discarded. The trap is thinking one knob fixes it: crank `allowedLateness` high enough to catch the hours-late crowd and you pin every 1-minute window's state in memory for hours. Get this wrong and your counts are quietly low forever, and nobody sees an error, they just see numbers that never reconcile.
 
@@ -397,6 +385,8 @@ flowchart LR
    *Probes for measuring the near-late distribution instead of picking a round number.*
 3. How do you keep window-state memory bounded when a spike of offline devices reconnects at once?\
    *Checks the understanding that the side output, not a bigger grace, absorbs the far-late surge.*
+
+</details>
 
 
 <br>
@@ -506,10 +496,8 @@ One malformed event makes the stream consumer crash-loop, blocking every good ev
 - Consumer (crash-loops) (transform, Flink)
 - Serving store (storage, Redis)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The costume comes off
 
@@ -581,6 +569,8 @@ The consumer reads a record, fails to deserialize it, and the exception propagat
 3. A downstream `Redis` write times out. Does that event go to the DLQ too?\
    *Separates deterministic parse failures from transient downstream faults; the latter want bounded retry, not dead-lettering.*
 
+</details>
+
 
 <br>
 
@@ -615,19 +605,9 @@ The trigger sets the latency floor of micro-batch. With a 30-second trigger and 
 
 True streaming removes the trigger wait, so a result can be ready within milliseconds of arrival, as in the right-hand timeline. That speed is paid for in the ways the comparison below lists.
 
-✓Micro-batch
-
-- Freshness floor set by the trigger: seconds to minutes
-- Planning and the offset commit are fixed costs, paid once per batch
-- A failure reruns the batch from its starting offsets
-- Code reads like the batch jobs a team already runs
-
-✗True streaming
-
-- Results within milliseconds to about a second of arrival
-- Both models keep per-window state; here it lives in long-running operators, so their memory must be sized and watched
-- A failure restores state from the last checkpoint, a saved snapshot of state and offsets, and replays the log from there
-- Timers, per-event state and watermarks need streaming-specific code and tests
+| ✓ Micro-batch | ✗ True streaming |
+| --- | --- |
+| • Freshness floor set by the trigger: seconds to minutes<br><br>• Planning and the offset commit are fixed costs, paid once per batch<br><br>• A failure reruns the batch from its starting offsets<br><br>• Code reads like the batch jobs a team already runs | • Results within milliseconds to about a second of arrival<br><br>• Both models keep per-window state; here it lives in long-running operators, so their memory must be sized and watched<br><br>• A failure restores state from the last checkpoint, a saved snapshot of state and offsets, and replays the log from there<br><br>• Timers, per-event state and watermarks need streaming-specific code and tests |
 
 
 <br>
@@ -659,19 +639,9 @@ Cover the last 2 columns and choose for each requirement.
 
 Retries look different in the 2 models but demand the same property. When a micro-batch fails, the engine reruns it from the batch's starting offsets, so rows the failed attempt already wrote get written again; overwriting the output by window, or upserting on `event_id`, makes the rerun harmless. A streaming job saves a checkpoint, a periodic snapshot of its state and offsets; when it fails, it restores the last checkpoint and replays the log from those offsets, re-sending every result produced since. Late data works the same way in both: windows keyed by event time and closed by a watermark.
 
-✓Do
-
-- Ask for the freshness requirement in seconds before choosing a model
-- Compute micro-batch worst case as trigger interval plus processing time
-- Make output writes idempotent so a rerun batch or checkpoint replay adds no duplicates
-- Default to micro-batch when a minute of staleness is acceptable
-
-✗Don't
-
-- Choose true streaming because it sounds more current
-- Set a 1 s trigger when each batch takes 8 s; batches queue and lag grows
-- Assume either model removes the need for watermarks
-- Promise sub-second results from a 30-second trigger
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Ask for the freshness requirement in seconds before choosing a model<br><br>• Compute micro-batch worst case as trigger interval plus processing time<br><br>• Make output writes idempotent so a rerun batch or checkpoint replay adds no duplicates<br><br>• Default to micro-batch when a minute of staleness is acceptable | • Choose true streaming because it sounds more current<br><br>• Set a 1 s trigger when each batch takes 8 s; batches queue and lag grows<br><br>• Assume either model removes the need for watermarks<br><br>• Promise sub-second results from a 30-second trigger |
 
 > **TIP**
 >
@@ -706,10 +676,8 @@ A food delivery marketplace shows its operations team orders delivered per resta
 
 A notification outage must never stall checkout, and an order arriving with a malformed payload or a negative amount has to be set aside without holding up the valid orders behind it. The order service currently calls inventory, notifications and analytics directly: redesign it so each placed order is announced once as an order-placed event that every team picks up on its own schedule, including the analytics team, which needs to replay last week's orders into a new model.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem really is
 
@@ -791,6 +759,8 @@ flowchart LR
 2. Support fixes a rejected order and resubmits it. How do you stop analytics counting it twice?\
    *Tests whether the candidate keys on the order id: the fixed order carries its original id, so readers can recognise it and overwrite rather than add.*
 
+</details>
+
 
 <br>
 
@@ -805,10 +775,8 @@ Mobile and web click events land on an event platform, and some of them arrive l
 - Mobile + web events (source, Kafka)
 - Stream processor (transform, Flink)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 Strip the costume and this is a **loss-free event-driven streaming pipeline**, exactly the pattern the lesson built up to. "Nothing gets lost" is not a slogan. It is the whole spec, and it points at the 2 ways a naive stream quietly leaks data. A late click arrives after its window closed and a careless window drops it. A malformed event hits your parser and the whole `Flink` job crashes or, worse, silently skips it. Anyone can draw `Kafka` to processor to dashboard. What separates candidates is knowing that watermarks save the late click and a dead letter queue saves the poison event. Leave either one out and your "real-time" numbers are wrong, and nobody notices until finance asks why the totals don't reconcile.
 
@@ -861,6 +829,8 @@ The dashboard reads what the processor emits, not raw events. As each event-time
    *Probes operational instinct: a new app release with a schema change, and the replay-after-fix workflow.*
 3. Marketing wants yesterday's exact totals recomputed after a bug fix. Does this streaming design help or hurt?\
    *Opens the case for the log's retention as a replay path.*
+
+</details>
 
 
 <br>

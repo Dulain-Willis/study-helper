@@ -43,19 +43,9 @@ One check at the end tells you something broke; 3 checks tell you where. If the 
 
 The decision this question turns on is what the pipeline does when a check fails. A warning writes a log line and lets the load continue to the table consumers read. A blocking check halts the run before that write happens. Candidates often default to warnings because blocking looks expensive: the dashboard shows yesterday's numbers until someone fixes the feed. The senior position is the reverse, and it rests on one asymmetry. Stale and correct is recoverable, because the data arrives late and nothing downstream has acted on it. Fresh and wrong is unrecoverable, because a finance analyst who reconciled against the wrong figure at 8 a.m. has already sent the email. You can replay a load; you cannot replay a decision.
 
-✓Block the publish
-
-- Primary key null or duplicated
-- Row count outside the reconciliation tolerance
-- A required column missing from the source
-- Totals negative or outside the business band
-
-✗Warn and continue
-
-- Optional column null rate rises from 2% to 4%
-- A new column appears that no consumer reads yet
-- Free-text field length distribution shifts
-- Row count 3% above the median on a known sale day
+| ✓ Block the publish | ✗ Warn and continue |
+| --- | --- |
+| • Primary key null or duplicated<br><br>• Row count outside the reconciliation tolerance<br><br>• A required column missing from the source<br><br>• Totals negative or outside the business band | • Optional column null rate rises from 2% to 4%<br><br>• A new column appears that no consumer reads yet<br><br>• Free-text field length distribution shifts<br><br>• Row count 3% above the median on a known sale day |
 
 A blocking check is a query that returns a count, and a pipeline step that refuses to proceed unless that count is 0. The query below runs against the day's partition after the transform step and before the publish step.
 
@@ -111,19 +101,9 @@ What the interviewer hears as the senior signal
 >
 > When the interviewer asks what happens on failure, say 'the publish step does not run and the check owner is paged' in that order. Leading with the page before the halt suggests you would let the write through while someone looks.
 
-✓Do
-
-- Place checks at the 3 layers and say which failure each one catches
-- Block on key, count and invariant failures before the publish step
-- Write the tolerance beside the check with the reason for it
-- Give every blocking check a named owner
-
-✗Don't
-
-- Run one check at the end and call the pipeline validated
-- Warn on a null primary key because blocking feels disruptive
-- Set tolerance to 0 on a transform that filters rows on purpose
-- Page a channel with no owner attached
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Place checks at the 3 layers and say which failure each one catches<br><br>• Block on key, count and invariant failures before the publish step<br><br>• Write the tolerance beside the check with the reason for it<br><br>• Give every blocking check a named owner | • Run one check at the end and call the pipeline validated<br><br>• Warn on a null primary key because blocking feels disruptive<br><br>• Set tolerance to 0 on a transform that filters rows on purpose<br><br>• Page a channel with no owner attached |
 
 
 <br>
@@ -328,19 +308,9 @@ The `CASE` in the `ORDER BY` turns a business rule into a sort key, and the `ELS
 
 The question wears several disguises: 'this feed sometimes sends events twice', 'the same customer shows up in 2 systems', 'the retry doubled our counts'. Each one resolves to the same 2 decisions, which key defines a duplicate and which rule picks the survivor, and an answer that names both before writing SQL reads as experience.
 
-✓Do
-
-- Name the 3 sources of duplicates before writing SQL
-- Order by a business timestamp, then an ingestion timestamp, for a deterministic winner
-- Encode source priority as a CASE sort key with an ELSE for unknown sources
-- Dedupe once at the silver layer and keep every version in bronze
-
-✗Don't
-
-- Reach for DISTINCT when rows differ in a timestamp column
-- Order by one key and leave ties to the engine
-- Let newest-wins override the system of record
-- Dedupe again in every downstream model
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Name the 3 sources of duplicates before writing SQL<br><br>• Order by a business timestamp, then an ingestion timestamp, for a deterministic winner<br><br>• Encode source priority as a CASE sort key with an ELSE for unknown sources<br><br>• Dedupe once at the silver layer and keep every version in bronze | • Reach for DISTINCT when rows differ in a timestamp column<br><br>• Order by one key and leave ties to the engine<br><br>• Let newest-wins override the system of record<br><br>• Dedupe again in every downstream model |
 
 
 <br>
@@ -525,19 +495,9 @@ A rollback on `serving.orders` leaves every table built from it holding the bad 
 
 
 
-✓Do
-
-- Separate the published name from the physical data so publish and rollback are pointer flips
-- Audit in staging with the same checks that would block the publish
-- Retain previous versions long enough to cover a long weekend
-- Re-trigger downstream tasks in dependency order after the fix
-
-✗Don't
-
-- Write a load straight into the table consumers read
-- Patch rows by hand at 07:45 under a deadline
-- Roll back the one table and forget the tables built on it
-- Let consumers discover the problem from their dashboards
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Separate the published name from the physical data so publish and rollback are pointer flips<br><br>• Audit in staging with the same checks that would block the publish<br><br>• Retain previous versions long enough to cover a long weekend<br><br>• Re-trigger downstream tasks in dependency order after the fix | • Write a load straight into the table consumers read<br><br>• Patch rows by hand at 07:45 under a deadline<br><br>• Roll back the one table and forget the tables built on it<br><br>• Let consumers discover the problem from their dashboards |
 
 
 <br>
@@ -568,10 +528,8 @@ A grocery delivery company loads 18 million order events a day into an orders ta
 
 About 3 million billing-system invoice line items arrive each night, each belonging to one invoice date, and land in a date-partitioned warehouse table that the finance revenue report reads at 7 AM. Design the nightly load so that rerunning any night leaves its revenue unchanged, rows failing validation are held aside for billing to correct rather than reaching the report, and on-call is paged before 7 AM when a night goes wrong.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What the incident is really asking
 
@@ -652,6 +610,8 @@ flowchart LR
 3. The volume alert fires on the last day of the quarter because invoicing genuinely spikes. What changes?\
    *Tests alert tuning: compare against the same period's seasonality or a known close calendar rather than silencing the check.*
 
+</details>
+
 
 <br>
 
@@ -661,10 +621,8 @@ flowchart LR
 
 Our mobile app publishes about 2 million in-app purchase events a day onto a message bus that delivers at least once, so a retry can hand us the same purchase twice, and some payloads arrive truncated or missing fields. Design the path from the bus to a warehouse table of per-day purchase totals that stays correct when we reprocess a day, keeps every bad payload where someone can fix and replay it, and pages on-call within the hour if purchases stop arriving.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this really is
 
@@ -745,6 +703,8 @@ flowchart LR
    *Tests the third quality layer: presence and type checks pass, so only a distribution check (average purchase value jumping 100x against last week) flags it, and it should hold the load, not just log.*
 2. The DLQ holds 40,000 records from a two-hour client bug, and 30,000 of them were later retried cleanly. What happens when you replay the queue?\
    *Tests that replay runs through the same gate and the upsert on `purchase_id`: the 30,000 collapse onto rows already landed and only the 10,000 genuinely missing purchases add to those days' totals.*
+
+</details>
 
 
 <br>

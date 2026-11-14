@@ -90,10 +90,8 @@ Each answer feeds a decision later in the lesson. The reconciliation requirement
 
 A residential brokerage tracks every home sale and the commission it earns. Co-listings are routine here: one sale is frequently credited to several agents, and every agent works many sales across a season. Model this so the analytics team can report commission by agent while a company-wide commission total still ties out to what the brokerage actually earned.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem really is
 
@@ -164,6 +162,8 @@ FROM fact_home_sale;
    *Opens the door to allocation on the link rows, the natural next step after recognizing the many-to-many.*
 3. A sale is recorded with zero agents attached during data entry. How does your model behave?\
    *Tests whether the fact can stand alone and whether missing bridge rows silently drop the sale from agent reports.*
+
+</details>
 
 
 <br>
@@ -279,10 +279,8 @@ Versioning the group works because the change covers every track that shares it.
 
 A music streaming service records each track's earnings monthly, storing one row per track per month. Artist credits are stored separately, with most tracks crediting multiple collaborators. A naive join-and-sum by artist inflates the totals: a track earning $1,000 credited to three artists appears as $3,000 across those artists. Design a bridge table with allocation weights that splits each track's earnings across its credited artists, so per-artist totals reconcile to actual earnings.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem really is
 
@@ -349,6 +347,8 @@ ORDER BY attributed_revenue DESC
    *Tests versioning the bridge (effective dates) versus overwriting weights in place.*
 3. How would you enforce that weights per track sum to 1.0 if the schema itself cannot?\
    *Tests moving the invariant to an upstream validation or a scheduled reconciliation check.*
+
+</details>
 
 
 <br>
@@ -421,20 +421,9 @@ Equal splits with 3, 6 or 7 members do not divide evenly in decimal. Stored as `
 
 ### Which measures allocate
 
-✓Allocate by weight
-
-- stream_count
-- revenue_usd
-- discount_amount
-- cost_usd
-- Any measure that adds across rows
-
-✗Never allocate
-
-- Distinct listeners (half a listener has no meaning)
-- Ratios such as completion rate
-- Maximums and minimums
-- Counts of distinct tracks or days
+| ✓ Allocate by weight | ✗ Never allocate |
+| --- | --- |
+| • stream_count<br><br>• revenue_usd<br><br>• discount_amount<br><br>• cost_usd<br><br>• Any measure that adds across rows | • Distinct listeners (half a listener has no meaning)<br><br>• Ratios such as completion rate<br><br>• Maximums and minimums<br><br>• Counts of distinct tracks or days |
 
 Additive measures split cleanly because a fraction of a stream added to other fractions still totals streams. A distinct count does not, so listeners per artist comes from the involvement join with `COUNT(DISTINCT listener_key)`, and the report states that a listener who heard 2 of an artist's tracks counts once for that artist and may also count for another. Ratios are computed last, from allocated numerators and allocated denominators, never allocated themselves. Allocating a completion rate of 0.8 by a 0.5 weight produces 0.4, a figure with no meaning that still looks like a percentage on a chart.
 
@@ -451,10 +440,8 @@ Additive measures split cleanly because a fraction of a stream added to other fr
 
 A platform engineering group receives one monthly bill per infrastructure resource, split among the product teams that use it. Design the schema with allocation weights for each cost and team pair, where weights for any one cost sum to 1.0. A team's allocated cost is the billing amount times their weight, and the allocated shares reconcile to the invoice instead of inflating it.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem is really about
 
@@ -506,6 +493,8 @@ Beneath the finance framing this is a **metric additivity** problem across a man
    *Tests the unknown-allocation case: a default even split (1/n) or an unallocated bucket, while keeping the per-cost sum at 1.0.*
 3. How would you catch a cost whose team weights do not add up to 1.0 before finance sees it?\
    *Tests the validation instinct: a check that groups the bridge by `cost_id` and flags any sum that is not 1.0.*
+
+</details>
 
 
 <br>
@@ -574,19 +563,9 @@ GROUP BY artist_group_key
 
 The filter on `effective_to` is a decision, and it has a consequence the interviewer may probe: the array holds today's members only. After 1 December, `contains(t.artist_keys, 14)` is true for all 12 album tracks, so a report that filters October streams with it counts them as involving Sami Hart, who was credited on none of them until December. A historical filter has to go through the bridge and its dates. Keeping the array current suits search and recommendation features that ask who is on the track now. A team that wants the array to answer as of a date has to version `dim_track` as well, which rebuilds the bridge's history inside a second table and doubles the places a credit change must land.
 
-✓Do
-
-- Keep 1 design as the source of truth and derive the other from it
-- Put the weight inside the SUM in both designs
-- Test weight sums after every load, before publishing
-- State involved or allocated in every report title
-
-✗Don't
-
-- Store weights as DOUBLE and expect the sum to land on 1
-- Overwrite bridge rows when a credit changes
-- Put array columns in front of a BI tool that cannot unnest them
-- Allocate distinct counts by weight
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Keep 1 design as the source of truth and derive the other from it<br><br>• Put the weight inside the SUM in both designs<br><br>• Test weight sums after every load, before publishing<br><br>• State involved or allocated in every report title | • Store weights as DOUBLE and expect the sum to land on 1<br><br>• Overwrite bridge rows when a credit changes<br><br>• Put array columns in front of a BI tool that cannot unnest them<br><br>• Allocate distinct counts by weight |
 
 
 <br>
@@ -601,10 +580,8 @@ The filter on `effective_to` is a decision, and it has a consequence the intervi
 
 A news publisher on BigQuery tracks daily article metrics, with each article tagged at publish with one to six topics, each carrying a static prominence weight. Model topic membership as a nested array on the fact row pairing topic ID with prominence weight (not a bridge table), so analysts can attribute daily pageviews proportionally; maintain separate dimensions for stable topic attributes and keep the fact grain at one row per article per day.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why this problem exists in real interviews
 
@@ -685,6 +662,8 @@ ORDER BY weighted_pageviews DESC
 3. This pipeline also has to run on Postgres. How does the design change?\
    *Tests whether the candidate ties the nesting choice to engine support and falls back to a bridge table where arrays are unavailable.*
 
+</details>
+
 
 <br>
 
@@ -762,10 +741,8 @@ Bring the size of the bridge, because it decides whether the group key is worth 
 
 A film distribution company records box office results, storing one row per film per territory per week with that week's gross revenue and tickets sold. Most titles here are co-productions: several studios back a single film and split its economics by an agreed ownership share, while each studio backs many films. Design a dimensional model that reports each studio's attributed share of box office revenue without letting a film's gross count more than once.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why this problem exists in real interviews
 
@@ -846,6 +823,8 @@ GROUP BY s.studio_name
 3. Finance wants attributed revenue per studio per quarter and per territory. Where do those grains enter without disturbing the bridge?\
    *Tests joining through `dim_date` and `dim_territory` on the fact while the split stays anchored on the bridge.*
 
+</details>
+
 
 <br>
 
@@ -874,10 +853,8 @@ An online retailer records 1 row per order line with net_revenue and discount_am
 
 A national science funder records one row per grant award: the funding program, the fiscal year, and the total dollars awarded. Every grant is credited to several principal and co-investigators, each based at one institution, and each investigator carries a documented share of the credit. Model this so the finance team can report total funding attributed to each institution in a fiscal year without any dollar being counted twice, see how many grants each investigator is credited on, and read the true average award size across grants. Decide how an investigator's share of a grant is represented and where it lives so institution totals always reconcile back to the sum of awards.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why this problem exists in real interviews
 
@@ -940,6 +917,8 @@ A classic star with a weighted bridge in the middle. `grant_awards` holds the do
 3. Finance now wants funding split by both institution and program without any total exceeding the ledger. Does your design already support it?\
    *Tests that the weighted attribution composes across dimensions because the weight lives on the bridge, not on a single rollup.*
 
+</details>
+
 
 <br>
 
@@ -949,10 +928,8 @@ A classic star with a weighted bridge in the middle. `grant_awards` holds the do
 
 A hospital revenue-cycle team needs to report reimbursement dollars per diagnosis, but each insurance claim pays one lump sum and covers multiple diagnoses. Clinical coders assign each diagnosis a severity-based share (shares sum to the full claim); model the schema with the reimbursement measure on the claim fact table and allocation shares on the bridge, so per-diagnosis totals reconcile to the claim ledger without double-counting.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem really is
 
@@ -1006,6 +983,8 @@ ORDER BY allocated_reimbursement DESC
    *Rolling up through `dim_diagnoses` is a `GROUP BY` change; the weighted sum stays additive.*
 2. How would you enforce that each claim's `allocation_weight` values sum to 1.0 at load time?\
    *Tests a validation aggregate check, since the schema cannot express a cross-row `CHECK`.*
+
+</details>
 
 
 <br>

@@ -95,10 +95,8 @@ A single transaction table can technically answer all 4 questions, which is why 
 
 A recruiting analytics team tracks every job application through the hiring pipeline: applied, screened, interviewed, offer, and decision. They want to measure how many days pass between consecutive stages and find where candidates stall. Design a fact table with one row per application, including stage-to-stage duration measures and dimensions for recruiter and job opening.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this question is really asking
 
@@ -154,6 +152,8 @@ One fact table, one row per application, with a foreign key to a role-playing `d
    *Tests grain discipline: a genuine re-entry on the same row versus a separate application.*
 3. Which of your measures would you refuse to SUM in a BI tool, and why?\
    *Tests additivity understanding beyond just naming it: milestone dates and current stage are not summable.*
+
+</details>
 
 
 <br>
@@ -215,19 +215,9 @@ Every additive question costs 1 scan of the partitions in the date range. The ta
 
 Ask this table how many units of product 48812 were on hand at the end of March 3 and the answer is the sum of every movement for that product from the first day it was stocked. Across a year of history that is a scan of hundreds of partitions for 1 number, and the dashboard showing on-hand for all 200,000 SKUs runs that scan for each of them. Partition pruning does nothing, because the answer depends on every partition before the date asked about. The lifecycle question hurts in a different way: placed-to-shipped time needs the shipped event matched back to the placed event, a self-join on `order_id` filtered by transaction type, for every order, on every run.
 
-✓Cheap on a transaction table
-
-- Sum of any measure over any dimension, including time
-- Counts of events inside a date window
-- Filters on any attribute as it stood at event time
-- Reprocessing a day, because rows are immutable and partitioned by event date
-
-✗Expensive or impossible
-
-- A balance or level at a point in time
-- Elapsed time between 2 events of the same entity
-- Anything about events that didn't happen
-- The current stage of a long-running process
+| ✓ Cheap on a transaction table | ✗ Expensive or impossible |
+| --- | --- |
+| • Sum of any measure over any dimension, including time<br><br>• Counts of events inside a date window<br><br>• Filters on any attribute as it stood at event time<br><br>• Reprocessing a day, because rows are immutable and partitioned by event date | • A balance or level at a point in time<br><br>• Elapsed time between 2 events of the same entity<br><br>• Anything about events that didn't happen<br><br>• The current stage of a long-running process |
 
 
 <br>
@@ -256,10 +246,8 @@ Treat the transaction table as the source the other measured fact types are deri
 
 A digital wallet product records every money movement on a user's balance: top-ups, purchases, refunds, and peer transfers. Design a fact table for this event stream where each transaction is one immutable row, use a signed amount (positive for inflows, negative for outflows) so totals by user, merchant, and day stay additive across dimensions, and model corrections as new events rather than updates to the original.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem is really testing
 
@@ -317,6 +305,8 @@ One transaction fact surrounded by conformed dimensions. Every measure on `fact_
    *Tests immutability: a new negative row is appended with its own `occurred_at`, and zero existing rows are updated or deleted.*
 3. Balance reads are now 80 percent of traffic and the running sum is too slow at 40M events a day. What do you add?\
    *Tests knowing that a derived periodic snapshot complements the transaction fact for state reads rather than replacing it or mutating it.*
+
+</details>
 
 
 <br>
@@ -417,19 +407,9 @@ A late-arriving movement dated March 2 that lands on March 5 makes every snapsho
 
 Row count is entities times periods, and it does not shrink on quiet days, so the period is the only size control you have. A retailer with 200,000 SKUs in 40 warehouses pays a fixed daily cost of 8 million rows regardless of sales volume. Hourly grain multiplies that by 24 for a question almost nobody asks. Monthly grain divides it by 30 and loses every intra-month stockout. The interview answer picks daily, states the row count, and names the consumer who would need something finer.
 
-✓Reach for a snapshot when
-
-- The question is a level at a point in time
-- The level is the net of millions of events
-- Dashboards read the level for every entity at once
-- Finance or a regulator needs a reproducible period-end figure
-
-✗Stay with transactions when
-
-- Entities number in the hundreds of millions and the level is rarely read
-- The period would have to be finer than the event rate
-- The measure is already additive and events are sparse
-- Levels are needed only for a handful of entities on demand
+| ✓ Reach for a snapshot when | ✗ Stay with transactions when |
+| --- | --- |
+| • The question is a level at a point in time<br><br>• The level is the net of millions of events<br><br>• Dashboards read the level for every entity at once<br><br>• Finance or a regulator needs a reproducible period-end figure | • Entities number in the hundreds of millions and the level is rarely read<br><br>• The period would have to be finer than the event rate<br><br>• The measure is already additive and events are sparse<br><br>• Levels are needed only for a handful of entities on demand |
 
 The future requirement that breaks a daily snapshot asks about the state between 2 snapshots. When operations starts asking what was on hand at 11am when the truck arrived, the daily table cannot say. A good answer offers a finer period for the few warehouses that need it, or the transaction table for that single question, and quotes the row-count cost of each.
 
@@ -446,10 +426,8 @@ The future requirement that breaks a daily snapshot asks about the state between
 
 A grocery distributor's supply team keeps getting asked how many units of each product were sitting in each warehouse at the end of any given past day, and today the only way to answer is to replay the whole stream of receipts and shipments from the beginning. Design the fact table and its dimensions so that a single day's end-of-day on-hand quantities read straight off one day's rows, and set the grain so the level for a product at a warehouse is captured once per day.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What you just built
 
@@ -495,6 +473,8 @@ ORDER BY units_on_hand DESC
    *A flow question needs the movement fact, where the measure IS additive over time.*
 2. Finance wants average inventory over the quarter, which aggregate is valid on `quantity_on_hand`?\
    *AVG across daily snapshots is valid for a semi-additive level; SUM is not.*
+
+</details>
 
 
 <br>
@@ -592,19 +572,9 @@ On storage that rewrites whole files, an in-place update means rewriting the par
 
 The type assumes a fixed sequence of milestones, each occurring at most once. A ticket reopened 3 times has 3 resolved dates and 1 column. A shipment split into 2 parcels has 2 delivered dates. Each fix is a compromise: keep the first or latest date plus a `reopen_count` measure, add a column per repeat up to a cap, or push the repeating milestone back into a transaction table of status changes and keep the accumulating row for the single-occurrence milestones only. Name the compromise and its blind spot, and the interviewer hears judgement rather than a memorized pattern.
 
-✓Do
-
-- Partition by the start-date key so nightly rewrites touch only partitions holding open instances
-- Store lag columns at update time: a subtraction done once beats one done on every query
-- Keep a current_status column so open-item dashboards filter without testing 5 NULL columns
-- Keep the transaction table of status events alongside it as the source of truth
-
-✗Don't
-
-- Use it for a process whose milestones can repeat or loop back, or that has optional branches
-- Leave the close-out window open-ended, because unbounded rewrites eat the nightly budget
-- Store only timestamps: a date key per milestone is what joins to each dim_date role
-- Treat a row as an event: 1 row is 1 order, so COUNT(\*) counts orders, never line items
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Partition by the start-date key so nightly rewrites touch only partitions holding open instances<br><br>• Store lag columns at update time: a subtraction done once beats one done on every query<br><br>• Keep a current_status column so open-item dashboards filter without testing 5 NULL columns<br><br>• Keep the transaction table of status events alongside it as the source of truth | • Use it for a process whose milestones can repeat or loop back, or that has optional branches<br><br>• Leave the close-out window open-ended, because unbounded rewrites eat the nightly budget<br><br>• Store only timestamps: a date key per milestone is what joins to each dim_date role<br><br>• Treat a row as an event: 1 row is 1 order, so COUNT(\*) counts orders, never line items |
 
 
 <br>
@@ -619,10 +589,8 @@ The type assumes a fixed sequence of milestones, each occurring at most once. A 
 
 A consumer-lending platform moves every loan application through the same checkpoints in order: submitted, documents verified, underwriting decision, and funds disbursed. The analytics team keeps getting asked how long applications sit at each stage and which ones have been approved but are not yet funded, broken down by loan product. Design the fact table and the dimensions it needs so analysts answer these without stitching separate events back together or subtracting dates by hand.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why this problem exists in real interviews
 
@@ -684,6 +652,8 @@ Below is one sound design. The anchor is that `fact_loan_application_lifecycle` 
    *Tests whether the candidate keeps the grain honest by treating a reopen as a new application row rather than resurrecting and overwriting the old one.*
 3. Leadership wants a daily count of how many applications sat in each stage, historically, not just today. Does this table answer it?\
    *Tests the boundary between an accumulating snapshot (current state) and a periodic snapshot needed for a day-by-day historical stage census.*
+
+</details>
 
 
 <br>
@@ -753,21 +723,9 @@ Coverage rows scale with eligible combinations, and the combinations are dense i
 
 Event factless tables are the other flavor: `fact_class_attendance` with `student_key`, `class_key`, `date_key` and nothing else. The question is a count: how many students attended, what share of registered students attended, which classes fell under 50 percent attendance. COUNT(\*) is the measure. Some teams add a column named `attended` holding the constant 1 so that SUM works in every reporting tool. It costs 1 byte per row and spares the analyst a special case. The pair of tables, registration coverage and attendance events, has the same shape as promotion coverage and sales.
 
-✓Event factless
-
-- A row says something happened
-- Written when the event occurs
-- The measure is COUNT(\*)
-- Sparse, like a transaction table
-- Attendance, logins, impressions
-
-✗Coverage
-
-- A row says something was possible
-- Written for every period the condition holds
-- The measure is the join to what happened
-- Dense, like a periodic snapshot
-- Promotions, eligibility, schedules
+| ✓ Event factless | ✗ Coverage |
+| --- | --- |
+| • A row says something happened<br><br>• Written when the event occurs<br><br>• The measure is COUNT(\*)<br><br>• Sparse, like a transaction table<br><br>• Attendance, logins, impressions | • A row says something was possible<br><br>• Written for every period the condition holds<br><br>• The measure is the join to what happened<br><br>• Dense, like a periodic snapshot<br><br>• Promotions, eligibility, schedules |
 
 
 <br>
@@ -793,10 +751,8 @@ The whiteboard question now has a complete answer with named parts. Daily revenu
 
 A video-streaming service licenses each title for specific regions, and those licensing windows shift day to day as deals start and expire. The catalog team needs a model that captures which titles were available to stream in which regions on each day, and that can surface the titles a region was paying to license but that nobody streamed. Design the schema. The availability table should contain only the three foreign keys (title_id, region_id, date_id) as a composite primary key, with no measure or flag columns.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why this problem exists in real interviews
 
@@ -869,6 +825,8 @@ WHERE p.play_id IS NULL
 3. How would you answer 'which titles were available in every region for the whole month'?\
    *Tests reasoning over the factless fact with COUNT and completeness checks against `dim_region` and `dim_date`.*
 
+</details>
+
 
 <br>
 
@@ -897,10 +855,8 @@ A food delivery company asks you to model the order side of its business. Every 
 
 A hotel group's warehouse tracks four reporting needs, each requiring a different fact table shape: Finance needs every folio charge and payment linked to a reservation with signed amounts; Revenue needs nightly snapshot counts (total, sold, unsold) per property and type; Operations needs each reservation with date keys for booking, check-in, check-out, and settlement, plus calculated inter-milestone days; Marketing needs rate-plan offerings (which rates per room type per night) with no measures. Design the fact tables and conformed dimensions.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem is really testing
 
@@ -959,6 +915,8 @@ Four facts, 5 conformed dimensions. Every fact points at the same `dim_date`, `d
 4. The inventory snapshot is now hundreds of millions of rows a year. How do you keep the nightly-level queries cheap?\
    *Tests scale reasoning: partitioning the snapshot by date and pruning on `snapshot_date_key`, and whether a rolling window needs a coarser monthly grain.*
 
+</details>
+
 
 <br>
 
@@ -968,10 +926,8 @@ Four facts, 5 conformed dimensions. Every fact points at the same `dim_date`, `d
 
 A property insurer's claims director needs cycle-time reporting on every claim as it moves through a fixed lifecycle: submitted, then adjudicated, then paid. Design the analytical model that stores the days between each milestone pair (submit to adjudicate, adjudicate to pay, and submit to pay) as measures on each claim row and enables listing the claims currently sitting between two milestones with no further movement. Every claim reaches the milestones in that order, and the model must reflect a claim's progress even before it is fully paid.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem really is
 
@@ -1035,6 +991,8 @@ One accumulating-snapshot fact at claim grain, three date foreign keys into a sh
    *Tests whether they extend the same row with another date key and lag measure rather than reaching for a new fact table.*
 4. How would you also answer 'how many claims were open on the last day of each month'?\
    *Tests whether they recognize that count-open-over-time is a periodic-snapshot question that complements, not replaces, the accumulating snapshot.*
+
+</details>
 
 
 <br>

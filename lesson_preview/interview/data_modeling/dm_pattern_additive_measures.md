@@ -107,10 +107,8 @@ The answer, in the order to say it
 
 A digital advertising platform is building the reporting table behind its campaign performance dashboards, where analysts slice results by campaign, day, device type, and region in any combination. Every rate they read (click-through rate, cost per click, conversion rate) has to reconcile whether they are looking at one campaign on a single day or the whole account over a quarter. Design the fact table and its dimensions so that the product team's proposed measures (impressions, clicks, spend, conversions, click-through rate, cost per click, conversion rate) roll up correctly along every dimension.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem is really testing
 
@@ -165,6 +163,8 @@ This is a measure-additivity classification wearing a dashboard-build costume. T
 3. If most rate computations are the same three divisions, would you ever precompute them, and where?\
    *Tests the boundary between the additive fact and a downstream aggregate or view layer that is still recomputed from stored counts.*
 
+</details>
+
 
 <br>
 
@@ -205,19 +205,9 @@ COUNT(\*) counts payments only while 1 row equals 1 payment. Once the fact is pr
 
 net_amount_local adds only within its currency, so a cross-currency total needs conversion before the sum. Converting each row at the rate on its payment date and storing net_amount_usd makes the measure fully additive along every dimension. The conversion can also wait until query time, joining a daily rate table on currency and date. Either way, someone has to own the rate and decide when it may change.
 
-✓Convert when the row is written
-
-- net_amount_usd is a plain column that every rollup sums
-- Rollups stay valid because the stored rate never changes after load
-- A new rate policy, such as month-end rates for finance, needs a backfill of history
-- A rate that arrives late forces a reload of the affected days
-
-✗Convert when the query runs
-
-- Every query joins a rate table on currency and date
-- Any rate policy is one join condition away, with no backfill
-- Rollups must keep currency as a key, which multiplies their rows
-- A missing rate drops or nulls rows unless the join is checked
+| ✓ Convert when the row is written | ✗ Convert when the query runs |
+| --- | --- |
+| • net_amount_usd is a plain column that every rollup sums<br><br>• Rollups stay valid because the stored rate never changes after load<br><br>• A new rate policy, such as month-end rates for finance, needs a backfill of history<br><br>• A rate that arrives late forces a reload of the affected days | • Every query joins a rate table on currency and date<br><br>• Any rate policy is one join condition away, with no backfill<br><br>• Rollups must keep currency as a key, which multiplies their rows<br><br>• A missing rate drops or nulls rows unless the join is checked |
 
 A common resolution stores both: net_amount_local with currency_code on every row for audit and restatement, and net_amount_usd at the payment-date rate for dashboards that need a single total. Document which rate the stored column uses. If 2 teams sum "USD volume" under different rate policies, they will disagree by the size of that month's currency moves, and both will be internally consistent.
 
@@ -408,19 +398,9 @@ Oct 1's p95 lands in the 100-200 ms bucket and Oct 2's in the 200-400 ms bucket,
 
 A unit price or an exchange rate is a multiplier. Multiply it into an additive quantity on each row, then sum the products. SUM(quantity) \* AVG(unit_price) is wrong whenever prices vary: a 1-unit sale at 500.00 and a 1,000-unit sale at 2.00 total 2,500.00, while that formula returns 251,251.00.
 
-✓Do
-
-- Store numerator and denominator as separate additive columns
-- Sum parts at the target grain, then divide
-- Keep a mergeable sketch per day when an estimate is acceptable
-- Store bucket counts for any percentile users will roll up
-
-✗Don't
-
-- Keep a rate or average as the only stored copy of a metric
-- Average daily percentiles or daily rates into a month
-- Sum daily distinct counts into weekly or monthly figures
-- Multiply summed quantities by an averaged price
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Store numerator and denominator as separate additive columns<br><br>• Sum parts at the target grain, then divide<br><br>• Keep a mergeable sketch per day when an estimate is acceptable<br><br>• Store bucket counts for any percentile users will roll up | • Keep a rate or average as the only stored copy of a metric<br><br>• Average daily percentiles or daily rates into a month<br><br>• Sum daily distinct counts into weekly or monthly figures<br><br>• Multiply summed quantities by an averaged price |
 
 
 <br>
@@ -591,10 +571,8 @@ A subscription software company asks for one board dashboard showing monthly rec
 
 A retail bank records every account's end-of-day balance in a daily snapshot, one row per account per day, alongside the deposits and withdrawals that posted that day. The reporting team needs a proper fact table for this snapshot and a rule for reporting each account's figures across a full quarter, because their current quarter numbers come out about 90 times too large. Design the fact table, and for every measure state how it should roll up to a quarter.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem really is
 
@@ -674,6 +652,8 @@ GROUP BY f.account_key
 3. An account opens mid-quarter, so it has fewer daily rows than the others. Does that break either rollup?\
    *Tests that AVG over present days and SUM of flows both stay correct, while a naive SUM of balance gets even more distorted.*
 
+</details>
+
 
 <br>
 
@@ -683,10 +663,8 @@ GROUP BY f.account_key
 
 An e-commerce dashboard reports revenue, units sold, average order value, and inventory on hand, and its monthly totals never match the detail report. Design the fact and dimension tables so every one of those measures aggregates correctly: classify each measure's additivity and store it, or its ingredients, at a grain that makes a wrong rollup impossible.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The classification does the design work
 
@@ -724,6 +702,8 @@ GROUP BY p.category
 2. A new dashboard tile needs distinct purchasing customers per month. Where does that measure live?\
    *Extends the non-additive concept: distinct counts do not sum across months, so the fact stores `customer_id` and the count is computed at query time for each slice.*
 
+</details>
+
 
 <br>
 
@@ -733,10 +713,8 @@ GROUP BY p.category
 
 A streaming service wants a reporting model for monthly active viewers: how many distinct people watched at least one title in a month, sliceable by title, by region, and by any combination of the two. The same person watches many titles in a month and often streams from more than one region while travelling. Design the schema an analyst queries for these active-viewer counts alongside total watch time, at daily, monthly, title, and region grain.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why this problem exists in real interviews
 
@@ -811,6 +789,8 @@ GROUP BY t.title_name, d.year, d.month
    *Tests that the candidate keeps the atomic grain (or overlapping sketches) rather than summing 3 monthly numbers.*
 3. How would you let the model answer average watch time per active viewer at the category level?\
    *Tests decomposition into a stored additive numerator (`watch_seconds`) and a distinct-count denominator computed at query time, never a stored ratio.*
+
+</details>
 
 
 <br>

@@ -135,10 +135,8 @@ Finance's daily order totals keep coming in high: each night's CDC changes for o
 - Append-only loader (transform, Spark)
 - Orders (append-only) (storage)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this actually is
 
@@ -233,6 +231,8 @@ WHEN NOT MATCHED AND src.op <> 'DELETE' THEN INSERT
    *Tests whether the `WHEN NOT MATCHED` branch correctly ignores deletes rather than inserting a tombstone.*
 3. The nightly batch fails halfway and you rerun it. What guarantees the totals don't double?\
    *Idempotency: one row per key plus the version guard make a replay a no-op.*
+
+</details>
 
 
 <br>
@@ -421,19 +421,9 @@ dim_rider after the batch
 
 Facts must point at the version that was true when they happened, so each version needs its own key; the natural `rider_id` is shared by all of a rider's versions. The 2 common designs are an integer drawn from a sequence and a hash of `rider_id` with `valid_from`, the pair that identifies a version.
 
-✓Sequence integer
-
-- 8 bytes per key, the narrowest join column
-- Needs a single writer or a coordinated counter
-- A rebuild hands out different numbers, so every fact keyed against the old ones must be reloaded
-- The same version gets a new key if its load is rerun
-
-✗Hash of rider_id and valid_from
-
-- Same inputs give the same key on every rerun and rebuild
-- Any number of parallel writers, no coordination
-- 32 hex characters, or 16 bytes stored as binary
-- Collision odds below 1 in 10^20 at 1 billion versions
+| ✓ Sequence integer | ✗ Hash of rider_id and valid_from |
+| --- | --- |
+| • 8 bytes per key, the narrowest join column<br><br>• Needs a single writer or a coordinated counter<br><br>• A rebuild hands out different numbers, so every fact keyed against the old ones must be reloaded<br><br>• The same version gets a new key if its load is rerun | • Same inputs give the same key on every rerun and rebuild<br><br>• Any number of parallel writers, no coordination<br><br>• 32 hex characters, or 16 bytes stored as binary<br><br>• Collision odds below 1 in 10^20 at 1 billion versions |
 
 Reproducibility is the strongest case for the hash in an interview. When a bug forces a rebuild of `dim_rider` from the raw change log, hash keys come out identical and every `fact_trips` row still points at the right version. With a sequence, the rebuild renumbers versions, and the fix grows from 1 dimension into a reload of every fact table that references it. The cost is width: as binary the hash is 16 bytes against the integer's 8, and as a hex varchar 32, so the join column on every `fact_trips` row grows 2x to 4x. Store it as binary, and the width matters only on the hottest fact joins.
 
@@ -542,17 +532,9 @@ FROM trips
 > - A source widening from INT to BIGINT overflows the raw table's narrower column unless the landing schema widens first.
 > - Explicit column lists fail loudly on a missing column; `SELECT *` passes new columns to readers who never agreed to them.
 
-✓Do
-
-- Settle the compatibility direction of every change before picking a rollout order
-- Split renames and type changes into expand, migrate, contract steps
-- Check the query log for readers of a column before dropping it
-
-✗Don't
-
-- Rename a column in place on a table with live readers
-- Drop the old column in the same release that adds the new one
-- Backfill a new column without a guard that skips rows already filled
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Settle the compatibility direction of every change before picking a rollout order<br><br>• Split renames and type changes into expand, migrate, contract steps<br><br>• Check the query log for readers of a column before dropping it | • Rename a column in place on a table with live readers<br><br>• Drop the old column in the same release that adds the new one<br><br>• Backfill a new column without a guard that skips rows already filled |
 
 
 <br>
@@ -662,10 +644,8 @@ A ride-hailing company moves its trips table from a nightly reload to a 15-minut
 
 Asked which clinic a patient belonged to on any past date, our compliance analysts can only get today's answer: the Postgres patient registry holds its 4 million patients as they are right now, and front-desk address corrections, clinic reassignments and deletions of duplicate records all overwrite in place. Design the path from that registry to a new warehouse history table that answers the clinic-on-any-date question, takes changes without adding query load to the registry, and can rerun any single day without leaving duplicate history behind.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### Why this problem exists in real interviews
 
@@ -745,6 +725,8 @@ flowchart LR
 2. The registry team renames `clinic_id` to `home_clinic_id` without warning. What breaks, and where do you absorb it?\
    *Tests schema migration: map the rename at the capture or landing layer so `patient_clinic_history` keeps one stable column, and old change partitions still replay.*
 
+</details>
+
 
 <br>
 
@@ -759,10 +741,8 @@ Change events reach us at least once and sometimes out of order, and a corrected
 - Operational DB (source, PostgreSQL)
 - CDC capture (transform)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### 4 hats, one discipline
 
@@ -835,6 +815,8 @@ flowchart LR
    *Probes out-of-order handling and whether the version diff is robust to non-monotonic arrival.*
 3. You need to add a tracked attribute to the dimension. How do you backfill history for it without re-opening every existing row?\
    *Combines schema evolution and partition backfill: an additive column plus a bounded, idempotent reprocess.*
+
+</details>
 
 
 <br>
