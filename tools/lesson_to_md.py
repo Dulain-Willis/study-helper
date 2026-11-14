@@ -42,7 +42,7 @@ SKIPPED_BLOCKS = {"schema_story"}
 GENERIC_BLOCKS = {
     "lesson_title", "learning_objectives", "section_header", "h3", "body_text",
     "rich_text", "static_table", "side_by_side_tables", "comparison",
-    "best_practices", "note_text", "rich_info_list", "h4",
+    "best_practices", "note_text", "rich_info_list", "h4", "full_width",
 }
 
 
@@ -204,6 +204,13 @@ def diagram(soup, block, image_name, number):
 MC_TOKEN = "@@MULTIPLE-CHOICE-{}@@"
 
 
+def question_key(text):
+    """Match key for a question: inline code is rendered without its quote marks
+    (JSON has DATE '2026-04-22', the page shows DATE 2026-04-22), so drop quotes,
+    backticks and whitespace before comparing."""
+    return re.sub(r"[\s'\"`]", "", text)
+
+
 def embedded_questions(html):
     """{question text: question dict} for every multiple_choice block in the page's JSON.
 
@@ -214,12 +221,22 @@ def embedded_questions(html):
     chunks = re.findall(r'self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)', html)
     text = "".join(json.loads(c) for c in chunks)
     decoder, found = json.JSONDecoder(), {}
-    for m in re.finditer(r'\{"type":"multiple_choice"', text):
-        try:
-            q, _ = decoder.raw_decode(text, m.start())
-        except ValueError:
-            continue
-        found[" ".join(q["question"].split())] = q
+    # Key order varies (a question with a code snippet has "code" before "type"), so
+    # "type" is not always the first key. Walk back from each marker to the "{" that
+    # opens a block object which decodes and holds this type.
+    for m in re.finditer(r'"type":"multiple_choice"', text):
+        start = m.start()
+        for _ in range(300):
+            start = text.rfind("{", 0, start)
+            if start < 0:
+                break
+            try:
+                q, end = decoder.raw_decode(text, start)
+            except ValueError:
+                continue
+            if isinstance(q, dict) and q.get("type") == "multiple_choice" and "question" in q:
+                found[question_key(q["question"])] = q
+                break
     return found
 
 
@@ -227,6 +244,8 @@ def multiple_choice_markdown(q):
     """Question, lettered options, then a closed <details> with the answer and why the rest are wrong."""
     opts = [(chr(ord("A") + i), o) for i, o in enumerate(q["options"])]
     lines = [f"**{q['question']}**", ""]
+    if q.get("code"):
+        lines += [f"```{q.get('language', '')}", q["code"], "```", ""]
     lines += [f"- **{letter}.** {o['text']}" for letter, o in opts]
     lines += ["", "<details>", "<summary>Solution</summary>", ""]
     for letter, o in opts:
@@ -271,7 +290,7 @@ def convert(html, diagram_images=(), exercises=()):
             block.decompose()
         elif kind == "multiple_choice":
             p_el = block.find("p")
-            q = questions.get(" ".join(p_el.get_text().split())) if p_el else None
+            q = questions.get(question_key(p_el.get_text())) if p_el else None
             if q is None:
                 print("warning: multiple_choice answers not found in the page; block dropped",
                       file=sys.stderr)
@@ -505,7 +524,7 @@ def exercises_markdown(challenges):
         out += [f"### Exercise {n} of {len(challenges)}", f"**● TASK**\n\n{c['prompt']}"]
         nodes = (c.get("config") or {}).get("provided_pipeline_nodes") or []
         if nodes:
-            rows = [f"- {x['name']} ({x['node_type']}" + (f", {x['tech_label']}" if x.get("tech_label") else "") + ")"
+            rows = [f"- {x['name']} (" + ", ".join(p for p in (x.get("node_type"), x.get("tech_label")) if p) + ")"
                     for x in nodes]
             out.append("**Starting canvas** (already placed for you):\n\n" + "\n".join(rows))
         out.append("### Solution")

@@ -19,6 +19,9 @@ The site builds a lesson from blocks tagged `data-note-block-type="<type>"`, and
 
 - **Star ratings (Daily Life, Interviews):** drawn on a canvas by JavaScript, so the page source holds no values.
 - **`multiple_choice`:** the rendered options are buttons with no correct-answer marker, but the page's Next.js payload (`self.__next_f.push` script strings) holds `{"type":"multiple_choice","question","options":[{"text","is_correct","explanation"}]}`. `embedded_questions` reads it, matching each block to its JSON by question text, and `multiple_choice_markdown` writes the question, lettered options, then a closed `<details><summary>Solution</summary>` with the correct option, its explanation, and "Why the others are wrong" (one explanation per wrong option).
+- **`multiple_choice` JSON quirks:** key order varies (a question with a code snippet has `"code"`, `"language"` before `"type"`), so `embedded_questions` walks back from each `"type":"multiple_choice"` marker to the enclosing object. Inline code in a question renders without its quote marks, so `question_key` drops quotes, backticks and whitespace before matching.
+- **`full_width`:** a wrapper around a real table (pa_what_is_a_pipeline_advanced); in `GENERIC_BLOCKS`.
+- **`pipeline_animation`:** an animated pipeline widget (retry storms, ingestion flows). Its data is in the page JSON (`nodes`, `edges`, `clock`, `variants`). Not handled yet: it prints "no rule" and falls back to generic conversion, so the animation is lost. Seen in 8 learn/architecture lessons.
 - **`schema_story` (data_modeling lessons):** interactive quiz with no answers in the page, so only a dangling question would remain. `SKIPPED_BLOCKS` drops it. Not yet checked for embedded JSON the way `multiple_choice` was.
 - **The interactive pipeline-architecture exercise:** a live drag-and-drop widget; a screenshot shows an empty canvas.
 
