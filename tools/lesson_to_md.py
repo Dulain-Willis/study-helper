@@ -657,12 +657,12 @@ def screenshot_schema_diagrams(url, out_dir, slug, challenges):
 # Animations (sql_animation, kafka_animation, pipeline_animation ...): a player that plays by
 # itself once scrolled into view, with a step counter ("3/9") and sometimes mode toggles.
 # Each mode is recorded as a screen video of the player alone, cropped, and made into a GIF.
-GIF_FILTER = ("fps=15,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];"
+GIF_FILTER = ("fps=15,scale=1000:-1:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];"
               "[b][p]paletteuse=dither=sierra2_4a")
 _STEP = re.compile(r"(\d+)\s*/\s*(\d+)")
 _PLAYER_BOX = """(block) => { const bs = [...block.querySelectorAll('button')]; if (!bs.length) return null;
     let a = bs[0]; while (a && !bs.every(b => a.contains(b))) a = a.parentElement;
-    const r = a.getBoundingClientRect(); return {x: r.x, y: r.y, w: r.width, h: r.height}; }"""
+    const r = a.getBoundingClientRect(); return {x: r.x + scrollX, y: r.y + scrollY, w: r.width, h: r.height}; }"""
 
 
 def record_animations(url, out_dir, slug, info):
@@ -704,37 +704,32 @@ def record_animations(url, out_dir, slug, info):
                         ctx.close()
                         print(f"warning: animation {k + 1} has no player controls; not captured", file=sys.stderr)
                         break
-                    # Frames come straight from the browser's screencast, uncompressed. Playwright's
-                    # recorded video is compressed, which made text and glows look fuzzy in the GIF.
+                    # Each frame is a 2x screenshot of the player alone, taken as fast as the browser
+                    # allows (about 14 per second). Playwright's recorded video is compressed and
+                    # its frames are 1x, so the small labels in the diagrams (down to 6.5 px) turned
+                    # fuzzy; at 2x they stay readable after the GIF is scaled down.
                     cdp = ctx.new_cdp_session(page)
-                    frames = []
-                    cdp.on("Page.screencastFrame", lambda event: frames.append(event))
-                    cdp.send("Page.startScreencast", {"format": "png", "maxWidth": 1000, "maxHeight": 900,
-                                                      "everyNthFrame": 1})
+                    clip = {"x": box["x"], "y": box["y"], "width": box["w"], "height": box["h"], "scale": 2}
                     if m > 0:
                         block.locator("button[role=radio]").nth(m).click()
                     stamps, done_since, last_hash = [], None, None
                     began = still_since = time.monotonic()
                     while time.monotonic() - began < 150:
-                        while frames:  # save each frame and tell the browser it can send the next
-                            event = frames.pop(0)
-                            with open(os.path.join(tmp, f"f{len(stamps):05d}.png"), "wb") as fh:
-                                fh.write(base64.b64decode(event["data"]))
-                            stamps.append(event["metadata"]["timestamp"])
-                            cdp.send("Page.screencastFrameAck", {"sessionId": event["sessionId"]})
+                        stamp = time.monotonic() - began
+                        shot = cdp.send("Page.captureScreenshot", {"format": "jpeg", "quality": 92, "clip": clip})
+                        with open(os.path.join(tmp, f"f{len(stamps):05d}.jpg"), "wb") as fh:
+                            fh.write(base64.b64decode(shot["data"]))
+                        stamps.append(stamp)
                         steps = _STEP.findall(block.inner_text())
                         if steps and int(steps[-1][0]) >= int(steps[-1][1]):
                             done_since = done_since or time.monotonic()
                             if time.monotonic() - done_since >= 2:
                                 break
                         elif not steps:  # no counter: stop once nothing has moved for 3 seconds
-                            h = hash(block.screenshot())
-                            if h != last_hash:
-                                last_hash, still_since = h, time.monotonic()
+                            if hash(shot["data"]) != last_hash:
+                                last_hash, still_since = hash(shot["data"]), time.monotonic()
                             elif time.monotonic() - still_since >= 3:
                                 break
-                        page.wait_for_timeout(80)
-                    cdp.send("Page.stopScreencast")
                     ctx.close()
                     if len(stamps) < 2:
                         print(f"warning: animation {k + 1} produced no frames; not captured", file=sys.stderr)
@@ -742,16 +737,13 @@ def record_animations(url, out_dir, slug, info):
                     with open(os.path.join(tmp, "list.txt"), "w") as fh:  # each frame lasts until the next
                         for i, stamp in enumerate(stamps):
                             span = stamps[i + 1] - stamp if i + 1 < len(stamps) else 1.0
-                            fh.write(f"file 'f{i:05d}.png'\nduration {max(span, 0.001):.4f}\n")
-                        fh.write(f"file 'f{len(stamps) - 1:05d}.png'\n")
+                            fh.write(f"file 'f{i:05d}.jpg'\nduration {max(span, 0.001):.4f}\n")
+                        fh.write(f"file 'f{len(stamps) - 1:05d}.jpg'\n")
                     name = f"{slug}_animation_{k + 1}" + (f"_{re.sub(r'[^a-z0-9]+', '-', label.lower()).strip('-')}"
                                                           if label else "") + ".gif"
-                    x, y = int(box["x"]), int(box["y"])
-                    w = int(box["w"] + 0.999) + (int(box["w"] + 0.999) % 2)
-                    h = int(box["h"] + 0.999) + (int(box["h"] + 0.999) % 2)
                     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0",
                                     "-i", os.path.join(tmp, "list.txt"),
-                                    "-vf", f"crop={w}:{h}:{x}:{y},{GIF_FILTER}", "-loop", "0",
+                                    "-vf", GIF_FILTER, "-loop", "0",
                                     os.path.join(img_dir, name)], check=True)
                     saved.setdefault(k, []).append((label, name))
         browser.close()
