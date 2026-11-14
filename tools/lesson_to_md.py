@@ -11,6 +11,7 @@ pipeline diagram as an image next to the Markdown.
 
 For personal study use. Output defaults to ./lesson_preview/.
 """
+import json
 import os
 import re
 import sys
@@ -21,6 +22,8 @@ from bs4.builder import HTMLParserTreeBuilder
 from markdownify import markdownify
 
 BASE = "https://datadriven.io/learn/"
+# The Pipeline Architecture exercises are not in the lesson HTML; the page loads them from here.
+CHALLENGES_URL = "https://datadriven.io/proxy/challenges/"
 # Visual blocks that plain text can't represent; each is saved as a screenshot.
 DIAGRAM_LABELS = {"pipeline_diagram": "Pipeline diagram", "schema_diagram": "Schema diagram"}
 DIAGRAM_SELECTOR = ", ".join(f'[data-note-block-type="{k}"]' for k in DIAGRAM_LABELS)
@@ -270,6 +273,114 @@ def add_section_breaks(md):
     return "\n".join(out).strip() + "\n"
 
 
+# --- Pipeline Architecture exercises -------------------------------------------------
+# Each lesson can end with 1-6 exercises (task, optional starting canvas, solution
+# walkthrough). The page fetches them as JSON, so there is nothing to scroll or click.
+
+MERMAID_SHAPES = {  # node_type -> (open, close)
+    "source": ("[(", ")]"), "storage": ("[(", ")]"), "transform": ("[", "]"),
+    "consumer": ("([", "])"), "quality": ("{{", "}}"), "queue": ("[/", "/]"),
+}
+
+
+def fetch_challenges(slug):
+    """The lesson's exercises, or [] if the lesson has none or the request fails."""
+    req = urllib.request.Request(CHALLENGES_URL + slug, headers={"User-Agent": "lesson-to-md/1.0"})
+    try:
+        data = json.loads(urllib.request.urlopen(req, timeout=30).read().decode("utf-8"))
+    except Exception as e:  # network, 404 or not JSON: the lesson text is still fine without them
+        print(f"warning: no Pipeline Architecture exercises fetched ({e})", file=sys.stderr)
+        return []
+    return sorted(data.get("challenges", []), key=lambda c: c.get("order_index", 0))
+
+
+def mermaid(block):
+    """A solution diagram (nodes + edges, optional layers) as a Mermaid flowchart."""
+    ids = {n["name"]: f"n{i}" for i, n in enumerate(block.get("nodes", []))}
+
+    def node(n):
+        label = n["name"].replace('"', "#quot;")
+        if n.get("tech_label"):
+            label += f"<br/>({n['tech_label'].replace(chr(34), '#quot;')})"
+        o, c = MERMAID_SHAPES.get(n.get("node_type"), ("[", "]"))
+        return f'{ids[n["name"]]}{o}"{label}"{c}'
+
+    by_name = {n["name"]: n for n in block.get("nodes", [])}
+    lines, placed = ["```mermaid", "flowchart LR"], set()
+    for i, layer in enumerate(block.get("layers") or []):
+        members = [n for n in layer.get("node_names", []) if n in by_name and n not in placed]
+        if not members:
+            continue
+        lines.append(f'    subgraph L{i}["{layer["name"].replace(chr(34), "#quot;")}"]')
+        lines += [f"        {node(by_name[n])}" for n in members]
+        lines.append("    end")
+        placed.update(members)
+    lines += [f"    {node(n)}" for n in block.get("nodes", []) if n["name"] not in placed]
+    for e in block.get("edges", []):
+        if e["from"] in ids and e["to"] in ids:
+            label = f'|"{e["label"]}"|' if e.get("label") else ""
+            lines.append(f"    {ids[e['from']]} -->{label} {ids[e['to']]}")
+    lines.append("```")
+    return "\n".join(lines)
+
+
+def cell(text):
+    return (text or "").replace("|", "\\|").replace("\n", "<br>")
+
+
+def solution_block(b, slug):
+    """One solution block as Markdown, or None for blocks that add nothing (dividers)."""
+    kind = b.get("blockType")
+    if kind == "heading":
+        return f"#### {b['blockText']}"
+    if kind == "paragraph":
+        return b["blockText"]
+    if kind == "divider":
+        return None
+    if kind == "step":
+        return f"**{b['number']}. {b['title']}**\n\n{b['body']}"
+    if kind == "callout":
+        label = (b.get("variant") or "note").capitalize()
+        body = "\n".join(f"> {l}" if l else ">" for l in b["body"].split("\n"))
+        return f"> **{label}: {b['title']}**\n>\n{body}"
+    if kind == "comparison":
+        return (f"| {cell(b['left_label'])} | {cell(b['right_label'])} |\n| --- | --- |\n"
+                f"| {cell(b['left_body'])} | {cell(b['right_body'])} |")
+    if kind == "pipeline_diagram":
+        out = mermaid(b)
+        return out + (f"\n\n*{b['caption']}*" if b.get("caption") else "")
+    if kind == "follow_up":
+        items = []
+        for i, q in enumerate(b["questions"], 1):
+            items.append(f"{i}. {q['question']}" + (f"\\\n   *{q['context']}*" if q.get("context") else ""))
+        return "**Follow-up questions**\n\n" + "\n".join(items)
+    if kind == "code":
+        out = (f"**{b['title']}**\n\n" if b.get("title") else "")
+        out += f"```{b.get('language') or ''}\n{b['code']}\n```"
+        return out + (f"\n\n*{b['caption']}*" if b.get("caption") else "")
+    print(f"warning: no rule for Pipeline Architecture solution block '{kind}'; "
+          "printed its text fields", file=sys.stderr)
+    return "\n\n".join(str(v) for k, v in b.items() if k != "blockType" and isinstance(v, str)) or None
+
+
+def exercises_markdown(slug):
+    """The '## Pipeline Architecture' section: task, starting canvas, solution, per exercise."""
+    challenges = fetch_challenges(slug)
+    if not challenges:
+        return ""
+    out = ["## Pipeline Architecture"]
+    for n, c in enumerate(challenges, 1):
+        out += [f"### Exercise {n} of {len(challenges)}", f"**Task.** {c['prompt']}"]
+        nodes = (c.get("config") or {}).get("provided_pipeline_nodes") or []
+        if nodes:
+            rows = [f"- {x['name']} ({x['node_type']}" + (f", {x['tech_label']}" if x.get("tech_label") else "") + ")"
+                    for x in nodes]
+            out.append("**Starting canvas** (already placed for you):\n\n" + "\n".join(rows))
+        out.append("#### Solution")
+        out += [m for m in (solution_block(b, slug) for b in (c.get("deep_dive") or {}).get("blocks") or []) if m]
+    return "\n\n".join(out) + "\n"
+
+
 def screenshot_diagrams(url, out_dir, slug):
     """Save every pipeline diagram block as <slug>_diagram_<n>.png.
 
@@ -315,7 +426,9 @@ def main():
     images = screenshot_diagrams(url, out_dir, slug) if "--screenshots" in sys.argv else []
     path = os.path.join(out_dir, slug + ".md")
     with open(path, "w", encoding="utf-8") as f:
-        f.write(convert(html, images))
+        md = convert(html, images)
+        extra = exercises_markdown(slug)
+        f.write(md + ("\n<br>\n\n---\n\n" + extra if extra else ""))
     print(path)
 
 
