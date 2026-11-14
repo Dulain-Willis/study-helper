@@ -36,13 +36,13 @@ CUSTOM_BLOCKS = {
     "synthesis", "icon_list", "info_list", *DIAGRAM_LABELS,
     "multiple_choice", "schema_story", "best_practices", "comparison",
 }
-# Interactive exercises: the answer options are buttons (stripped as noise) and the
-# correct answers are not in the page, so what's left is a dangling question. Dropped.
-SKIPPED_BLOCKS = {"multiple_choice", "schema_story"}
+# Interactive exercise with no answers in the page, so what's left is a dangling question.
+# Dropped. (multiple_choice used to be here; its answers ARE in the page's embedded JSON.)
+SKIPPED_BLOCKS = {"schema_story"}
 GENERIC_BLOCKS = {
     "lesson_title", "learning_objectives", "section_header", "h3", "body_text",
     "rich_text", "static_table", "side_by_side_tables", "comparison",
-    "note_text", "rich_info_list", "h4",
+    "note_text", "rich_info_list", "h4", "full_width",
 }
 
 
@@ -201,6 +201,67 @@ def diagram(soup, block, image_name, number):
         block.replace_with(note)
 
 
+MC_TOKEN = "@@MULTIPLE-CHOICE-{}@@"
+
+
+def question_key(text):
+    """Match key for a question: inline code is rendered without its quote marks
+    (JSON has DATE '2026-04-22', the page shows DATE 2026-04-22), so drop quotes,
+    backticks and whitespace before comparing."""
+    return re.sub(r"[\s'\"`]", "", text)
+
+
+def embedded_questions(html):
+    """{question text: question dict} for every multiple_choice block in the page's JSON.
+
+    The page is a Next.js app: lesson data sits in self.__next_f.push([1, "<chunk>"])
+    script strings. The rendered options are buttons with no correct-answer marker, but
+    the JSON holds is_correct and an explanation per option.
+    """
+    chunks = re.findall(r'self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)', html)
+    text = "".join(json.loads(c) for c in chunks)
+    decoder, found = json.JSONDecoder(), {}
+    # Key order varies (a question with a code snippet has "code" before "type"), so
+    # "type" is not always the first key. Walk back from each marker to the "{" that
+    # opens a block object which decodes and holds this type.
+    for m in re.finditer(r'"type":"multiple_choice"', text):
+        start = m.start()
+        for _ in range(300):
+            start = text.rfind("{", 0, start)
+            if start < 0:
+                break
+            try:
+                q, end = decoder.raw_decode(text, start)
+            except ValueError:
+                continue
+            if isinstance(q, dict) and q.get("type") == "multiple_choice" and "question" in q:
+                found[question_key(q["question"])] = q
+                break
+    return found
+
+
+def multiple_choice_markdown(q):
+    """Question, lettered options, then a closed <details> with the answer and why the rest are wrong."""
+    opts = [(chr(ord("A") + i), o) for i, o in enumerate(q["options"])]
+    lines = [f"**{q['question']}**", ""]
+    if q.get("code"):
+        lines += [f"```{q.get('language', '')}", q["code"], "```", ""]
+    lines += [f"- **{letter}.** {o['text']}" for letter, o in opts]
+    lines += ["", "<details>", "<summary>Solution</summary>", ""]
+    for letter, o in opts:
+        if o.get("is_correct"):
+            lines += [f"**{letter}.** {o['text']}", ""]
+            if o.get("explanation"):
+                lines += [o["explanation"], ""]
+    wrong = [(letter, o) for letter, o in opts if not o.get("is_correct")]
+    if wrong:
+        lines += ["**Why the others are wrong**", ""]
+        lines += [f"- **{letter}.** {o.get('explanation') or o['text']}" for letter, o in wrong]
+        lines.append("")
+    lines.append("</details>")
+    return "\n".join(lines)
+
+
 def tick_cross(soup, block, tokens):
     """A tick/cross pair (Do and Don't, or any two labelled lists) as one table.
 
@@ -249,6 +310,7 @@ def convert(html, diagram_images=(), exercises=()):
         block.insert_after(p)
         tokens[EXERCISE_TOKEN.format(i)] = md_text
     diagrams_seen = 0
+    questions = embedded_questions(html)
     for block in soup.find_all(attrs={"data-note-block-type": True}):
         kind = block_type(block)
         if kind not in CUSTOM_BLOCKS | GENERIC_BLOCKS:
@@ -256,6 +318,19 @@ def convert(html, diagram_images=(), exercises=()):
                   file=sys.stderr)
         if kind in SKIPPED_BLOCKS:
             block.decompose()
+        elif kind == "multiple_choice":
+            p_el = block.find("p")
+            q = questions.get(question_key(p_el.get_text())) if p_el else None
+            if q is None:
+                print("warning: multiple_choice answers not found in the page; block dropped",
+                      file=sys.stderr)
+                block.decompose()
+                continue
+            token = MC_TOKEN.format(len(tokens))
+            tokens[token] = multiple_choice_markdown(q)
+            new = soup.new_tag("p")
+            new.string = token
+            block.replace_with(new)
         elif kind == "static_code":
             code_block(soup, block)
         elif kind == "big_number":
@@ -490,7 +565,7 @@ def exercises_markdown(challenges, images=None, start=0):
         out += [f"### Exercise {n} of {len(challenges)}", f"**● TASK**\n\n{c['prompt']}"]
         nodes = (c.get("config") or {}).get("provided_pipeline_nodes") or []
         if nodes:
-            rows = [f"- {x['name']} ({x['node_type']}" + (f", {x['tech_label']}" if x.get("tech_label") else "") + ")"
+            rows = [f"- {x['name']} (" + ", ".join(p for p in (x.get("node_type"), x.get("tech_label")) if p) + ")"
                     for x in nodes]
             out.append("**Starting canvas** (already placed for you):\n\n" + "\n".join(rows))
         # The solution is folded away until clicked, so an exercise reads as its task first.
