@@ -12,6 +12,7 @@ pipeline diagram as an image next to the Markdown.
 For personal study use. Output defaults to ./lesson_preview/.
 """
 import base64
+import difflib
 import json
 import os
 import re
@@ -39,11 +40,11 @@ NOISE = ["script", "style", "nav", "footer", "button", "svg", "canvas", "head"]
 CUSTOM_BLOCKS = {
     "static_code", "big_number", "tip", "callout", "fun_fact", "key_takeaways",
     "synthesis", "icon_list", "info_list", *DIAGRAM_LABELS,
-    "multiple_choice", "schema_story", "best_practices", "comparison",
+    "multiple_choice", "schema_story", "best_practices", "comparison", "placed_challenge",
 }
 # Interactive exercise with no answers in the page, so what's left is a dangling question.
 # Dropped. (multiple_choice used to be here; its answers ARE in the page's embedded JSON.)
-SKIPPED_BLOCKS = {"schema_story"}
+SKIPPED_BLOCKS = {"schema_story", "placed_challenge"}  # placed_challenge: empty stub for Airflow exercises
 GENERIC_BLOCKS = {
     "lesson_title", "learning_objectives", "section_header", "h3", "body_text",
     "rich_text", "static_table", "side_by_side_tables", "comparison",
@@ -414,6 +415,16 @@ def convert(html, diagram_images=(), exercises=(), animations=None):
     for div in soup.find_all("div"):
         if div.get_text(strip=True) in ("Daily Life", "Interviews") and not div.find("div"):
             div.decompose()
+    # Text that starts with ">" (e.g. Airflow's ">> reads as 'then'") would become a Markdown
+    # blockquote; escape it. Code is left alone, and the quotes the converter builds are
+    # <blockquote> tags, not text, so they are unaffected.
+    for text in soup.find_all(string=re.compile(r"^\s*>")):
+        # only where a line starts: first text of a paragraph, list item or div (table cells and
+        # text after other inline tags are not line starts, so ">=" there stays as it is)
+        if text.find_parent(["code", "pre", "script", "style"]) or not starts_line(text):
+            continue
+        text.replace_with(re.sub(r"^(\s*)((?:>\s*)+)",
+                                 lambda m: m.group(1) + "".join("\\>" for _ in m.group(2).replace(" ", "")), str(text)))
     # escape_underscores=False keeps names like fare_amount readable
     # BACKSLASH line breaks survive the per-line rstrip in add_section_breaks;
     # the default two trailing spaces would not
@@ -424,6 +435,23 @@ def convert(html, diagram_images=(), exercises=(), animations=None):
             md = md.replace(token, text)
     md = md.rstrip("\n") + (tokens[None] if None in tokens else "") + "\n"
     return add_section_breaks(md)
+
+
+def starts_line(text):
+    """True if this text is the very first thing in its paragraph, list item or div, even
+    when wrapped in inline tags (the site styles inline code as a span, not <code>)."""
+    node = text
+    while True:
+        prev = node.previous_sibling
+        if prev is not None and (not isinstance(prev, str) or prev.strip()):
+            return False
+        node = node.parent
+        if node is None:
+            return False
+        if node.name in ("p", "li", "div", "blockquote"):
+            return True
+        if node.name not in ("span", "strong", "em", "b", "i", "a"):
+            return False  # table cells etc.: the line starts with the pipe, not this text
 
 
 def add_section_breaks(md):
@@ -627,6 +655,226 @@ def exercises_markdown(challenges, images=None, start=0):
     return "\n\n".join(out)
 
 
+# --- Airflow exercises (tools/airflow lessons) ----------------------------------------
+# Same endpoint as above, challenge_type "airflow". Only the dag_repair form (fix the DAG
+# file) is converted; see the note above airflow_widgets for what is left out and why. The
+# page's live editor + Airflow UI becomes: task, starter file, the deployed Grid/Graph, then a
+# folded solution (graph after the fix, what changes, canonical code, walkthrough).
+
+
+def challenge_path(c):
+    sc = c["config"].get("scenario") or {}
+    files = sc.get("files") or []
+    return sc.get("file") or (files[0]["path"] if files else "dag.py")
+
+
+# Only repair-the-DAG exercises (config.form "dag_repair", widget dr-widget) are converted.
+# Every other Airflow exercise form is left out on purpose (see BLOCK-TYPES.md): grid_match
+# (gm-root), the run-naming timeline widget, and any other. They are decided by form and
+# widget, never by where their sentence lands, because the site sometimes draws a widget's
+# sentence outside its frame. The widget is drawn by the browser: file, then the Grid/Graph of
+# the DEPLOYED starter. A pane is only captured when it holds something: Grid needs cells,
+# Graph needs nodes or an import error.
+_AF_ANCHOR = """(root) => { let anchor = null;
+    for (const b of document.querySelectorAll('[data-note-block]')) {
+        const pos = b.compareDocumentPosition(root);
+        if (!(pos & 4) || (pos & 16)) continue;   // keep blocks that come before root, not its parents
+        const id = b.getAttribute('data-note-block');
+        if (/^[si]\\|/.test(id)) anchor = id; }
+    return anchor; }"""
+
+
+def airflow_widgets(url, out_dir, slug, shoot):
+    """Each Airflow widget in page order: {path, anchor, shots: {key: (caption, file)}}."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        print("playwright not installed; Airflow exercises go at the end", file=sys.stderr)
+        return []
+    img_dir = os.path.join(out_dir, "images")
+    os.makedirs(img_dir, exist_ok=True)
+    widgets = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(viewport={"width": 1400, "height": 1000},
+                                color_scheme="light", device_scale_factor=2)
+        page.goto(url, wait_until="domcontentloaded")
+        page.wait_for_timeout(6000)
+        roots = page.locator('[data-testid="dr-widget"]')  # repair-the-DAG widgets only
+        for i in range(roots.count()):
+            root = roots.nth(i)
+            root.scroll_into_view_if_needed()
+            page.wait_for_timeout(500)
+            header = root.locator('[data-testid="af-file-header"]').first.inner_text()
+            m = re.search(r"dags/[\w./-]+\.py", header)
+            shots = {}
+
+            def snap(key, caption, loc):
+                if not shoot:
+                    return
+                name = f"{slug}_ex{i + 1}_{key}.png"
+                path = os.path.join(img_dir, name)
+                loc.first.screenshot(path=path)
+                with open(path, "rb") as fh:  # PNG header: width at bytes 16-20
+                    pixels = int.from_bytes(fh.read(24)[16:20], "big")
+                shots[key] = (caption, name, round(pixels / 2.5))  # shown 2.5x smaller than full size
+
+            def click(text):
+                root.get_by_text(re.compile(rf"^{text}$", re.I)).first.click()
+                page.wait_for_timeout(600)
+
+            grid = root.locator('[data-testid="dr-grid-page"]')
+            graph = root.locator('[data-testid="dr-graph-page"]')
+            click("Grid")
+            if grid.locator('[data-testid="af-cell"]').count():
+                snap("grid", "Grid, deployed (your starter code)", grid)
+            click("Graph")
+            if graph.locator('[data-testid="af-graph-node"], [data-testid="af-import-errors"]').count():
+                snap("graph", "Graph, deployed (your starter code)", graph)
+            widgets.append({"path": m.group(0) if m else None,
+                            "anchor": root.evaluate(_AF_ANCHOR), "shots": shots})
+        browser.close()
+    return widgets
+
+
+SHOT_ORDER = ["grid", "graph"]
+
+
+GRAPH_STYLES = {"success": "fill:#0a3d12,stroke:#2ea043,color:#fff", "failed": "fill:#4d1010,stroke:#f85149,color:#fff",
+                "upstream_failed": "fill:#4d2f08,stroke:#f0883e,color:#fff", "running": "fill:#0b3a4a,stroke:#39c5cf,color:#fff"}
+
+
+def dag_edges(source):
+    """Edges from the `>>` lines of a DAG file: [a, b] >> c, a >> [b, c], and chains of them.
+
+    Variables are mapped to their task_id (o = BashOperator(task_id="pull_orders") makes `o`
+    mean pull_orders), so the edges name tasks, not variables."""
+    names = {v: t for v, t in re.findall(r'(\w+)\s*=\s*\w+Operator\(\s*task_id="(\w+)"', source)}
+    edges = []
+    for line in source.splitlines():
+        if ">>" not in line or "=" in line or "(" in line:  # assignments and calls are not edge lines
+            continue
+        groups = [[names.get(t.strip(), t.strip()) for t in seg.strip().strip("[]").split(",") if t.strip()]
+                  for seg in line.split(">>")]
+        for left, right in zip(groups, groups[1:]):
+            edges += [(a, b) for a in left for b in right]
+    return edges
+
+
+def taskflow_edges(source):
+    """(edges, task names) for TaskFlow files: an edge wherever one task's result is passed
+    to another, as in summarize(count_rows(find_file())) or x = a(); b(x)."""
+    import ast
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return [], set()
+
+    def is_task(d):
+        d = d.func if isinstance(d, ast.Call) else d
+        return (isinstance(d, ast.Name) and d.id == "task") or (isinstance(d, ast.Attribute) and d.value.__class__ is ast.Name and d.value.id == "task")
+    tasks = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and any(is_task(d) for d in n.decorator_list)}
+    results, edges = {}, []
+
+    def produced(node):  # task names whose result this expression holds
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in tasks:
+            for arg in list(node.args) + [k.value for k in node.keywords]:
+                edges.extend((u, node.func.id) for u in produced(arg))
+            return [node.func.id]
+        if isinstance(node, ast.Name):
+            return results.get(node.id, [])
+        if isinstance(node, (ast.Tuple, ast.List)):
+            return [t for e in node.elts for t in produced(e)]
+        return []
+    for st in sorted((n for n in ast.walk(tree) if isinstance(n, (ast.Assign, ast.Expr))), key=lambda n: n.lineno):
+        if isinstance(st, ast.Assign):
+            tgt, val = st.targets[0], st.value
+            if isinstance(tgt, ast.Tuple) and isinstance(val, ast.Tuple) and len(tgt.elts) == len(val.elts):
+                for t, v in zip(tgt.elts, val.elts):
+                    if isinstance(t, ast.Name):
+                        results[t.id] = produced(v)
+            elif isinstance(tgt, ast.Name):
+                results[tgt.id] = produced(val)
+        else:
+            produced(st.value)
+    return list(dict.fromkeys(edges)), tasks
+
+
+def solution_graphs(c):
+    """One Mermaid graph per expected run (task boxes coloured by state), or None if the
+    solution has no `>>` lines to draw (e.g. TaskFlow calls) or no expected states."""
+    runs = ((c["config"].get("scenario") or {}).get("expect") or {}).get("runs") or []
+    source = ((c.get("deep_dive") or {}).get("reference") or {}).get("source") or ""
+    flow_edges, flow_tasks = taskflow_edges(source)
+    edges = dag_edges(source) + flow_edges
+    if not runs or not edges:
+        return None
+    # operator class shown under each task name: from the solution code (BashOperator(task_id="x")),
+    # else from the parsed starter file's task list
+    operators = {t: op for op, t in re.findall(r'(\w+Operator)\(\s*task_id="(\w+)"', source)}
+    operators.update({t: "_PythonDecoratedOperator" for t in flow_tasks})  # @task functions
+    for f in (c["config"].get("scenario") or {}).get("files") or []:
+        for dag in (f.get("description") or {}).get("dags") or []:
+            for task in dag.get("tasks") or []:
+                operators.setdefault(task["taskId"], task.get("operator"))
+    out = []
+    for i, run in enumerate(runs, 1):
+        lines = ["```mermaid", "flowchart TB"]
+        for t, state in run["tasks"].items():
+            op = f"<br/>{operators[t]}" if operators.get(t) else ""
+            lines.append(f'    {t}["{t}{op}<br/>{state}"]:::{state}')
+        lines += [f"    {a} --> {b}" for a, b in edges]
+        lines += [f"    classDef {s} {css}" for s, css in GRAPH_STYLES.items()]
+        lines.append("```")
+        out.append((f"*Run {i} of {len(runs)}*\n\n" if len(runs) > 1 else "") + "\n".join(lines))
+    return "\n\n".join(out)
+
+
+def airflow_exercise_markdown(c, n, total, shots):
+    cfg, sc = c["config"], c["config"].get("scenario") or {}
+    out = [f"### Exercise {n} of {total}: Repair the DAG", f"**● TASK**\n\n{c['prompt']}"]
+    files = sc.get("files") or []
+    starter = (cfg.get("starter") or {}).get("source") or (files[0]["source"] if files else "")
+    out.append(f"**Starter** — `{challenge_path(c)}`\n\n```python\n{starter}\n```")
+    if shots:  # panes the page really shows, as the page draws them
+        out += [f'**{shots[k][0]}**\n\n<img src="images/{shots[k][1]}" alt="{shots[k][0]}" width="{shots[k][2]}">'
+                for k in SHOT_ORDER if k in shots]
+    out.append("<details>\n<summary><strong>Solution</strong></summary>")
+    # The site only draws the graph after a correct fix once the code is Run, and Run needs a
+    # login, so it is drawn here from the solution's `>>` lines and the expected task states.
+    graphs = solution_graphs(c)
+    if graphs:
+        out.append("**Graph after the fix** (drawn from the solution code and the expected task states)\n\n" + graphs)
+    # what the fix changes, so a small edit is easy to spot
+    fixed = ((c.get("deep_dive") or {}).get("reference") or {}).get("source") or ""
+    changes = [l for l in difflib.unified_diff(starter.splitlines(), fixed.splitlines(), lineterm="", n=1)
+               if not l.startswith(("---", "+++", "@@"))]
+    if changes:
+        out.append("**What changes** (`-` starter, `+` solution)\n\n```diff\n" + "\n".join(changes) + "\n```")
+    out += [m for m in (solution_block(b) for b in (c.get("deep_dive") or {}).get("blocks") or []) if m]
+    out.append("</details>")
+    return "\n\n".join(out)
+
+
+def airflow_sections(url, out_dir, slug, challenges):
+    """[(anchor block id or None, markdown)]: each exercise where the page puts it."""
+    widgets = airflow_widgets(url, out_dir, slug, "--screenshots" in sys.argv)
+    by_path = {challenge_path(c): c for c in challenges}
+    ordered = [(w, by_path.get(w["path"])) for w in widgets]
+    if len(ordered) != len(challenges) or any(c is None for _, c in ordered):
+        print("warning: Airflow widgets do not match the data; exercises go at the end", file=sys.stderr)
+        return [(None, "\n\n".join(airflow_exercise_markdown(c, n, len(challenges), {})
+                                   for n, c in enumerate(challenges, 1)))]
+    sections = []
+    for n, (w, c) in enumerate(ordered, 1):
+        md = airflow_exercise_markdown(c, n, len(ordered), w["shots"])
+        if sections and sections[-1][0] == w["anchor"]:  # same spot: keep them in order
+            sections[-1] = (w["anchor"], sections[-1][1] + "\n\n" + md)
+        else:
+            sections.append((w["anchor"], md))
+    return sections
+
+
 # Taking a solution's schema diagram: it sits in a scrolling box inside a widget (one
 # page can hold several widgets, some with tabs). The diagram is found by its content, the
 # smallest element holding every table and column name, and Playwright scrolls to it.
@@ -787,6 +1035,10 @@ def record_animations(url, out_dir, slug, info):
                     clip = {"x": box["x"], "y": box["y"], "width": box["w"], "height": box["h"], "scale": 2}
                     if m > 0:
                         block.locator("button[role=radio]").nth(m).click()
+                        page.wait_for_timeout(300)
+                        play = block.locator('button[aria-label="Play"]')
+                        if play.count():  # a switched mode starts paused (Airflow animations)
+                            play.first.click()
                     stamps, done_since, last_hash = [], None, None
                     began = still_since = time.monotonic()
                     while time.monotonic() - began < 150:
@@ -873,13 +1125,22 @@ def main():
     path = os.path.join(out_dir, slug + ".md")
     with open(path, "w", encoding="utf-8") as f:
         challenges = fetch_challenges(slug)
-        groups = exercise_groups(url, challenges) if challenges else []
-        shots = (screenshot_schema_diagrams(url, out_dir, slug, challenges)
-                 if challenges and "--screenshots" in sys.argv else {})
-        sections, start = [], 0
-        for anchor, group in groups:
-            sections.append((anchor, exercises_markdown(group, shots, start)))
-            start += len(group)
+        airflow = bool(challenges) and challenges[0].get("challenge_type") == "airflow"
+        if airflow:
+            kept = [c for c in challenges if c["config"].get("form") == "dag_repair"]
+            left_out = sorted({str(c["config"].get("form")) for c in challenges if c not in kept})
+            if left_out:
+                print(f"note: {len(challenges) - len(kept)} Airflow exercise(s) left out on purpose "
+                      f"(forms: {', '.join(left_out)})", file=sys.stderr)
+            sections = airflow_sections(url, out_dir, slug, kept) if kept else []
+        else:
+            groups = exercise_groups(url, challenges) if challenges else []
+            shots = (screenshot_schema_diagrams(url, out_dir, slug, challenges)
+                     if challenges and "--screenshots" in sys.argv else {})
+            sections, start = [], 0
+            for anchor, group in groups:
+                sections.append((anchor, exercises_markdown(group, shots, start)))
+                start += len(group)
         f.write(convert(html, images, sections, animations))
     print(path)
 
