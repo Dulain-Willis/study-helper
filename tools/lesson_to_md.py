@@ -11,6 +11,7 @@ pipeline diagram as an image next to the Markdown.
 
 For personal study use. Output defaults to ./lesson_preview/.
 """
+import json
 import os
 import re
 import sys
@@ -21,6 +22,8 @@ from bs4.builder import HTMLParserTreeBuilder
 from markdownify import markdownify
 
 BASE = "https://datadriven.io/learn/"
+# The Pipeline Architecture exercises are not in the lesson HTML; the page loads them from here.
+CHALLENGES_URL = "https://datadriven.io/proxy/challenges/"
 # Visual blocks that plain text can't represent; each is saved as a screenshot.
 DIAGRAM_LABELS = {"pipeline_diagram": "Pipeline diagram", "schema_diagram": "Schema diagram"}
 DIAGRAM_SELECTOR = ", ".join(f'[data-note-block-type="{k}"]' for k in DIAGRAM_LABELS)
@@ -198,10 +201,23 @@ def diagram(soup, block, image_name, number):
         block.replace_with(note)
 
 
-def convert(html, diagram_images=()):
-    """diagram_images: screenshot file names, in page order, one per diagram block."""
+def convert(html, diagram_images=(), exercises=()):
+    """diagram_images: screenshot file names, in page order, one per diagram block.
+    exercises: [(anchor block id or None, markdown)]; each goes right after its anchor block,
+    and the ones with no anchor are returned by the caller to append."""
     soup = parse(html)
     clean(soup)
+    tokens = {}
+    for i, (anchor, md_text) in enumerate(exercises):
+        block = soup.find(attrs={"data-note-block": anchor}) if anchor else None
+        if block is None:
+            print("warning: exercise position not found in the page; it goes at the end", file=sys.stderr)
+            tokens[None] = tokens.get(None, "") + "\n\n" + md_text
+            continue
+        p = soup.new_tag("p")
+        p.string = EXERCISE_TOKEN.format(i)
+        block.insert_after(p)
+        tokens[EXERCISE_TOKEN.format(i)] = md_text
     diagrams_seen = 0
     for block in soup.find_all(attrs={"data-note-block-type": True}):
         kind = block_type(block)
@@ -246,6 +262,10 @@ def convert(html, diagram_images=()):
     # the default two trailing spaces would not
     md = markdownify(str(soup), heading_style="ATX", bullets="-", code_language="sql",
                      escape_underscores=False, newline_style="BACKSLASH")
+    for token, text in tokens.items():
+        if token:
+            md = md.replace(token, text)
+    md = md.rstrip("\n") + (tokens[None] if None in tokens else "") + "\n"
     return add_section_breaks(md)
 
 
@@ -268,6 +288,152 @@ def add_section_breaks(md):
             last_heading = 2 if line.startswith("## ") else 3 if line.startswith("### ") else 0
         out.append(line)
     return "\n".join(out).strip() + "\n"
+
+
+# --- Pipeline Architecture exercises -------------------------------------------------
+# A lesson can hold one or more exercise widgets (1-6 exercises in all): task, optional
+# starting canvas, solution walkthrough. The widget is drawn by the browser and its
+# content comes from a JSON endpoint, so there is nothing to scroll or click.
+
+MERMAID_SHAPES = {  # node_type -> (open, close)
+    "source": ("[(", ")]"), "storage": ("[(", ")]"), "transform": ("[", "]"),
+    "consumer": ("([", "])"), "quality": ("{{", "}}"), "queue": ("[/", "/]"),
+}
+EXERCISE_TOKEN = "@@PIPELINE-ARCHITECTURE-{}@@"
+
+
+def fetch_challenges(slug):
+    """The lesson's exercises in order, or [] if it has none or the request fails."""
+    req = urllib.request.Request(CHALLENGES_URL + slug, headers={"User-Agent": "lesson-to-md/1.0"})
+    try:
+        data = json.loads(urllib.request.urlopen(req, timeout=30).read().decode("utf-8"))
+    except Exception as e:  # network, 404 or not JSON: the lesson text is still fine without them
+        print(f"warning: no Pipeline Architecture exercises fetched ({e})", file=sys.stderr)
+        return []
+    return sorted(data.get("challenges", []), key=lambda c: c.get("order_index", 0))
+
+
+def exercise_groups(url, challenges):
+    """Split the exercises into one group per widget, each with the id of the lesson
+    block it follows (None = no position known, goes at the end).
+
+    The widget is missing from the downloaded HTML, so a browser pass reads where it sits
+    and how many exercises it holds (data-challenge-ids). Needs playwright.
+    """
+    fallback = [(None, challenges)]
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={"width": 1000, "height": 900})
+            page.goto(url, wait_until="domcontentloaded")
+            page.wait_for_timeout(4000)
+            widgets = page.evaluate("""() => {
+                const out = []; let prev = null;
+                for (const e of document.querySelectorAll('[data-note-block]')) {
+                    if (e.getAttribute('data-note-block-type') === 'schema') {
+                        const c = e.matches('[data-challenge-ids]') ? e : e.querySelector('[data-challenge-ids]');
+                        const ids = c ? (c.getAttribute('data-challenge-ids') || '').trim().split(/\\s+/).filter(Boolean) : [];
+                        out.push({anchor: prev, count: ids.length});
+                    } else prev = e.getAttribute('data-note-block');
+                }
+                return out; }""")
+            browser.close()
+    except Exception as e:
+        print(f"warning: could not place the exercises ({e}); they go at the end", file=sys.stderr)
+        return fallback
+    if sum(w["count"] for w in widgets) != len(challenges):
+        print("warning: widget exercise counts do not match the data; exercises go at the end",
+              file=sys.stderr)
+        return fallback
+    groups, i = [], 0
+    for w in widgets:
+        groups.append((w["anchor"], challenges[i:i + w["count"]]))
+        i += w["count"]
+    return groups
+
+
+def mermaid(block):
+    """A solution diagram (nodes + edges, optional layers) as a Mermaid flowchart."""
+    ids = {n["name"]: f"n{i}" for i, n in enumerate(block.get("nodes", []))}
+    q = lambda t: t.replace('"', "#quot;")
+
+    def node(n):
+        # the site shows the tech (Kafka, Spark) under the name, or the node type when there is none
+        label = f"{q(n['name'])}<br/>({q(n.get('tech_label') or n.get('node_type') or '')})"
+        o, c = MERMAID_SHAPES.get(n.get("node_type"), ("[", "]"))
+        return f'{ids[n["name"]]}{o}"{label}"{c}'
+
+    by_name = {n["name"]: n for n in block.get("nodes", [])}
+    lines, placed = ["```mermaid", "flowchart LR"], set()
+    for i, layer in enumerate(block.get("layers") or []):
+        members = [n for n in layer.get("node_names", []) if n in by_name and n not in placed]
+        if not members:
+            continue
+        lines.append(f'    subgraph L{i}["{q(layer["name"])}"]')
+        lines += [f"        {node(by_name[n])}" for n in members]
+        lines.append("    end")
+        placed.update(members)
+    lines += [f"    {node(n)}" for n in block.get("nodes", []) if n["name"] not in placed]
+    for e in block.get("edges", []):
+        if e["from"] in ids and e["to"] in ids:
+            label = f'|"{e["label"]}"|' if e.get("label") else ""
+            lines.append(f"    {ids[e['from']]} -->{label} {ids[e['to']]}")
+    lines.append("```")
+    return "\n".join(lines)
+
+
+def cell(text):
+    return (text or "").replace("|", "\\|").replace("\n", "<br>")
+
+
+def solution_block(b):
+    """One solution block as Markdown, or None for blocks that add nothing (dividers)."""
+    kind = b.get("blockType")
+    if kind == "heading":
+        return f"#### {b['blockText']}"
+    if kind == "paragraph":
+        return b["blockText"]
+    if kind == "divider":
+        return None
+    if kind == "step":  # numbered item with the body indented under it
+        body = b["body"].replace("\n", "\n   ")
+        return f"{b['number']}. **{b['title']}**\n\n   {body}"
+    if kind == "callout":  # one-column table: category and title on top, text below
+        label = (b.get("variant") or "note").replace("_", " ").capitalize()
+        return f"| {cell(label + ': ' + b['title'])} |\n| --- |\n| {cell(b['body'])} |"
+    if kind == "comparison":  # the site draws a cross on the left and a tick on the right
+        return (f"| ✕ {cell(b['left_label'])} | ✓ {cell(b['right_label'])} |\n| --- | --- |\n"
+                f"| {cell(b['left_body'])} | {cell(b['right_body'])} |")
+    if kind == "pipeline_diagram":
+        return mermaid(b) + (f"\n\n*{b['caption']}*" if b.get("caption") else "")
+    if kind == "follow_up":
+        items = []
+        for i, q in enumerate(b["questions"], 1):
+            items.append(f"{i}. {q['question']}" + (f"\\\n   *{q['context']}*" if q.get("context") else ""))
+        return "**Follow-up questions**\n\n" + "\n".join(items)
+    if kind == "code":
+        out = (f"**{b['title']}**\n\n" if b.get("title") else "")
+        out += f"```{b.get('language') or ''}\n{b['code']}\n```"
+        return out + (f"\n\n*{b['caption']}*" if b.get("caption") else "")
+    print(f"warning: no rule for Pipeline Architecture solution block '{kind}'; "
+          "printed its text fields", file=sys.stderr)
+    return "\n\n".join(str(v) for k, v in b.items() if k != "blockType" and isinstance(v, str)) or None
+
+
+def exercises_markdown(challenges):
+    """One '## Pipeline Architecture' section: task, starting canvas, solution, per exercise."""
+    out = ["## Pipeline Architecture"]
+    for n, c in enumerate(challenges, 1):
+        out += [f"### Exercise {n} of {len(challenges)}", f"**● TASK**\n\n{c['prompt']}"]
+        nodes = (c.get("config") or {}).get("provided_pipeline_nodes") or []
+        if nodes:
+            rows = [f"- {x['name']} ({x['node_type']}" + (f", {x['tech_label']}" if x.get("tech_label") else "") + ")"
+                    for x in nodes]
+            out.append("**Starting canvas** (already placed for you):\n\n" + "\n".join(rows))
+        out.append("### Solution")
+        out += [m for m in (solution_block(b) for b in (c.get("deep_dive") or {}).get("blocks") or []) if m]
+    return "\n\n".join(out)
 
 
 def screenshot_diagrams(url, out_dir, slug):
@@ -315,7 +481,9 @@ def main():
     images = screenshot_diagrams(url, out_dir, slug) if "--screenshots" in sys.argv else []
     path = os.path.join(out_dir, slug + ".md")
     with open(path, "w", encoding="utf-8") as f:
-        f.write(convert(html, images))
+        challenges = fetch_challenges(slug)
+        groups = exercise_groups(url, challenges) if challenges else []
+        f.write(convert(html, images, [(a, exercises_markdown(g)) for a, g in groups]))
     print(path)
 
 
