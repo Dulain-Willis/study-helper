@@ -771,7 +771,7 @@ flowchart LR
         n1["nightly_conversion<br/>(Spark)"]
     end
     subgraph L2["Serving"]
-        n2[("orders_by_order_date<br/>(Delta Lake)")]
+        n2[("orders_by_order_date<br/>(Delta Lake)<br/>Backfill: partition_overwrite")]
         n3(["revenue_dashboard<br/>(dashboard)"])
     end
     n0 --> n1

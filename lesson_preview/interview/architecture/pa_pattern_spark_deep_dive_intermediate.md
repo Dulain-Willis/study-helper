@@ -482,10 +482,10 @@ flowchart LR
         n1[("shipper_accounts<br/>(PostgreSQL)")]
     end
     subgraph L1["Transform"]
-        n2["scan_rollup<br/>(Spark)"]
+        n2["scan_rollup<br/>(Spark)<br/>SLA: #60; 24h · Partitions: 200 partitions (broadcast shipper join) · Alert: page if max task time exceeds 5x the stage median"]
     end
     subgraph L2["Serving"]
-        n3[("daily_scan_rollup<br/>(warehouse)")]
+        n3[("daily_scan_rollup<br/>(warehouse)<br/>SLA: #60; 24h")]
         n4(["dispatch_dashboard<br/>(dashboard)"])
     end
     n0 --> n2

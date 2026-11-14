@@ -649,19 +649,19 @@ COMMIT;
 ```mermaid
 flowchart LR
     subgraph L0["Scheduled run"]
-        n1["nightly_scheduler<br/>(Airflow)"]
+        n1["nightly_scheduler<br/>(Airflow)<br/>On error: retry · Retries: 3"]
     end
     subgraph L1["Read one settlement date"]
         n0[("settled_payments<br/>(PostgreSQL)")]
-        n2["extract_one_settlement_date<br/>(Spark)"]
+        n2["extract_one_settlement_date<br/>(Spark)<br/>Idempotency: staging_table"]
         n3[("payments_staging<br/>(warehouse)")]
     end
     subgraph L2["Replace the slice"]
-        n4["replace_date_partition<br/>(SQL)"]
-        n5[("daily_settled_revenue<br/>(warehouse)")]
+        n4["replace_date_partition<br/>(SQL)<br/>Idempotency: delete_write"]
+        n5[("daily_settled_revenue<br/>(warehouse)<br/>SLA: #60; 24h · Backfill: partition_overwrite")]
     end
     subgraph L3["Serve"]
-        n6(["finance_revenue_dashboard<br/>(dashboard)"])
+        n6(["finance_revenue_dashboard<br/>(dashboard)<br/>SLA: #60; 24h"])
     end
     n0 --> n2
     n1 --> n2
@@ -745,15 +745,15 @@ The default reach is 'just rerun the job'. It lists the folder, sees every file 
 flowchart LR
     subgraph L0["Ingest"]
         n0[("lab_drop_zone<br/>(object storage)")]
-        n1["orchestrator<br/>(Airflow)"]
+        n1["orchestrator<br/>(Airflow)<br/>SLA: #60; 24h"]
         n2[("day_file_manifest<br/>(PostgreSQL)")]
     end
     subgraph L1["Load"]
-        n3["staging_load<br/>(Spark)"]
+        n3["staging_load<br/>(Spark)<br/>Idempotency: staging_table"]
     end
     subgraph L2["Serving"]
-        n4[("lab_results_table<br/>(warehouse)")]
-        n5(["clinician_counts<br/>(dashboard)"])
+        n4[("lab_results_table<br/>(warehouse)<br/>SLA: #60; 24h · Idempotency: delete_write · Backfill: partition_overwrite")]
+        n5(["clinician_counts<br/>(dashboard)<br/>SLA: #60; 24h"])
     end
     n1 --> n2
     n0 --> n2

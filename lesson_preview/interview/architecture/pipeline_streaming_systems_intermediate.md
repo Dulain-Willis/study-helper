@@ -744,11 +744,11 @@ flowchart LR
         n1[("raw_call_archive<br/>(object storage)")]
     end
     subgraph L1["Metering"]
-        n2["metering_stream<br/>(Flink)"]
+        n2["metering_stream<br/>(Flink)<br/>Partitions: 24 tasks · On error: dlq"]
         n3[/"dlq<br/>(Kafka)"/]
     end
     subgraph L2["Serve"]
-        n4[("line_item_store<br/>(PostgreSQL)")]
+        n4[("line_item_store<br/>(PostgreSQL)<br/>Idempotency: upsert")]
         n5(["invoicing<br/>(API)"])
     end
     n0 --> n2

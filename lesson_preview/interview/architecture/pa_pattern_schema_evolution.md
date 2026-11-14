@@ -591,8 +591,8 @@ flowchart LR
         n2[/"payments_topic<br/>(Kafka)"/]
     end
     subgraph L1["Consumers"]
-        n3["fraud_scoring<br/>(Flink)"]
-        n5["ledger_job<br/>(Spark)"]
+        n3["fraud_scoring<br/>(Flink)<br/>SLA: real-time"]
+        n5["ledger_job<br/>(Spark)<br/>SLA: #60; 24h"]
     end
     subgraph L2["Serve"]
         n4[("fraud_decisions<br/>(Redis)")]

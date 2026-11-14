@@ -721,7 +721,7 @@ flowchart LR
     end
     subgraph L1["Check and load"]
         n2["file_validation<br/>(Great Expectations)"]
-        n3["daily_load<br/>(SQL)"]
+        n3["daily_load<br/>(SQL)<br/>SLA: #60; 24h · Idempotency: delete_write"]
     end
     subgraph L2["Serve"]
         n4[("compliance_store<br/>(warehouse)")]
@@ -788,13 +788,13 @@ A single clock fails both ways. Stream everything and you pay several times the 
 flowchart LR
     subgraph L0["Streaming clock (seconds)"]
         n0[("Card transactions<br/>(Kafka)")]
-        n1["Fraud stream processor<br/>(Flink)"]
+        n1["Fraud stream processor<br/>(Flink)<br/>SLA: real-time"]
         n2[("Fraud score cache<br/>(Redis)")]
         n3(["Fraud decision service<br/>(API)"])
     end
     subgraph L1["Batch clock (hourly)"]
         n4[("Vendor REST API<br/>(API)")]
-        n5["Hourly vendor pull<br/>(Airflow)"]
+        n5["Hourly vendor pull<br/>(Airflow)<br/>SLA: #60; 1h"]
         n6[("Finance warehouse<br/>(warehouse)")]
         n7(["Finance reporting<br/>(dashboard)"])
     end

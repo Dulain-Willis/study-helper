@@ -487,7 +487,7 @@ Get this wrong and you fail in one of 2 loud ways. Retry the poison record and t
 flowchart LR
     n0[("Nightly source<br/>(object storage)")]
     n1["Orchestrator<br/>(Airflow)"]
-    n2["Loader<br/>(Spark)"]
+    n2["Loader<br/>(Spark)<br/>Backoff: exponential"]
     n3[("Target table<br/>(warehouse)")]
     n4[/"Failed records queue<br/>(dead letter queue)"/]
     n1 --> n2
@@ -826,13 +826,13 @@ flowchart LR
         n1["orchestrator<br/>(Airflow)"]
     end
     subgraph L1["Nightly steps"]
-        n2["extract_visits<br/>(Pandas)"]
-        n3["clean_visits<br/>(Pandas)"]
-        n4["aggregate_visits<br/>(Pandas)"]
+        n2["extract_visits<br/>(Pandas)<br/>SLA: #60; 24h · Idempotency: delete_write · On error: retry · Retries: 3 · Backoff: exponential"]
+        n3["clean_visits<br/>(Pandas)<br/>SLA: #60; 24h · Idempotency: delete_write"]
+        n4["aggregate_visits<br/>(Pandas)<br/>SLA: #60; 24h · Idempotency: delete_write"]
     end
     subgraph L2["Serve"]
-        n5[("daily_visit_counts<br/>(PostgreSQL)")]
-        n6(["clinic_dashboard<br/>(Metabase)"])
+        n5[("daily_visit_counts<br/>(PostgreSQL)<br/>SLA: #60; 24h")]
+        n6(["clinic_dashboard<br/>(Metabase)<br/>SLA: #60; 24h"])
     end
     n1 --> n2
     n1 --> n3
@@ -895,7 +895,7 @@ This is DAG orchestration wearing a "just run it every morning" costume. The pat
 ```mermaid
 flowchart LR
     n0[("Source<br/>(PostgreSQL)")]
-    n1["Orchestrated extract<br/>(Airflow)"]
+    n1["Orchestrated extract<br/>(Airflow)<br/>SLA: #60; 24h"]
     n2["Transform and load<br/>(SQL)"]
     n3[("Warehouse<br/>(warehouse)")]
     n4(["On-call alert<br/>(alerting)"])

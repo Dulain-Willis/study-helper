@@ -238,7 +238,7 @@ flowchart LR
         n2[/"Change stream<br/>(Kafka topic (per table))"/]
     end
     subgraph L2["Apply"]
-        n3["Stream sink / merge<br/>(Kafka Connect -> MERGE)"]
+        n3["Stream sink / merge<br/>(Kafka Connect -#62; MERGE)"]
         n4[("Warehouse<br/>(warehouse)")]
     end
     n0 --> n1
@@ -745,7 +745,7 @@ flowchart LR
     end
     subgraph L1["Warehouse"]
         n2[("patient_plan_history<br/>(warehouse)")]
-        n3[("visit_warehouse<br/>(warehouse)")]
+        n3[("visit_warehouse<br/>(warehouse)<br/>Backfill: partition_overwrite")]
     end
     subgraph L2["Serving"]
         n4(["revenue_report<br/>(dashboard)"])
@@ -816,7 +816,7 @@ flowchart LR
         n2[("Raw change log<br/>(object storage)")]
     end
     subgraph L2["Transform"]
-        n3["SCD2 merge<br/>(dbt)"]
+        n3["SCD2 merge<br/>(dbt)<br/>Idempotency: upsert"]
         n5["Backfill orchestrator<br/>(Airflow)"]
     end
     subgraph L3["Serve"]

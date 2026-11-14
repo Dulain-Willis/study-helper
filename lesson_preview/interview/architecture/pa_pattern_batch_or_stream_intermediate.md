@@ -531,14 +531,14 @@ flowchart LR
         n0[("lab_results<br/>(HL7 lab results)")]
         n1[("microbiology_cultures<br/>(HL7 microbiology cultures)")]
         n2[("adt_admission_feed<br/>(HL7 ADT)")]
-        n3["orchestrator<br/>(Airflow)"]
+        n3["orchestrator<br/>(Airflow)<br/>Alert: page if run not done by 6am"]
     end
     subgraph L1["Nightly batch and validation"]
         n4["nightly_trailing_window_batch<br/>(dbt)"]
         n5["surveillance_quality_gate<br/>(Great Expectations)"]
     end
     subgraph L2["Warehouse and report"]
-        n6[("surveillance_warehouse<br/>(warehouse)")]
+        n6[("surveillance_warehouse<br/>(warehouse)<br/>Idempotency: delete_write")]
         n7(["clinician_report<br/>(dashboard)"])
     end
     n0 --> n4
@@ -632,11 +632,11 @@ flowchart LR
         n1["nightly_scheduler<br/>(Airflow)"]
     end
     subgraph L1["Daily settlement"]
-        n2["daily_settlement<br/>(dbt)"]
+        n2["daily_settlement<br/>(dbt)<br/>SLA: #60; 24h · Idempotency: delete_write · Backfill: partition_overwrite"]
     end
     subgraph L2["One table, two readers"]
         n3[("seller_payouts_warehouse<br/>(warehouse)")]
-        n4(["seller_payouts_dashboard<br/>(API)"])
+        n4(["seller_payouts_dashboard<br/>(API)<br/>SLA: #60; 24h"])
         n5(["finance_payout_run<br/>(API)"])
     end
     n0 --> n2

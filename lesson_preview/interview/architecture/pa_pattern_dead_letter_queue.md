@@ -444,16 +444,16 @@ This is a poison pill, and the answer is a dead letter queue, but first see what
 ```mermaid
 flowchart LR
     subgraph L0["Ingest and validate"]
-        n0[("app_events<br/>(Kafka)")]
-        n1["payload_validation<br/>(custom)"]
+        n0[("app_events<br/>(Kafka)<br/>Partitions: 48 partitions")]
+        n1["payload_validation<br/>(custom)<br/>On error: dlq"]
     end
     subgraph L1["Main path"]
-        n2["event_loader<br/>(Flink)"]
-        n3[("analytics_warehouse<br/>(warehouse)")]
-        n4(["product_dashboards<br/>(dashboard)"])
+        n2["event_loader<br/>(Flink)<br/>Partitions: 48 tasks · Retries: 5 · Backoff: exponential"]
+        n3[("analytics_warehouse<br/>(warehouse)<br/>SLA: #60; 15min")]
+        n4(["product_dashboards<br/>(dashboard)<br/>SLA: #60; 15min"])
     end
     subgraph L2["Quarantine"]
-        n5[/"dead_letter_queue<br/>(Kafka)"/]
+        n5[/"dead_letter_queue<br/>(Kafka)<br/>Alert: page if inflow tops 500 per min or oldest record passes 24h"/]
         n6(["oncall_paging<br/>(alerting)"])
         n7(["dlq_monitoring<br/>(Grafana)"])
         n8["dlq_replay<br/>(Spark)"]
@@ -553,10 +553,10 @@ Why the loop exists at all: the consumer commits its offset only after a record 
 flowchart LR
     subgraph L0["Ingest and validate"]
         n0[("payment_events<br/>(Kafka)")]
-        n1["payload_validation<br/>(custom)"]
+        n1["payload_validation<br/>(custom)<br/>On error: dlq"]
     end
     subgraph L1["Main path"]
-        n2["payment_processor<br/>(Flink)"]
+        n2["payment_processor<br/>(Flink)<br/>On error: retry · Retries: 3 · Backoff: exponential"]
         n3[("payments_ledger<br/>(PostgreSQL)")]
     end
     subgraph L2["Quarantine"]

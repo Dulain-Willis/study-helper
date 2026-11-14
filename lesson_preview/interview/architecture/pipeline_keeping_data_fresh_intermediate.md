@@ -703,11 +703,11 @@ flowchart LR
         n2[/"registry_change_events<br/>(Kafka)"/]
     end
     subgraph L1["Raw change log"]
-        n3[("raw_change_log<br/>(object storage)")]
+        n3[("raw_change_log<br/>(object storage)<br/>Backfill: partition_overwrite")]
         n4["daily_scheduler<br/>(Airflow)"]
     end
     subgraph L2["Serving history"]
-        n5["patient_history_merge<br/>(Spark)"]
+        n5["patient_history_merge<br/>(Spark)<br/>Idempotency: upsert"]
         n6[("patient_clinic_history<br/>(warehouse)")]
         n7(["compliance_reporting<br/>(dashboard)"])
     end

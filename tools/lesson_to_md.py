@@ -353,14 +353,35 @@ def exercise_groups(url, challenges):
     return groups
 
 
+# Extra node fields the site shows as small label boxes (e.g. SLA | < 30s) -> their label.
+NODE_EXTRAS = {
+    "slaFreshness": "SLA", "sla_freshness": "SLA", "parallelism": "Partitions",
+    "monitorAlert": "Alert", "idempotencyStrategy": "Idempotency",
+    "backfillStrategy": "Backfill", "errorAction": "On error",
+    "retryCount": "Retries", "retryBackoff": "Backoff",
+}
+
+
+def mermaid_text(t):
+    """Escape text for a quoted Mermaid label; < and > are written as entity codes."""
+    return str(t).replace('"', "#quot;").replace("<", "#60;").replace(">", "#62;")
+
+
 def mermaid(block):
     """A solution diagram (nodes + edges, optional layers) as a Mermaid flowchart."""
     ids = {n["name"]: f"n{i}" for i, n in enumerate(block.get("nodes", []))}
-    q = lambda t: t.replace('"', "#quot;")
+    q = mermaid_text
 
     def node(n):
-        # the site shows the tech (Kafka, Spark) under the name, or the node type when there is none
-        label = f"{q(n['name'])}<br/>({q(n.get('tech_label') or n.get('node_type') or '')})"
+        # The site splits tech_label at commas: the first part is the caption above the
+        # name (Kafka, Spark), the rest are small tags below. Extra fields such as an SLA
+        # become small labels too. Mermaid has no label boxes, so tags and values go on one
+        # extra line inside the node. With no tech_label the caption is the node type.
+        parts = [x.strip() for x in (n.get("tech_label") or n.get("node_type") or "").split(",")]
+        extras = parts[1:] + [f"{label}: {n[key]}" for key, label in NODE_EXTRAS.items() if key in n]
+        label = f"{q(n['name'])}<br/>({q(parts[0])})"
+        if extras:
+            label += "<br/>" + q(" · ".join(extras))
         o, c = MERMAID_SHAPES.get(n.get("node_type"), ("[", "]"))
         return f'{ids[n["name"]]}{o}"{label}"{c}'
 

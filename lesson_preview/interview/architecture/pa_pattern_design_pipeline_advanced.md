@@ -500,9 +500,9 @@ flowchart LR
     n4["schema_check<br/>(Great Expectations)"]
     n5[/"dead_letter_queue<br/>(dead letter queue)"/]
     n6[("raw_landing<br/>(Delta Lake)")]
-    n7["feature_build_15min<br/>(Spark)"]
-    n8["nightly_feature_build<br/>(Spark)"]
-    n9[("feature_tables<br/>(Delta Lake)")]
+    n7["feature_build_15min<br/>(Spark)<br/>SLA: #60; 15min"]
+    n8["nightly_feature_build<br/>(Spark)<br/>SLA: #60; 24h"]
+    n9[("feature_tables<br/>(Delta Lake)<br/>Alert: page owning team if freshness tier missed · Backfill: partition_overwrite")]
     n10(["owning_team_on_call<br/>(alerting)"])
     n11(["models<br/>(API)"])
     n0 --> n3
@@ -688,8 +688,8 @@ flowchart LR
     n0[("telematics_feed<br/>(Kafka)")]
     n1["schema_registry<br/>(schema registry)"]
     n2[/"dead_letter_queue<br/>(dead letter queue)"/]
-    n3["dispatch_stream<br/>(Flink)"]
-    n4[("live_position_store<br/>(Redis)")]
+    n3["dispatch_stream<br/>(Flink)<br/>Alert: page if lag #62; 1min"]
+    n4[("live_position_store<br/>(Redis)<br/>SLA: #60; 1min")]
     n5(["live_vehicle_map<br/>(API)"])
     n6[("raw_landing<br/>(Delta Lake)")]
     n7["batch_transforms<br/>(Airflow)"]
@@ -785,11 +785,11 @@ flowchart LR
         n4[("bronze_landing_90_days<br/>(object storage)")]
     end
     subgraph L1["Silver"]
-        n5["settlement_merge<br/>(Spark)"]
+        n5["settlement_merge<br/>(Spark)<br/>Idempotency: upsert"]
         n6[("silver_settled_ledger<br/>(Delta Lake)")]
     end
     subgraph L2["Gold"]
-        n7["daily_restatement<br/>(SQL)"]
+        n7["daily_restatement<br/>(SQL)<br/>Alert: page on-call if a re-statement fails · Backfill: partition_overwrite"]
         n8[("gold_daily_settled_total<br/>(warehouse)")]
         n9(["regulator_filing<br/>(consumer)"])
     end
