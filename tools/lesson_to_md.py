@@ -784,6 +784,42 @@ def airflow_widgets(url, out_dir, slug, shoot):
 SHOT_ORDER = ["tasks", "cfg", "grid_given", "grid_target", "grid", "graph"]
 
 
+GRAPH_STYLES = {"success": "fill:#0a3d12,stroke:#2ea043,color:#fff", "failed": "fill:#4d1010,stroke:#f85149,color:#fff",
+                "upstream_failed": "fill:#4d2f08,stroke:#f0883e,color:#fff", "running": "fill:#0b3a4a,stroke:#39c5cf,color:#fff"}
+
+
+def dag_edges(source):
+    """Edges from the `>>` lines of a DAG file: [a, b] >> c, a >> [b, c], and chains of them."""
+    edges = []
+    for line in source.splitlines():
+        if ">>" not in line or "=" in line or "(" in line:  # assignments and calls are not edge lines
+            continue
+        groups = [[t.strip() for t in seg.strip().strip("[]").split(",") if t.strip()] for seg in line.split(">>")]
+        for left, right in zip(groups, groups[1:]):
+            edges += [(a, b) for a in left for b in right]
+    return edges
+
+
+def solution_graphs(c):
+    """One Mermaid graph per expected run (task boxes coloured by state), or None if the
+    solution has no `>>` lines to draw (e.g. TaskFlow calls) or no expected states."""
+    runs = ((c["config"].get("scenario") or {}).get("expect") or {}).get("runs") or []
+    source = ((c.get("deep_dive") or {}).get("reference") or {}).get("source") or ""
+    edges = dag_edges(source)
+    if not runs or not edges:
+        return None
+    out = []
+    for i, run in enumerate(runs, 1):
+        lines = ["```mermaid", "flowchart TB"]
+        for t, state in run["tasks"].items():
+            lines.append(f'    {t}["{t}<br/>{state}"]:::{state}')
+        lines += [f"    {a} --> {b}" for a, b in edges]
+        lines += [f"    classDef {s} {css}" for s, css in GRAPH_STYLES.items()]
+        lines.append("```")
+        out.append((f"*Run {i} of {len(runs)}*\n\n" if len(runs) > 1 else "") + "\n".join(lines))
+    return "\n\n".join(out)
+
+
 def airflow_exercise_markdown(c, n, total, shots):
     cfg, sc = c["config"], c["config"].get("scenario") or {}
     form = cfg.get("form")
@@ -801,8 +837,11 @@ def airflow_exercise_markdown(c, n, total, shots):
         if sc.get("behaviors"):
             out.append("**Tasks**\n\n" + task_lines(sc["behaviors"]))
     out.append("<details>\n<summary><strong>Solution</strong></summary>")
-    # The graph after a correct fix only appears once the code is Run, and Run needs a login,
-    # so it is not captured; the correct code is in the walkthrough below.
+    # The site only draws the graph after a correct fix once the code is Run, and Run needs a
+    # login, so it is drawn here from the solution's `>>` lines and the expected task states.
+    graphs = solution_graphs(c) if form == "dag_repair" else None
+    if graphs:
+        out.append("**Graph after the fix** (drawn from the solution code and the expected task states)\n\n" + graphs)
     out += [m for m in (solution_block(b) for b in (c.get("deep_dive") or {}).get("blocks") or []) if m]
     out.append("</details>")
     return "\n\n".join(out)

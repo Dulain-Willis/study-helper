@@ -268,6 +268,28 @@ with DAG("weekly_payroll", schedule=None):
 <details>
 <summary><strong>Solution</strong></summary>
 
+**Graph after the fix** (drawn from the solution code and the expected task states)
+
+```mermaid
+flowchart TB
+    merge["merge<br/>success"]:::success
+    publish["publish<br/>upstream_failed"]:::upstream_failed
+    pull_hr["pull_hr<br/>success"]:::success
+    check_hrs["check_hrs<br/>failed"]:::failed
+    check_pay["check_pay<br/>success"]:::success
+    pull_time["pull_time<br/>success"]:::success
+    pull_hr --> merge
+    pull_time --> merge
+    merge --> check_hrs
+    merge --> check_pay
+    check_hrs --> publish
+    check_pay --> publish
+    classDef success fill:#0a3d12,stroke:#2ea043,color:#fff
+    classDef failed fill:#4d1010,stroke:#f85149,color:#fff
+    classDef upstream_failed fill:#4d2f08,stroke:#f0883e,color:#fff
+    classDef running fill:#0b3a4a,stroke:#39c5cf,color:#fff
+```
+
 #### Edges say who waits, and nothing more
 
 Task dependencies are the edges of the graph, and every `a >> b` records exactly one rule: `b` waits for `a`. Put a list on one side of `>>` and the edge fans out to every task in it, so the 3 lines below record 6 edges, one per rule you were given, and not a single extra one.
@@ -767,6 +789,46 @@ with DAG("nightly_retail", schedule="@daily",
 
 <details>
 <summary><strong>Solution</strong></summary>
+
+**Graph after the fix** (drawn from the solution code and the expected task states)
+
+*Run 1 of 2*
+
+```mermaid
+flowchart TB
+    merge["merge<br/>upstream_failed"]:::upstream_failed
+    publish["publish<br/>upstream_failed"]:::upstream_failed
+    validate["validate<br/>upstream_failed"]:::upstream_failed
+    pull_orders["pull_orders<br/>failed"]:::failed
+    pull_returns["pull_returns<br/>success"]:::success
+    o --> m
+    r --> m
+    m --> v
+    v --> p
+    classDef success fill:#0a3d12,stroke:#2ea043,color:#fff
+    classDef failed fill:#4d1010,stroke:#f85149,color:#fff
+    classDef upstream_failed fill:#4d2f08,stroke:#f0883e,color:#fff
+    classDef running fill:#0b3a4a,stroke:#39c5cf,color:#fff
+```
+
+*Run 2 of 2*
+
+```mermaid
+flowchart TB
+    merge["merge<br/>success"]:::success
+    publish["publish<br/>upstream_failed"]:::upstream_failed
+    validate["validate<br/>failed"]:::failed
+    pull_orders["pull_orders<br/>success"]:::success
+    pull_returns["pull_returns<br/>success"]:::success
+    o --> m
+    r --> m
+    m --> v
+    v --> p
+    classDef success fill:#0a3d12,stroke:#2ea043,color:#fff
+    classDef failed fill:#4d1010,stroke:#f85149,color:#fff
+    classDef upstream_failed fill:#4d2f08,stroke:#f0883e,color:#fff
+    classDef running fill:#0b3a4a,stroke:#39c5cf,color:#fff
+```
 
 #### One file, 2 moments
 
