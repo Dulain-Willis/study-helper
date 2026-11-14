@@ -235,7 +235,7 @@ The acyclic rule is enforced at read time. Adding `publish >> get_bookings` to t
 
 <br>
 
-### Exercise 1 of 5: Repair the DAG
+### Exercise 1 of 3: Repair the DAG
 
 **● TASK**
 
@@ -460,7 +460,7 @@ TaskFlow
 
 <br>
 
-### Exercise 2 of 5: Repair the DAG
+### Exercise 2 of 3: Repair the DAG
 
 **● TASK**
 
@@ -621,89 +621,6 @@ A grid is a record you read by shape. One red cell in an otherwise green row nam
 | 2 rows lime at the same time | Those tasks run side by side; no edge joins them | The graph view, to confirm the shape |
 | Column bar lime, bottom cells blank | The run is still in progress | Wait, or watch the running cell |
 
-
-<br>
-
-### Exercise 3 of 5: Match the grid
-
-**● TASK**
-
-Match the target grid of `nightly_bookings`: March 2 all green; at 00:05 on March 3 the 2 fetches running, `build_report` and `publish_dashboard` with no state. Set the 2 marked trigger rules: `always` starts a task at once, `all_success` waits for its upstream tasks.
-
-**Starter** — `dags/nightly_bookings.py`
-
-```python
-# in nightly_bookings(), daily 00:00 UTC
-@task(trigger_rule="always")
-def build_report(): ...
-@task(trigger_rule="always")
-def publish_dashboard(): ...
-
-b, r = get_bookings(), get_reviews()
-rep = build_report()
-[b, r] >> rep >> publish_dashboard()
-```
-
-**Tasks**
-
-<img src="images/airflow_dag_anatomy_beginner_ex3_tasks.png" alt="Tasks" width="330">
-
-**airflow.cfg**
-
-<img src="images/airflow_dag_anatomy_beginner_ex3_cfg.png" alt="airflow.cfg" width="330">
-
-**Grid as given (your starter code)**
-
-<img src="images/airflow_dag_anatomy_beginner_ex3_grid_given.png" alt="Grid as given (your starter code)" width="491">
-
-**Target grid (match this)**
-
-<img src="images/airflow_dag_anatomy_beginner_ex3_grid_target.png" alt="Target grid (match this)" width="491">
-
-**Graph as given (your starter code)**
-
-<img src="images/airflow_dag_anatomy_beginner_ex3_graph.png" alt="Graph as given (your starter code)" width="491">
-
-<details>
-<summary><strong>Solution</strong></summary>
-
-#### Blank cells are waiting tasks
-
-Task dependencies are what keep a cell blank in a run that is still going. `build_report` has 2 upstream edges, and with the default `all_success` it gets no state until `get_bookings` and `get_reviews` both finish. With `trigger_rule="always"` those edges stop holding it back: it starts at 00:00 beside the fetches, and so does `publish_dashboard`, which is why the starter's March 3 column had no blank cell at 00:05.
-
-**`nightly_bookings` with its waits restored**
-
-```python
-# in nightly_bookings(), daily 00:00 UTC
-@task
-def build_report(): ...
-@task
-def publish_dashboard(): ...
-
-b, r = get_bookings(), get_reviews()
-rep = build_report()
-[b, r] >> rep >> publish_dashboard()
-```
-
-*A bare `@task` uses `all_success`, so each task waits for every task above it.*
-
-| Pitfall: Fixing one task leaves the last cell started |
-| --- |
-| Setting only `build_report` back to `all_success` still leaves `publish_dashboard` on `always`. It starts at 00:00 and its cell has a state at 00:05, even though the task above it has not started. Every task whose cell should be blank needs its own wait restored. |
-
-| Key insight: A finished column hides the order |
-| --- |
-| The March 2 column is all green with either rule, because every task succeeds in the end. The order shows in 2 places: the in-progress column, where blank cells name the tasks whose turn has not come, and the bar height. With `always` everything runs at once and the run ends at 00:20; with the waits it ends at 00:40, a bar twice as tall. |
-
-**Follow-up questions**
-
-1. With the fixed file, what does the March 3 column show at 00:15?\
-   *`get_reviews` is green, `get_bookings` is still lime, and `build_report` stays blank on its one unmet edge.*
-2. If `get_bookings` failed on March 3, what would the 2 cells below it show, and which cell would you open?\
-   *Reading a red cell with orange cells under it in one column.*
-
-</details>
-
 > **TIP**
 >
 > When a dashboard is wrong at 09:00, open the grid before the data. The newest column tells you in one glance whether last night's run finished, and which cell to open if it did not.
@@ -711,92 +628,7 @@ rep = build_report()
 
 <br>
 
-### Exercise 4 of 5: Match the grid
-
-**● TASK**
-
-Rewire the dependency lines of `daily_totals` so its graph draws the target grid in every cell of all 4 runs.
-
-**Starter** — `dags/daily_totals.py`
-
-```python
-@dag(schedule="0 2 * * *",
-     start_date=pendulum.datetime(
-         2026, 3, 1, tz="UTC"),
-     catchup=False)
-def daily_totals():
-    # 4 @task defs, each a print(...)
-    orders = fetch_orders()
-    rates = fetch_rates()
-    clean = clean_orders()
-    totals = build_totals()
-    orders >> [rates, clean]
-    clean >> totals
-
-```
-
-**Tasks**
-
-<img src="images/airflow_dag_anatomy_beginner_ex4_tasks.png" alt="Tasks" width="330">
-
-**Grid as given (your starter code)**
-
-<img src="images/airflow_dag_anatomy_beginner_ex4_grid_given.png" alt="Grid as given (your starter code)" width="490">
-
-**Target grid (match this)**
-
-<img src="images/airflow_dag_anatomy_beginner_ex4_grid_target.png" alt="Target grid (match this)" width="490">
-
-**Graph as given (your starter code)**
-
-<img src="images/airflow_dag_anatomy_beginner_ex4_graph.png" alt="Graph as given (your starter code)" width="490">
-
-<details>
-<summary><strong>Solution</strong></summary>
-
-#### Reading edges off the grid
-
-Every column of the grid is one run, and the states down that column are the task dependencies at work: a task starts only once everything upstream of it has succeeded. That lets you read the graph back out of the history. When a task fails, every cell marked upstream failed sits downstream of it, and every cell that still finishes green has no path from it.
-
-1. **Read the column with the red cell**
-
-   On Mar 2 `fetch_rates` is red and `build_totals` is marked upstream failed, so `build_totals` waits on it. `clean_orders` is green in the same column, so it finished without `fetch_rates` and cannot sit below it.
-
-2. **Read the column still in progress**
-
-   On Mar 4 `fetch_rates` is still running, yet `clean_orders` is already green: the 2 run side by side. `build_totals` is blank because one of its upstream tasks has not finished, the same edge the Mar 2 column showed.
-
-3. **Write the edges the grid proves**
-
-   `fetch_orders` feeds `clean_orders`, and `build_totals` waits for both `clean_orders` and `fetch_rates`. Nothing in the grid shows `fetch_rates` waiting on `fetch_orders`, so that edge goes.
-
-**The dependency lines that draw the target grid**
-
-```python
-    orders >> clean
-    [clean, rates] >> totals
-
-```
-
-*`build_totals` fans in from both branches, and `fetch_rates` starts at the top beside `fetch_orders`.*
-
-| Pitfall: A missing arrow lets a task run on missing data |
-| --- |
-| The file's `orders >> [rates, clean]` hung the rate fetch under an orders fetch it never reads. It also gave `build_totals` no edge from `fetch_rates`, so on Mar 2 the totals would have built green without the rates they need. |
-
-**Follow-up questions**
-
-1. If `fetch_orders` had failed on Mar 2 instead, which cells in that column would change, and which edge would they prove?\
-   *Using a different failure as evidence for a different edge.*
-2. Which row would tell you `fetch_rates` is the task that keeps breaking night after night?\
-   *Reading across a row instead of down a column.*
-
-</details>
-
-
-<br>
-
-### Exercise 5 of 5: Repair the DAG
+### Exercise 3 of 3: Repair the DAG
 
 **● TASK**
 
@@ -821,7 +653,7 @@ with DAG("nightly_retail", schedule="@daily",
 
 **Graph, deployed (your starter code)**
 
-<img src="images/airflow_dag_anatomy_beginner_ex5_graph.png" alt="Graph, deployed (your starter code)" width="262">
+<img src="images/airflow_dag_anatomy_beginner_ex3_graph.png" alt="Graph, deployed (your starter code)" width="262">
 
 <details>
 <summary><strong>Solution</strong></summary>
