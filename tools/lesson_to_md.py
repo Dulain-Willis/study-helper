@@ -225,7 +225,7 @@ def tick_cross(soup, block, tokens):
         return
     token = f"@@TICK-CROSS-{len(tokens)}@@"
     tokens[token] = ("| " + " | ".join(h for h, _ in sides) + " |\n| --- | --- |\n| "
-                     + " | ".join("<br>".join(items) for _, items in sides) + " |")
+                     + " | ".join("<br><br>".join(items) for _, items in sides) + " |")
     marker = soup.new_tag("p")
     marker.string = token
     block.replace_with(marker)

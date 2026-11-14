@@ -126,7 +126,7 @@ In a request-driven design, the service where something happens calls every serv
 
 | ✓ Request-driven: 4 calls | ✗ Event-driven: 1 event |
 | --- | --- |
-| • Completing a trip takes as long as all 4 calls added together, or as long as the slowest one if they run in parallel<br>• If receipts is down, the trip service either retries or gives up, and giving up means failing the trip or losing the receipt<br>• Adding a 5th consumer means changing and redeploying the trip service<br>• The caller gets each answer back, so it knows the work succeeded | • Completing a trip takes a single write to the log<br>• If receipts is down, its group falls behind and catches up after restart<br>• A 5th consumer subscribes with a new group, and the trip service never changes<br>• The trip service cannot know when, or whether, each consumer finished |
+| • Completing a trip takes as long as all 4 calls added together, or as long as the slowest one if they run in parallel<br><br>• If receipts is down, the trip service either retries or gives up, and giving up means failing the trip or losing the receipt<br><br>• Adding a 5th consumer means changing and redeploying the trip service<br><br>• The caller gets each answer back, so it knows the work succeeded | • Completing a trip takes a single write to the log<br><br>• If receipts is down, its group falls behind and catches up after restart<br><br>• A 5th consumer subscribes with a new group, and the trip service never changes<br><br>• The trip service cannot know when, or whether, each consumer finished |
 
 ![Pipeline diagram 2](images/pipeline_streaming_systems_beginner_diagram_2.png)
 
@@ -607,7 +607,7 @@ True streaming removes the trigger wait, so a result can be ready within millise
 
 | ✓ Micro-batch | ✗ True streaming |
 | --- | --- |
-| • Freshness floor set by the trigger: seconds to minutes<br>• Planning and the offset commit are fixed costs, paid once per batch<br>• A failure reruns the batch from its starting offsets<br>• Code reads like the batch jobs a team already runs | • Results within milliseconds to about a second of arrival<br>• Both models keep per-window state; here it lives in long-running operators, so their memory must be sized and watched<br>• A failure restores state from the last checkpoint, a saved snapshot of state and offsets, and replays the log from there<br>• Timers, per-event state and watermarks need streaming-specific code and tests |
+| • Freshness floor set by the trigger: seconds to minutes<br><br>• Planning and the offset commit are fixed costs, paid once per batch<br><br>• A failure reruns the batch from its starting offsets<br><br>• Code reads like the batch jobs a team already runs | • Results within milliseconds to about a second of arrival<br><br>• Both models keep per-window state; here it lives in long-running operators, so their memory must be sized and watched<br><br>• A failure restores state from the last checkpoint, a saved snapshot of state and offsets, and replays the log from there<br><br>• Timers, per-event state and watermarks need streaming-specific code and tests |
 
 
 <br>
@@ -641,7 +641,7 @@ Retries look different in the 2 models but demand the same property. When a micr
 
 | ✓ Do | ✗ Don't |
 | --- | --- |
-| • Ask for the freshness requirement in seconds before choosing a model<br>• Compute micro-batch worst case as trigger interval plus processing time<br>• Make output writes idempotent so a rerun batch or checkpoint replay adds no duplicates<br>• Default to micro-batch when a minute of staleness is acceptable | • Choose true streaming because it sounds more current<br>• Set a 1 s trigger when each batch takes 8 s; batches queue and lag grows<br>• Assume either model removes the need for watermarks<br>• Promise sub-second results from a 30-second trigger |
+| • Ask for the freshness requirement in seconds before choosing a model<br><br>• Compute micro-batch worst case as trigger interval plus processing time<br><br>• Make output writes idempotent so a rerun batch or checkpoint replay adds no duplicates<br><br>• Default to micro-batch when a minute of staleness is acceptable | • Choose true streaming because it sounds more current<br><br>• Set a 1 s trigger when each batch takes 8 s; batches queue and lag grows<br><br>• Assume either model removes the need for watermarks<br><br>• Promise sub-second results from a 30-second trigger |
 
 > **TIP**
 >
