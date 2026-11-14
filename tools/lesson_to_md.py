@@ -408,7 +408,7 @@ def cell(text):
     return (text or "").replace("|", "\\|").replace("\n", "<br>")
 
 
-def solution_block(b):
+def solution_block(b, image=None):
     """One solution block as Markdown, or None for blocks that add nothing (dividers)."""
     kind = b.get("blockType")
     if kind == "heading":
@@ -433,6 +433,10 @@ def solution_block(b):
         for i, q in enumerate(b["questions"], 1):
             items.append(f"{i}. {q['question']}" + (f"\\\n   *{q['context']}*" if q.get("context") else ""))
         return "**Follow-up questions**\n\n" + "\n".join(items)
+    if kind == "schema_diagram":  # tables and relationships: drawn by the site, so it is a screenshot
+        out = (f"![Schema diagram](images/{image})" if image
+               else "[Schema diagram: not captured. Re-run with --screenshots]")
+        return out + (f"\n\n*{b['caption']}*" if b.get("caption") else "")
     if kind == "code":
         out = (f"**{b['title']}**\n\n" if b.get("title") else "")
         out += f"```{b.get('language') or ''}\n{b['code']}\n```"
@@ -442,9 +446,14 @@ def solution_block(b):
     return "\n\n".join(str(v) for k, v in b.items() if k != "blockType" and isinstance(v, str)) or None
 
 
-def exercises_markdown(challenges):
-    """One '## Pipeline Architecture' section: task, starting canvas, solution, per exercise."""
-    out = ["## Pipeline Architecture"]
+def exercises_markdown(challenges, images=None, start=0):
+    """One exercise section (titled as the site does): task, starting canvas, solution.
+
+    images: {exercise number in the lesson: screenshot file name}; start: how many
+    exercises of earlier widgets come before these.
+    """
+    domain = ((challenges[0].get("deep_dive") or {}).get("domain") or "pipeline_architecture")
+    out = ["## " + domain.replace("_", " ").title()]
     for n, c in enumerate(challenges, 1):
         out += [f"### Exercise {n} of {len(challenges)}", f"**● TASK**\n\n{c['prompt']}"]
         nodes = (c.get("config") or {}).get("provided_pipeline_nodes") or []
@@ -453,8 +462,111 @@ def exercises_markdown(challenges):
                     for x in nodes]
             out.append("**Starting canvas** (already placed for you):\n\n" + "\n".join(rows))
         out.append("### Solution")
-        out += [m for m in (solution_block(b) for b in (c.get("deep_dive") or {}).get("blocks") or []) if m]
+        out += [m for m in (solution_block(b, (images or {}).get(start + n))
+                            for b in (c.get("deep_dive") or {}).get("blocks") or []) if m]
     return "\n\n".join(out)
+
+
+# Taking a solution's schema diagram: it sits in a scrolling box inside a widget (one
+# page can hold several widgets, some with tabs). The diagram is found by its content, the
+# smallest element holding every table and column name, and Playwright scrolls to it.
+_FIND = """([el, names]) => { let n = el; while (n && n.parentElement) { n = n.parentElement;
+    const t = n.innerText || ''; if (names.every(x => t.includes(x)) && n.getBoundingClientRect().width > 300) return n; }
+    return null; }"""
+_CLIPPED = """(el) => { const r = el.getBoundingClientRect(); let n = el.parentElement;
+    while (n && n !== document.body) { const s = getComputedStyle(n);
+        if (/(auto|scroll|hidden)/.test(s.overflowY)) { const p = n.getBoundingClientRect();
+            if (r.top < p.top - 1 || r.bottom > p.bottom + 1) return true; } n = n.parentElement; }
+    return false; }"""
+_UNCLIP = """(el) => { let n = el.parentElement; while (n && n !== document.body) {
+    if (/(auto|scroll|hidden)/.test(getComputedStyle(n).overflowY)) {
+        n.style.overflow = 'visible'; n.style.maxHeight = 'none'; n.style.height = 'auto'; } n = n.parentElement; } }"""
+_HIDE_FIXED = """() => { for (const e of document.querySelectorAll('body *')) {
+    const p = getComputedStyle(e).position, r = e.getBoundingClientRect();
+    if ((p === 'fixed' || p === 'sticky') && r.top <= 5 && r.height < 140) e.style.visibility = 'hidden'; } }"""
+
+
+def screenshot_schema_diagrams(url, out_dir, slug, challenges):
+    """Save each exercise's solution schema diagram as <slug>_exercise_<n>_schema.png.
+
+    Returns {exercise number: file name}; exercises without a schema diagram are skipped.
+    """
+    wanted = {}
+    for n, c in enumerate(challenges, 1):
+        for b in (c.get("deep_dive") or {}).get("blocks") or []:
+            if b.get("blockType") == "schema_diagram":
+                names = [t["name"] for t in b["tables"]]
+                wanted[n] = names + [col["name"] for t in b["tables"] for col in t["columns"]], names[0]
+    if not wanted:
+        return {}
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        print("playwright not installed", file=sys.stderr)
+        return {}
+    img_dir = os.path.join(out_dir, "images")
+    os.makedirs(img_dir, exist_ok=True)
+    saved = {}
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(viewport={"width": 1200, "height": 1000},
+                                color_scheme="dark", device_scale_factor=2)
+
+        def open_page():
+            page.goto(url, wait_until="domcontentloaded")
+            page.wait_for_timeout(5000)
+            roots = page.locator("[data-challenge-ids]")
+            return roots, [len((roots.nth(i).get_attribute("data-challenge-ids") or "").split())
+                           for i in range(roots.count())]
+
+        sizes = open_page()[1]
+        if sum(sizes) != len(challenges):
+            print("warning: widget exercise counts do not match the data; "
+                  "schema diagrams not captured", file=sys.stderr)
+            browser.close()
+            return {}
+        for n, (needles, first_name) in wanted.items():
+            roots, _ = open_page()  # a fresh page each time keeps one exercise's state out of the next
+            w, tab = 0, n - 1
+            while tab >= sizes[w]:
+                tab -= sizes[w]
+                w += 1
+            root = roots.nth(w)
+            root.scroll_into_view_if_needed()
+            if sizes[w] > 1:
+                root.locator("button[role=tab]").nth(tab).click()
+                page.wait_for_timeout(1500)
+            solution = root.get_by_role("button", name="Solution").first
+            solution.scroll_into_view_if_needed()
+            solution.click()
+            page.wait_for_timeout(600)
+            gate = page.get_by_role("button", name="Show the solution")
+            if gate.count():
+                gate.first.click()
+                page.wait_for_timeout(2500)
+            best, best_area = None, None
+            candidates = root.get_by_text(first_name, exact=True)
+            for i in range(candidates.count()):  # the name also appears in prose: take the tightest container
+                el = page.evaluate_handle(_FIND, [candidates.nth(i).element_handle(), needles]).as_element()
+                if el:
+                    box = el.bounding_box()
+                    if best is None or box["width"] * box["height"] < best_area:
+                        best, best_area = el, box["width"] * box["height"]
+            if best is None:
+                print(f"warning: schema diagram for exercise {n} not found on the page", file=sys.stderr)
+                continue
+            page.evaluate(_HIDE_FIXED)
+            best.scroll_into_view_if_needed()
+            page.wait_for_timeout(1000)
+            if page.evaluate(_CLIPPED, best):  # taller than its scrolling box: lift the limit and retry
+                page.evaluate(_UNCLIP, best)
+                best.scroll_into_view_if_needed()
+                page.wait_for_timeout(1000)
+            name = f"{slug}_exercise_{n}_schema.png"
+            best.screenshot(path=os.path.join(img_dir, name))
+            saved[n] = name
+        browser.close()
+    return saved
 
 
 def screenshot_diagrams(url, out_dir, slug):
@@ -504,7 +616,13 @@ def main():
     with open(path, "w", encoding="utf-8") as f:
         challenges = fetch_challenges(slug)
         groups = exercise_groups(url, challenges) if challenges else []
-        f.write(convert(html, images, [(a, exercises_markdown(g)) for a, g in groups]))
+        shots = (screenshot_schema_diagrams(url, out_dir, slug, challenges)
+                 if challenges and "--screenshots" in sys.argv else {})
+        sections, start = [], 0
+        for anchor, group in groups:
+            sections.append((anchor, exercises_markdown(group, shots, start)))
+            start += len(group)
+        f.write(convert(html, images, sections))
     print(path)
 
 
