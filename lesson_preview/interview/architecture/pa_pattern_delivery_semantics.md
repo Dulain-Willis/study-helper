@@ -534,7 +534,7 @@ flowchart LR
     end
     subgraph L1["Exactly-once capture"]
         n1["exactly_once_charge_capture<br/>(Flink)"]
-        n2[("billing_ledger<br/>(PostgreSQL)")]
+        n2[("billing_ledger<br/>(PostgreSQL)<br/>Idempotency: upsert")]
     end
     subgraph L2["Serve"]
         n3[/"captured_charges<br/>(Kafka)"/]
@@ -616,8 +616,8 @@ The topology barely changes, and that is the point. The fix is a property of one
 ```mermaid
 flowchart LR
     n0[("warehouse_scan_events<br/>(Kafka)")]
-    n1["scan_event_consumer<br/>(Spark)"]
-    n2[("shipment_scans<br/>(Snowflake)")]
+    n1["scan_event_consumer<br/>(Spark)<br/>On error: retry"]
+    n2[("shipment_scans<br/>(Snowflake)<br/>Idempotency: upsert")]
     n3(["delivered_count_report<br/>(dashboard)"])
     n0 --> n1
     n1 --> n2

@@ -470,7 +470,7 @@ This is the small-files problem dressed as a dashboard complaint, and the shape 
 ```mermaid
 flowchart LR
     n0[("sensor_readings<br/>(Kafka)")]
-    n1["kafka_connect_sink_5_min_commit<br/>(transform)"]
+    n1["kafka_connect_sink_5_min_commit<br/>(transform)<br/>SLA: #60; 15min"]
     n2[("sensor_readings_table<br/>(Iceberg)")]
     n3(["ops_dashboard<br/>(Grafana)"])
     n4["nightly_off_peak_scheduler<br/>(Airflow)"]
@@ -551,14 +551,14 @@ This is the small-files problem filed as a slow-dashboard ticket. Bytes are flat
 flowchart LR
     subgraph L0["Ingest"]
         n0[("clickstream_topic<br/>(Kafka)")]
-        n1["s3_sink_connector<br/>(transform)"]
+        n1["s3_sink_connector<br/>(transform)<br/>SLA: #60; 1h"]
     end
     subgraph L1["Maintenance"]
         n2["compaction_scheduler<br/>(Airflow)"]
-        n3["partition_compactor<br/>(Spark)"]
+        n3["partition_compactor<br/>(Spark)<br/>Backfill: partition_overwrite"]
     end
     subgraph L2["Lake"]
-        n4[("clickstream_lake<br/>(S3)")]
+        n4[("clickstream_lake<br/>(S3)<br/>Alert: alert when a date partition exceeds 2,000 files or average file size drops below 64 MB")]
     end
     subgraph L3["Serve"]
         n5(["engagement_dashboard<br/>(dashboard)"])

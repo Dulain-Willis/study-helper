@@ -471,7 +471,7 @@ flowchart LR
         n3[("staging_delta<br/>(Delta Lake)")]
     end
     subgraph L2["Idempotent load + read"]
-        n4["warehouse_load<br/>(Spark)"]
+        n4["warehouse_load<br/>(Spark)<br/>Idempotency: delete_write · Backfill: partition_overwrite"]
         n5[("totals_by_title_and_date<br/>(warehouse)")]
         n6(["bi_dashboards<br/>(dashboard)"])
     end
@@ -633,13 +633,13 @@ flowchart LR
         n1[/"reconnect_buffer<br/>(Kafka)"/]
     end
     subgraph L1["Live path"]
-        n2["daily_counts_stream<br/>(Flink)"]
+        n2["daily_counts_stream<br/>(Flink)<br/>SLA: #60; 15min"]
         n3[("engagement_warehouse<br/>(warehouse)")]
         n4(["engagement_dashboard<br/>(dashboard)"])
     end
     subgraph L2["Late path"]
         n5[("past_2h_stragglers<br/>(object storage)")]
-        n6["nightly_reconcile<br/>(Spark)"]
+        n6["nightly_reconcile<br/>(Spark)<br/>SLA: #60; 24h · Idempotency: upsert"]
     end
     n0 --> n1
     n1 --> n2
@@ -693,11 +693,11 @@ This is the lesson's depth probes stacked on one stream: what happens when it ru
 ```mermaid
 flowchart LR
     n0[("Events<br/>(Kafka)")]
-    n1["Stream processor<br/>(Flink)"]
-    n2[/"Dead letter queue<br/>(Kafka)"/]
-    n3[("Warehouse sink<br/>(storage)")]
+    n1["Stream processor<br/>(Flink)<br/>SLA: real-time"]
+    n2[/"Dead letter queue<br/>(Kafka)<br/>Alert: page on-call if backlog grows"/]
+    n3[("Warehouse sink<br/>(storage)<br/>Idempotency: upsert")]
     n4(["Live dashboard<br/>(consumer)"])
-    n5["Daily reporting build<br/>(Spark)"]
+    n5["Daily reporting build<br/>(Spark)<br/>SLA: #60; 24h"]
     n6[("Reporting tables<br/>(storage)")]
     n0 --> n1
     n1 --> n2

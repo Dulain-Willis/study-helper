@@ -559,15 +559,15 @@ This is the dual-write problem in its purest form: one request handler writes Po
 flowchart LR
     subgraph L0["Source + capture"]
         n0[("orders_db<br/>(PostgreSQL)")]
-        n1["debezium_cdc<br/>(transform)"]
+        n1["debezium_cdc<br/>(transform)<br/>SLA: real-time · Alert: page if replication slot lag #62; 5min"]
     end
     subgraph L1["Stream"]
-        n2[/"order_changes<br/>(Kafka)"/]
+        n2[/"order_changes<br/>(Kafka)<br/>Partitions: 12 partitions"/]
     end
     subgraph L2["Fulfillment"]
-        n3["fulfillment_upsert_sink<br/>(transform)"]
-        n4[("fulfillment_orders<br/>(PostgreSQL)")]
-        n5(["warehouse_pick_lists<br/>(API)"])
+        n3["fulfillment_upsert_sink<br/>(transform)<br/>SLA: #60; 1min · Idempotency: upsert"]
+        n4[("fulfillment_orders<br/>(PostgreSQL)<br/>Idempotency: upsert")]
+        n5(["warehouse_pick_lists<br/>(API)<br/>SLA: #60; 1min"])
     end
     n0 --> n1
     n1 --> n2
@@ -647,12 +647,12 @@ flowchart LR
         n0[("products_db<br/>(PostgreSQL)")]
     end
     subgraph L1["Change capture"]
-        n1["debezium_cdc<br/>(transform)"]
+        n1["debezium_cdc<br/>(transform)<br/>SLA: real-time"]
         n2[/"product_changes<br/>(Kafka)"/]
     end
     subgraph L2["Serving"]
-        n3["search_sink_connector<br/>(transform)"]
-        n4[("search_index<br/>(storage)")]
+        n3["search_sink_connector<br/>(transform)<br/>Idempotency: upsert"]
+        n4[("search_index<br/>(storage)<br/>SLA: #60; 1min · Idempotency: upsert")]
         n5(["marketplace_search<br/>(API)"])
     end
     n0 --> n1

@@ -457,13 +457,13 @@ The two serving paths split at the micro-batch job. One path keeps live position
 flowchart LR
     n0[("truck_mqtt_feed<br/>(source)")]
     n1[/"telemetry_topic<br/>(Kafka)"/]
-    n2["position_stream<br/>(Spark)"]
+    n2["position_stream<br/>(Spark)<br/>SLA: #60; 1min"]
     n3[("fleet_position_cache<br/>(Redis)")]
     n4(["dispatch_map_dashboard<br/>(Grafana)"])
     n5[("maintenance_db<br/>(CDC)")]
     n6[("fuel_card_nightly_csv<br/>(source)")]
     n7[("bronze_lake<br/>(Delta Lake)")]
-    n8["silver_upsert<br/>(Spark)"]
+    n8["silver_upsert<br/>(Spark)<br/>Idempotency: upsert"]
     n9[("silver_lake<br/>(Delta Lake)")]
     n10["weekly_route_cost<br/>(dbt)"]
     n11["reconcile_to_statement<br/>(custom)"]
@@ -532,12 +532,12 @@ This is the design-a-pipeline pattern with the recompute as the real question, a
 ```mermaid
 flowchart LR
     n0[("appointments_mysql<br/>(CDC)")]
-    n1[("claims_vendor_api<br/>(API)")]
+    n1[("claims_vendor_api<br/>(API)<br/>On error: retry · Backoff: exponential")]
     n2[("lab_hl7_files<br/>(source)")]
     n3[("bronze_raw_landing<br/>(Delta Lake)")]
     n4["dedup_by_record_key<br/>(quality_gate)"]
     n5["claims_status_build<br/>(dbt)"]
-    n6[("claims_status_table<br/>(warehouse)")]
+    n6[("claims_status_table<br/>(warehouse)<br/>SLA: #60; 24h · Alert: page if not loaded by 07:30 · Backfill: partition_overwrite")]
     n7(["billing_reporting<br/>(consumer)"])
     n0 --> n3
     n1 --> n3
@@ -645,10 +645,10 @@ flowchart LR
     n3[("bronze_lake<br/>(Delta Lake)")]
     n4["dedup_and_conform<br/>(Spark)"]
     n5[("silver_lake<br/>(Delta Lake)")]
-    n6["hourly_funnel_build<br/>(dbt)"]
+    n6["hourly_funnel_build<br/>(dbt)<br/>SLA: #60; 1h"]
     n7[("funnel_mart<br/>(Delta Lake)")]
     n8(["funnel_dashboard<br/>(Metabase)"])
-    n9["daily_ticket_rate_build<br/>(dbt)"]
+    n9["daily_ticket_rate_build<br/>(dbt)<br/>SLA: #60; 24h"]
     n10[("account_serving_store<br/>(Redis)")]
     n11(["cs_tool<br/>(API)"])
     n12(["churn_notebooks<br/>(Jupyter)"])
@@ -736,8 +736,8 @@ flowchart LR
     n2[("raw_landing<br/>(object storage)")]
     n3["dedup_sales<br/>(Spark)"]
     n4[("sales_lines<br/>(Delta Lake)")]
-    n5["build_sell_through<br/>(dbt)"]
-    n6[("sell_through_by_sku<br/>(warehouse)")]
+    n5["build_sell_through<br/>(dbt)<br/>Backfill: partition_overwrite"]
+    n6[("sell_through_by_sku<br/>(warehouse)<br/>SLA: #60; 2h")]
     n7(["sell_through_dashboard<br/>(consumer)"])
     n0 --> n2
     n1 --> n2

@@ -337,8 +337,8 @@ flowchart LR
         n1["driver_plans_tasks<br/>(Spark)"]
     end
     subgraph L2["Action runs the tasks"]
-        n2["executors_one_partition_each<br/>(Spark)"]
-        n3[("output_table<br/>(Delta Lake)")]
+        n2["executors_one_partition_each<br/>(Spark)<br/>Partitions: N partitions"]
+        n3[("output_table<br/>(Delta Lake)<br/>SLA: #60; 24h")]
     end
     n0 --> n2
     n1 --> n2
@@ -521,7 +521,7 @@ flowchart LR
         n2["count_by_city<br/>(Spark groupBy count (wide))"]
     end
     subgraph L2["Output"]
-        n3[("city_trip_counts<br/>(Warehouse)")]
+        n3[("city_trip_counts<br/>(Warehouse)<br/>SLA: #60; 24h")]
     end
     n0 --> n1
     n1 --> n2
@@ -852,8 +852,8 @@ flowchart LR
         n0[("raw_visit_files<br/>(object storage)")]
     end
     subgraph L1["Plan and run"]
-        n1["spark_driver<br/>(Spark)"]
-        n2["executor_tasks<br/>(Spark)"]
+        n1["spark_driver<br/>(Spark)<br/>On error: retry · Retries: 4"]
+        n2["executor_tasks<br/>(Spark)<br/>Partitions: 480 tasks"]
     end
     subgraph L2["Curated zone"]
         n3[("curated_visits<br/>(object storage)")]

@@ -815,7 +815,7 @@ Strip the costume and this is a **loss-free event-driven streaming pipeline**, e
 ```mermaid
 flowchart LR
     n0[("Mobile and web events<br/>(Kafka)")]
-    n1["Watermarked stream processor<br/>(Flink)"]
+    n1["Watermarked stream processor<br/>(Flink)<br/>SLA: real-time"]
     n2[/"Dead letter queue<br/>(Kafka)"/]
     n3(["Live dashboard<br/>(consumer)"])
     n0 --> n1

@@ -602,12 +602,12 @@ flowchart LR
     end
     subgraph L1["Stage and apply"]
         n1[("change_staging<br/>(object storage)")]
-        n2["apply_changes<br/>(SQL)"]
-        n6["range_reload<br/>(Spark)"]
+        n2["apply_changes<br/>(SQL)<br/>Idempotency: upsert"]
+        n6["range_reload<br/>(Spark)<br/>Backfill: partition_overwrite"]
     end
     subgraph L2["Serve"]
-        n3[("appointments_warehouse<br/>(warehouse)")]
-        n4(["utilization_dashboard<br/>(dashboard)"])
+        n3[("appointments_warehouse<br/>(warehouse)<br/>SLA: #60; 24h")]
+        n4(["utilization_dashboard<br/>(dashboard)<br/>SLA: #60; 24h"])
     end
     n0 --> n1
     n1 --> n2
@@ -692,8 +692,8 @@ flowchart LR
         n2[("invoice_change_log<br/>(object storage)")]
     end
     subgraph L2["History"]
-        n3["status_history_merge<br/>(Spark)"]
-        n4[("invoice_status_history<br/>(warehouse)")]
+        n3["status_history_merge<br/>(Spark)<br/>Idempotency: upsert"]
+        n4[("invoice_status_history<br/>(warehouse)<br/>SLA: #60; 24h")]
     end
     subgraph L3["Serve"]
         n5(["audit_reporting<br/>(dashboard)"])

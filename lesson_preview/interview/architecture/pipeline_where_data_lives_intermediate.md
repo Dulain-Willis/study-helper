@@ -262,12 +262,12 @@ The trap is where the 2 jobs meet. The obvious fix, rewrite the tiny files into 
 flowchart LR
     subgraph L0["Streaming (unchanged)"]
         n0[("Events<br/>(Kafka)")]
-        n1["Streaming writer<br/>(Flink)"]
+        n1["Streaming writer<br/>(Flink)<br/>SLA: real-time"]
         n2[("Landing table<br/>(object storage)")]
     end
     subgraph L1["Batch serving"]
         n3["Scheduled compaction job<br/>(Spark)"]
-        n4[("Compacted serving table<br/>(object storage)")]
+        n4[("Compacted serving table<br/>(object storage)<br/>SLA: #60; 1h")]
         n5(["Dashboards<br/>(dashboard)"])
     end
     n0 --> n1
@@ -507,10 +507,10 @@ Under the cost-cutting framing this is **partition lifecycle management**, the p
 flowchart LR
     subgraph L0["Ingest"]
         n0[("Events<br/>(Kafka)")]
-        n1["Loader<br/>(Spark)"]
+        n1["Loader<br/>(Spark)<br/>SLA: #60; 24h"]
     end
     subgraph L1["Hot tier"]
-        n2[("Hot warehouse (30d)<br/>(warehouse)")]
+        n2[("Hot warehouse (30d)<br/>(warehouse)<br/>SLA: #60; 24h")]
     end
     subgraph L2["Lifecycle"]
         n3["Tiering job<br/>(Airflow)"]
@@ -719,7 +719,7 @@ The reflex fixes miss. Bigger cluster: still 40 million opens. Write once an hou
 ```mermaid
 flowchart LR
     n0[("van_gps_pings<br/>(Kafka)")]
-    n1["ping_writer<br/>(Flink)"]
+    n1["ping_writer<br/>(Flink)<br/>SLA: #60; 15min"]
     n2[("pings_by_day<br/>(Delta Lake)")]
     n3["hourly_compaction_sorted_by_van<br/>(Spark)"]
     n4(["route_dashboard<br/>(Grafana)"])
@@ -782,11 +782,11 @@ Strip the 4 asks and it is one decision: how bytes land in object storage. This 
 flowchart LR
     subgraph L0["Ingest (real-time)"]
         n0[("Events<br/>(Kafka)")]
-        n1["Streaming writer<br/>(Flink)"]
+        n1["Streaming writer<br/>(Flink)<br/>SLA: real-time"]
         n2[("Landing zone (raw)<br/>(object storage)")]
     end
-    subgraph L1["Compaction (< 24h)"]
-        n3["Compactor<br/>(Spark)"]
+    subgraph L1["Compaction (#60; 24h)"]
+        n3["Compactor<br/>(Spark)<br/>SLA: #60; 24h"]
         n4[("Curated table (Parquet + zstd)<br/>(Iceberg)")]
     end
     subgraph L2["Serve & tier"]

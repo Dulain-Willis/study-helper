@@ -429,14 +429,14 @@ flowchart LR
     end
     subgraph L1["Live path"]
         n1["reading_hour_aggregator<br/>(Flink)"]
-        n2[("live_hourly_activity<br/>(Redis)")]
+        n2[("live_hourly_activity<br/>(Redis)<br/>SLA: #60; 1min")]
         n3(["app_activity_chart<br/>(API)"])
     end
     subgraph L2["Completeness path"]
         n4[("closed_hour_totals<br/>(Delta Lake)")]
         n5[("late_readings<br/>(object storage)")]
-        n6["reward_reconciler<br/>(Spark)"]
-        n7[("reward_hourly_totals<br/>(warehouse)")]
+        n6["reward_reconciler<br/>(Spark)<br/>SLA: #60; 24h"]
+        n7[("reward_hourly_totals<br/>(warehouse)<br/>Backfill: partition_overwrite")]
         n8(["partner_rewards<br/>(API)"])
     end
     n0 --> n1
@@ -509,13 +509,13 @@ flowchart LR
         n0[("job_completion_events<br/>(Kafka)")]
     end
     subgraph L1["Streaming on completion time"]
-        n1["event_time_windows<br/>(Flink)"]
-        n2[("live_board_store<br/>(Redis)")]
+        n1["event_time_windows<br/>(Flink)<br/>SLA: real-time"]
+        n2[("live_board_store<br/>(Redis)<br/>SLA: #60; 1min")]
         n3(["ops_board<br/>(Grafana)"])
     end
     subgraph L2["Late tail and payroll"]
         n4[("late_events_lake<br/>(object store)")]
-        n5["payroll_correction<br/>(Spark)"]
+        n5["payroll_correction<br/>(Spark)<br/>SLA: #60; 24h · Backfill: partition_overwrite"]
         n6[("payroll_hours<br/>(warehouse)")]
         n7(["payroll_reporting<br/>(dashboard)"])
     end

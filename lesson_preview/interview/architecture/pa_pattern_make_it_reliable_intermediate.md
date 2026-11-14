@@ -613,10 +613,10 @@ flowchart LR
     end
     subgraph L1["Validate"]
         n2["line_item_contract_check<br/>(Great Expectations)"]
-        n3[("rejected_line_items_dlq<br/>(dead letter queue)")]
+        n3[("rejected_line_items_dlq<br/>(dead letter queue)<br/>Alert: page when any rows land for the night")]
     end
     subgraph L2["Serve"]
-        n4[("finance_revenue_warehouse<br/>(warehouse)")]
+        n4[("finance_revenue_warehouse<br/>(warehouse)<br/>Alert: page if partition missing by 5 AM or volume far from 7-day average · Idempotency: delete_write")]
         n5(["revenue_dashboard<br/>(dashboard)"])
         n6(["oncall_alerts<br/>(alerting)"])
     end
@@ -704,15 +704,15 @@ The default design reads the bus, drops anything that fails to parse, sums by da
 flowchart LR
     subgraph L0["Ingest"]
         n0[("purchase_events<br/>(Kafka)")]
-        n1["validate_purchases<br/>(Great Expectations)"]
-        n2[/"purchase_dlq<br/>(dead letter queue)"/]
+        n1["validate_purchases<br/>(Great Expectations)<br/>On error: dlq"]
+        n2[/"purchase_dlq<br/>(dead letter queue)<br/>Alert: page on-call when DLQ depth grows"/]
     end
     subgraph L1["Process"]
         n3["dedup_purchases<br/>(Flink)"]
     end
     subgraph L2["Serve"]
-        n4[("purchase_warehouse<br/>(warehouse)")]
-        n5(["monetization_dashboard<br/>(dashboard)"])
+        n4[("purchase_warehouse<br/>(warehouse)<br/>Alert: page on-call if no purchase lands for 60 min · Idempotency: upsert")]
+        n5(["monetization_dashboard<br/>(dashboard)<br/>SLA: #60; 24h"])
     end
     n0 --> n1
     n1 --> n2

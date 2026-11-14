@@ -510,11 +510,11 @@ flowchart LR
     end
     subgraph L1["Silver clean"]
         n2["silver_conform<br/>(Spark)"]
-        n3[("silver_events_by_date<br/>(Delta Lake)")]
+        n3[("silver_events_by_date<br/>(Delta Lake)<br/>Backfill: partition_overwrite")]
     end
     subgraph L2["Gold serving"]
         n4["gold_build<br/>(Spark)"]
-        n5[("gold_daily_engagement<br/>(Delta Lake)")]
+        n5[("gold_daily_engagement<br/>(Delta Lake)<br/>Backfill: partition_overwrite")]
         n6(["marketing_dashboards<br/>(dashboard)"])
     end
     n0 --> n1
@@ -596,12 +596,12 @@ flowchart LR
         n0[("raw_json_exports<br/>(object storage)")]
     end
     subgraph L1["Convert"]
-        n1["daily_conversion<br/>(Spark)"]
+        n1["daily_conversion<br/>(Spark)<br/>SLA: #60; 24h"]
     end
     subgraph L2["Serving and archive"]
-        n2[("exports_table_by_date<br/>(Delta Lake)")]
+        n2[("exports_table_by_date<br/>(Delta Lake)<br/>SLA: #60; 24h · Backfill: partition_overwrite")]
         n3[("aged_partition_archive<br/>(object storage)")]
-        n4(["analytics_dashboards<br/>(dashboard)"])
+        n4(["analytics_dashboards<br/>(dashboard)<br/>SLA: #60; 24h"])
     end
     n0 --> n1
     n1 --> n2

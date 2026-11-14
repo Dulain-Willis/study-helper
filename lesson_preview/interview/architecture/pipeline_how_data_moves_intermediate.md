@@ -552,18 +552,18 @@ The default design crawls page 1 to page N, flattens each response into typed co
 flowchart LR
     subgraph L0["Schedule"]
         n1["twelve_month_backfill_windows<br/>(Airflow)"]
-        n2["daily_window_since_committed_mark<br/>(Airflow)"]
+        n2["daily_window_since_committed_mark<br/>(Airflow)<br/>SLA: #60; 24h"]
     end
     subgraph L1["Ingest raw"]
         n0[("vendor_api<br/>(API)")]
-        n3["token_paged_updated_at_extractor<br/>(transform)"]
-        n4[("raw_api_responses<br/>(object storage)")]
+        n3["token_paged_updated_at_extractor<br/>(transform)<br/>On error: retry · Backoff: exponential"]
+        n4[("raw_api_responses<br/>(object storage)<br/>Backfill: partition_overwrite")]
     end
     subgraph L2["Transform"]
         n5["field_mapping<br/>(Spark)"]
     end
     subgraph L3["Serving"]
-        n6[("analyst_tables<br/>(warehouse)")]
+        n6[("analyst_tables<br/>(warehouse)<br/>Idempotency: upsert")]
         n7[("mark_advanced_after_commit<br/>(PostgreSQL)")]
         n8(["analyst_queries<br/>(Metabase)"])
     end
@@ -630,10 +630,10 @@ Strip the business language off this and it is **Lambda Architecture**, plain an
 ```mermaid
 flowchart LR
     n0[("Order events<br/>(Kafka)")]
-    n1["Stream processor<br/>(Flink)"]
+    n1["Stream processor<br/>(Flink)<br/>SLA: real-time"]
     n2[/"Dead-letter queue<br/>(Kafka)"/]
     n3(["Operational dashboard<br/>(dashboard)"])
-    n4[("Billing count store<br/>(PostgreSQL)")]
+    n4[("Billing count store<br/>(PostgreSQL)<br/>Idempotency: upsert")]
     n5[("Retained event log<br/>(object storage)")]
     n6["Batch processor<br/>(Spark)"]
     n7[("Close warehouse<br/>(warehouse)")]
