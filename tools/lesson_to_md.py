@@ -666,6 +666,10 @@ def exercises_markdown(challenges, images=None, start=0):
 # login), so none go into the Markdown. Animations are unaffected. Set True to bring back the
 # repair-the-DAG conversion below.
 INCLUDE_AIRFLOW_EXERCISES = False
+# The dbt and Kafka exercises (challenge_type "dbt" / "kafka"; their own forms such as
+# compile_it or read_the_tape, not Airflow's) are left out the same way. There is no
+# conversion code for them: to bring them back, one has to be written. Animations are kept.
+SKIPPED_TOOL_EXERCISES = {"dbt", "kafka"}
 
 
 def challenge_path(c):
@@ -1132,9 +1136,14 @@ def main():
     with open(path, "w", encoding="utf-8") as f:
         challenges = fetch_challenges(slug)
         airflow = bool(challenges) and challenges[0].get("challenge_type") == "airflow"
+        tool = challenges[0].get("challenge_type") if challenges else None
         if airflow and not INCLUDE_AIRFLOW_EXERCISES:
             print(f"note: {len(challenges)} Airflow exercise(s) left out "
                   f"(INCLUDE_AIRFLOW_EXERCISES is False)", file=sys.stderr)
+            sections = []
+        elif tool in SKIPPED_TOOL_EXERCISES:
+            print(f"note: {len(challenges)} {tool} exercise(s) left out (SKIPPED_TOOL_EXERCISES)",
+                  file=sys.stderr)
             sections = []
         elif airflow:
             kept = [c for c in challenges if c["config"].get("form") == "dag_repair"]
