@@ -12,6 +12,7 @@ pipeline diagram as an image next to the Markdown.
 For personal study use. Output defaults to ./lesson_preview/.
 """
 import base64
+import difflib
 import json
 import os
 import re
@@ -789,15 +790,59 @@ GRAPH_STYLES = {"success": "fill:#0a3d12,stroke:#2ea043,color:#fff", "failed": "
 
 
 def dag_edges(source):
-    """Edges from the `>>` lines of a DAG file: [a, b] >> c, a >> [b, c], and chains of them."""
+    """Edges from the `>>` lines of a DAG file: [a, b] >> c, a >> [b, c], and chains of them.
+
+    Variables are mapped to their task_id (o = BashOperator(task_id="pull_orders") makes `o`
+    mean pull_orders), so the edges name tasks, not variables."""
+    names = {v: t for v, t in re.findall(r'(\w+)\s*=\s*\w+Operator\(\s*task_id="(\w+)"', source)}
     edges = []
     for line in source.splitlines():
         if ">>" not in line or "=" in line or "(" in line:  # assignments and calls are not edge lines
             continue
-        groups = [[t.strip() for t in seg.strip().strip("[]").split(",") if t.strip()] for seg in line.split(">>")]
+        groups = [[names.get(t.strip(), t.strip()) for t in seg.strip().strip("[]").split(",") if t.strip()]
+                  for seg in line.split(">>")]
         for left, right in zip(groups, groups[1:]):
             edges += [(a, b) for a in left for b in right]
     return edges
+
+
+def taskflow_edges(source):
+    """(edges, task names) for TaskFlow files: an edge wherever one task's result is passed
+    to another, as in summarize(count_rows(find_file())) or x = a(); b(x)."""
+    import ast
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return [], set()
+
+    def is_task(d):
+        d = d.func if isinstance(d, ast.Call) else d
+        return (isinstance(d, ast.Name) and d.id == "task") or (isinstance(d, ast.Attribute) and d.value.__class__ is ast.Name and d.value.id == "task")
+    tasks = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and any(is_task(d) for d in n.decorator_list)}
+    results, edges = {}, []
+
+    def produced(node):  # task names whose result this expression holds
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in tasks:
+            for arg in list(node.args) + [k.value for k in node.keywords]:
+                edges.extend((u, node.func.id) for u in produced(arg))
+            return [node.func.id]
+        if isinstance(node, ast.Name):
+            return results.get(node.id, [])
+        if isinstance(node, (ast.Tuple, ast.List)):
+            return [t for e in node.elts for t in produced(e)]
+        return []
+    for st in sorted((n for n in ast.walk(tree) if isinstance(n, (ast.Assign, ast.Expr))), key=lambda n: n.lineno):
+        if isinstance(st, ast.Assign):
+            tgt, val = st.targets[0], st.value
+            if isinstance(tgt, ast.Tuple) and isinstance(val, ast.Tuple) and len(tgt.elts) == len(val.elts):
+                for t, v in zip(tgt.elts, val.elts):
+                    if isinstance(t, ast.Name):
+                        results[t.id] = produced(v)
+            elif isinstance(tgt, ast.Name):
+                results[tgt.id] = produced(val)
+        else:
+            produced(st.value)
+    return list(dict.fromkeys(edges)), tasks
 
 
 def solution_graphs(c):
@@ -805,12 +850,14 @@ def solution_graphs(c):
     solution has no `>>` lines to draw (e.g. TaskFlow calls) or no expected states."""
     runs = ((c["config"].get("scenario") or {}).get("expect") or {}).get("runs") or []
     source = ((c.get("deep_dive") or {}).get("reference") or {}).get("source") or ""
-    edges = dag_edges(source)
+    flow_edges, flow_tasks = taskflow_edges(source)
+    edges = dag_edges(source) + flow_edges
     if not runs or not edges:
         return None
     # operator class shown under each task name: from the solution code (BashOperator(task_id="x")),
     # else from the parsed starter file's task list
     operators = {t: op for op, t in re.findall(r'(\w+Operator)\(\s*task_id="(\w+)"', source)}
+    operators.update({t: "_PythonDecoratedOperator" for t in flow_tasks})  # @task functions
     for f in (c["config"].get("scenario") or {}).get("files") or []:
         for dag in (f.get("description") or {}).get("dags") or []:
             for task in dag.get("tasks") or []:
@@ -850,6 +897,12 @@ def airflow_exercise_markdown(c, n, total, shots):
     graphs = solution_graphs(c) if form == "dag_repair" else None
     if graphs:
         out.append("**Graph after the fix** (drawn from the solution code and the expected task states)\n\n" + graphs)
+    if form == "dag_repair":  # what the fix changes, so a small edit is easy to spot
+        fixed = ((c.get("deep_dive") or {}).get("reference") or {}).get("source") or ""
+        changes = [l for l in difflib.unified_diff(starter.splitlines(), fixed.splitlines(), lineterm="", n=1)
+                   if not l.startswith(("---", "+++", "@@"))]
+        if changes:
+            out.append("**What changes** (`-` starter, `+` solution)\n\n```diff\n" + "\n".join(changes) + "\n```")
     out += [m for m in (solution_block(b) for b in (c.get("deep_dive") or {}).get("blocks") or []) if m]
     out.append("</details>")
     return "\n\n".join(out)

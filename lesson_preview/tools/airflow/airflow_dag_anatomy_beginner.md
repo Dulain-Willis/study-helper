@@ -290,6 +290,18 @@ flowchart TB
     classDef running fill:#0b3a4a,stroke:#39c5cf,color:#fff
 ```
 
+**What changes** (`-` starter, `+` solution)
+
+```diff
+
+-    pull_hr >> pull_time >> merge
+-    merge >> check_hrs >> check_pay
+-    check_pay >> publish >> merge
++    [pull_hr, pull_time] >> merge
++    merge >> [check_hrs, check_pay]
++    [check_hrs, check_pay] >> publish
+```
+
 #### Edges say who waits, and nothing more
 
 Task dependencies are the edges of the graph, and every `a >> b` records exactly one rule: `b` waits for `a`. Put a list on one side of `>>` and the edge fans out to every task in it, so the 3 lines below record 6 edges, one per rule you were given, and not a single extra one.
@@ -480,6 +492,30 @@ row_report()
 
 <details>
 <summary><strong>Solution</strong></summary>
+
+**Graph after the fix** (drawn from the solution code and the expected task states)
+
+```mermaid
+flowchart TB
+    find_file["find_file<br/>_PythonDecoratedOperator<br/>success"]:::success
+    summarize["summarize<br/>_PythonDecoratedOperator<br/>success"]:::success
+    count_rows["count_rows<br/>_PythonDecoratedOperator<br/>success"]:::success
+    find_file --> count_rows
+    count_rows --> summarize
+    classDef success fill:#0a3d12,stroke:#2ea043,color:#fff
+    classDef failed fill:#4d1010,stroke:#f85149,color:#fff
+    classDef upstream_failed fill:#4d2f08,stroke:#f0883e,color:#fff
+    classDef running fill:#0b3a4a,stroke:#39c5cf,color:#fff
+```
+
+**What changes** (`-` starter, `+` solution)
+
+```diff
+         print(f"orders.csv has {n} rows")
+-    count_rows(find_file())
++    summarize(count_rows(find_file()))
+ row_report()
+```
 
 #### Calls build the graph
 
@@ -801,10 +837,10 @@ flowchart TB
     validate["validate<br/>BashOperator<br/>upstream_failed"]:::upstream_failed
     pull_orders["pull_orders<br/>BashOperator<br/>failed"]:::failed
     pull_returns["pull_returns<br/>BashOperator<br/>success"]:::success
-    o --> m
-    r --> m
-    m --> v
-    v --> p
+    pull_orders --> merge
+    pull_returns --> merge
+    merge --> validate
+    validate --> publish
     classDef success fill:#0a3d12,stroke:#2ea043,color:#fff
     classDef failed fill:#4d1010,stroke:#f85149,color:#fff
     classDef upstream_failed fill:#4d2f08,stroke:#f0883e,color:#fff
@@ -820,14 +856,24 @@ flowchart TB
     validate["validate<br/>BashOperator<br/>failed"]:::failed
     pull_orders["pull_orders<br/>BashOperator<br/>success"]:::success
     pull_returns["pull_returns<br/>BashOperator<br/>success"]:::success
-    o --> m
-    r --> m
-    m --> v
-    v --> p
+    pull_orders --> merge
+    pull_returns --> merge
+    merge --> validate
+    validate --> publish
     classDef success fill:#0a3d12,stroke:#2ea043,color:#fff
     classDef failed fill:#4d1010,stroke:#f85149,color:#fff
     classDef upstream_failed fill:#4d2f08,stroke:#f0883e,color:#fff
     classDef running fill:#0b3a4a,stroke:#39c5cf,color:#fff
+```
+
+**What changes** (`-` starter, `+` solution)
+
+```diff
+     m = BashOperator(task_id="merge", bash_command="run merge")
++    v = BashOperator(task_id="validate", bash_command="run validate")
+     p = BashOperator(task_id="publish", bash_command="run publish")
+-    r >> m >> p
++    [o, r] >> m >> v >> p
 ```
 
 #### One file, 2 moments
