@@ -34,7 +34,7 @@ NOISE = ["script", "style", "nav", "footer", "button", "svg", "canvas", "head"]
 CUSTOM_BLOCKS = {
     "static_code", "big_number", "tip", "callout", "fun_fact", "key_takeaways",
     "synthesis", "icon_list", "info_list", *DIAGRAM_LABELS,
-    "multiple_choice", "schema_story",
+    "multiple_choice", "schema_story", "best_practices", "comparison",
 }
 # Interactive exercises: the answer options are buttons (stripped as noise) and the
 # correct answers are not in the page, so what's left is a dangling question. Dropped.
@@ -42,7 +42,7 @@ SKIPPED_BLOCKS = {"multiple_choice", "schema_story"}
 GENERIC_BLOCKS = {
     "lesson_title", "learning_objectives", "section_header", "h3", "body_text",
     "rich_text", "static_table", "side_by_side_tables", "comparison",
-    "best_practices", "note_text", "rich_info_list", "h4",
+    "note_text", "rich_info_list", "h4",
 }
 
 
@@ -201,6 +201,36 @@ def diagram(soup, block, image_name, number):
         block.replace_with(note)
 
 
+def tick_cross(soup, block, tokens):
+    """A tick/cross pair (Do and Don't, or any two labelled lists) as one table.
+
+    The two labels are the headers and each side's bullets sit in one cell, joined by line
+    breaks. Cells cannot hold real lists, so the bullet is a character; a long bullet that
+    wraps goes back to the left edge. Built here as Markdown (swapped in after markdownify)
+    because a line break inside a cell would otherwise end the table row.
+    """
+    sides = []
+    for ul in block.find_all("ul"):
+        head = ul.find_previous_sibling("div")
+        spans = head.find_all("span", recursive=False) if head else []
+        if len(spans) < 2:
+            return  # a shape we haven't seen: leave it to the generic conversion
+        items = []
+        for li in ul.find_all("li", recursive=False):
+            text = markdownify(li.find_all("span", recursive=False)[-1].decode_contents(),
+                               escape_underscores=False)
+            items.append("• " + " ".join(text.split()).replace("|", "\\|"))
+        sides.append((f"{spans[0].get_text(strip=True)} {spans[1].get_text(strip=True)}", items))
+    if len(sides) != 2:
+        return
+    token = f"@@TICK-CROSS-{len(tokens)}@@"
+    tokens[token] = ("| " + " | ".join(h for h, _ in sides) + " |\n| --- | --- |\n| "
+                     + " | ".join("<br>".join(items) for _, items in sides) + " |")
+    marker = soup.new_tag("p")
+    marker.string = token
+    block.replace_with(marker)
+
+
 def convert(html, diagram_images=(), exercises=()):
     """diagram_images: screenshot file names, in page order, one per diagram block.
     exercises: [(anchor block id or None, markdown)]; each goes right after its anchor block,
@@ -240,6 +270,8 @@ def convert(html, diagram_images=(), exercises=()):
             icon_list(soup, block)
         elif kind == "info_list":
             info_list(soup, block)
+        elif kind in ("best_practices", "comparison"):
+            tick_cross(soup, block, tokens)
         elif kind in DIAGRAM_LABELS:
             name = diagram_images[diagrams_seen] if diagrams_seen < len(diagram_images) else None
             diagrams_seen += 1

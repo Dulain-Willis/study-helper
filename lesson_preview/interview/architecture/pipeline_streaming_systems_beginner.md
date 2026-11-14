@@ -124,19 +124,9 @@ The order of 2 steps decides what a crash costs. A consumer that writes its resu
 
 In a request-driven design, the service where something happens calls every service that cares about it. When a trip completes, the trip service calls billing, then receipts, then driver ratings, then the analytics loader, and waits for each answer. In an event-driven design, the trip service appends a single `TripCompleted` event to a topic and moves on, and each of the 4 systems reacts when its own consumer group reads the event.
 
-✓Request-driven: 4 calls
-
-- Completing a trip takes as long as all 4 calls added together, or as long as the slowest one if they run in parallel
-- If receipts is down, the trip service either retries or gives up, and giving up means failing the trip or losing the receipt
-- Adding a 5th consumer means changing and redeploying the trip service
-- The caller gets each answer back, so it knows the work succeeded
-
-✗Event-driven: 1 event
-
-- Completing a trip takes a single write to the log
-- If receipts is down, its group falls behind and catches up after restart
-- A 5th consumer subscribes with a new group, and the trip service never changes
-- The trip service cannot know when, or whether, each consumer finished
+| ✓ Request-driven: 4 calls | ✗ Event-driven: 1 event |
+| --- | --- |
+| • Completing a trip takes as long as all 4 calls added together, or as long as the slowest one if they run in parallel<br>• If receipts is down, the trip service either retries or gives up, and giving up means failing the trip or losing the receipt<br>• Adding a 5th consumer means changing and redeploying the trip service<br>• The caller gets each answer back, so it knows the work succeeded | • Completing a trip takes a single write to the log<br>• If receipts is down, its group falls behind and catches up after restart<br>• A 5th consumer subscribes with a new group, and the trip service never changes<br>• The trip service cannot know when, or whether, each consumer finished |
 
 ![Pipeline diagram 2](images/pipeline_streaming_systems_beginner_diagram_2.png)
 
@@ -615,19 +605,9 @@ The trigger sets the latency floor of micro-batch. With a 30-second trigger and 
 
 True streaming removes the trigger wait, so a result can be ready within milliseconds of arrival, as in the right-hand timeline. That speed is paid for in the ways the comparison below lists.
 
-✓Micro-batch
-
-- Freshness floor set by the trigger: seconds to minutes
-- Planning and the offset commit are fixed costs, paid once per batch
-- A failure reruns the batch from its starting offsets
-- Code reads like the batch jobs a team already runs
-
-✗True streaming
-
-- Results within milliseconds to about a second of arrival
-- Both models keep per-window state; here it lives in long-running operators, so their memory must be sized and watched
-- A failure restores state from the last checkpoint, a saved snapshot of state and offsets, and replays the log from there
-- Timers, per-event state and watermarks need streaming-specific code and tests
+| ✓ Micro-batch | ✗ True streaming |
+| --- | --- |
+| • Freshness floor set by the trigger: seconds to minutes<br>• Planning and the offset commit are fixed costs, paid once per batch<br>• A failure reruns the batch from its starting offsets<br>• Code reads like the batch jobs a team already runs | • Results within milliseconds to about a second of arrival<br>• Both models keep per-window state; here it lives in long-running operators, so their memory must be sized and watched<br>• A failure restores state from the last checkpoint, a saved snapshot of state and offsets, and replays the log from there<br>• Timers, per-event state and watermarks need streaming-specific code and tests |
 
 
 <br>
@@ -659,19 +639,9 @@ Cover the last 2 columns and choose for each requirement.
 
 Retries look different in the 2 models but demand the same property. When a micro-batch fails, the engine reruns it from the batch's starting offsets, so rows the failed attempt already wrote get written again; overwriting the output by window, or upserting on `event_id`, makes the rerun harmless. A streaming job saves a checkpoint, a periodic snapshot of its state and offsets; when it fails, it restores the last checkpoint and replays the log from those offsets, re-sending every result produced since. Late data works the same way in both: windows keyed by event time and closed by a watermark.
 
-✓Do
-
-- Ask for the freshness requirement in seconds before choosing a model
-- Compute micro-batch worst case as trigger interval plus processing time
-- Make output writes idempotent so a rerun batch or checkpoint replay adds no duplicates
-- Default to micro-batch when a minute of staleness is acceptable
-
-✗Don't
-
-- Choose true streaming because it sounds more current
-- Set a 1 s trigger when each batch takes 8 s; batches queue and lag grows
-- Assume either model removes the need for watermarks
-- Promise sub-second results from a 30-second trigger
+| ✓ Do | ✗ Don't |
+| --- | --- |
+| • Ask for the freshness requirement in seconds before choosing a model<br>• Compute micro-batch worst case as trigger interval plus processing time<br>• Make output writes idempotent so a rerun batch or checkpoint replay adds no duplicates<br>• Default to micro-batch when a minute of staleness is acceptable | • Choose true streaming because it sounds more current<br>• Set a 1 s trigger when each batch takes 8 s; batches queue and lag grows<br>• Assume either model removes the need for watermarks<br>• Promise sub-second results from a 30-second trigger |
 
 > **TIP**
 >
