@@ -27,59 +27,13 @@ A nightly orders pipeline built on cron looks like 5 entries in 1 file. Each ent
 
 The hour-long gaps are a guess about durations, and the guess holds until the first night it does not.
 
-Each job starts at its own clock time and trusts that the job before it has finished00:50
+**Cron chain**
 
-01:0002:0003:0004:0005:00
+![Cron chain](images/pa_orchestration_beginner_animation_1_cron-chain.gif)
 
-yesterday
+**Orchestrator**
 
-yesterday
-
-yesterday
-
-yesterday
-
-yesterday
-
-cron
-
-extract_orders
-
-CRON01:00
-
-cron
-
-clean_orders
-
-CRON02:00
-
-cron
-
-join_orders
-
-CRON03:00
-
-cron
-
-aggregate_orders
-
-CRON04:00
-
-cron
-
-publish_orders
-
-CRON05:00
-
-Looker
-
-revenue_dashboard
-
-yesterday
-
-The night the extract ran long
-
-1/13
+![Orchestrator](images/pa_orchestration_beginner_animation_1_orchestrator.gif)
 
 
 <br>
