@@ -1,14 +1,14 @@
 ---
 name: index-lesson
-description: Write the finding-aid index for one lesson in lesson_preview/, headers and line ranges only.
+description: Write the finding-aid index for one lesson in lesson_preview/interview/architecture/, headers and line ranges only.
 disable-model-invocation: true
 ---
 
 # Index a lesson
 
-Write `lesson_preview/index/<lesson-stem>.md` for one lesson file. An agent answering data engineering questions reads this index, picks a section, then reads only that line range of the lesson. The index finds; the lesson teaches. Lessons stay untouched.
+Write `lesson_preview/interview/architecture/index/<lesson-stem>.md` for one lesson file. An agent answering data engineering questions reads this index, picks a section, then reads only that line range of the lesson. The index finds; the lesson teaches. Lessons stay untouched.
 
-Worked example: `lesson_preview/index/pa_pattern_backpressure_scaling.md`.
+Worked example: `lesson_preview/interview/architecture/index/pa_pattern_backpressure_scaling.md`.
 
 ## Steps
 
@@ -36,7 +36,7 @@ Done when `python3 scripts/validate_lesson_index.py <lesson-stem>` prints `OK` (
 
 ```
 # Index: <lesson-file>.md
-Source: `lesson_preview/<lesson-file>.md` (<N> lines). Read just the line range you need (Read offset/limit).
+Source: `lesson_preview/interview/architecture/<lesson-file>.md` (<N> lines). Read just the line range you need (Read offset/limit).
 
 ## <Lesson ## title, verbatim> (L<start>-<end>)
 
@@ -47,7 +47,7 @@ Write each range as `(L27-114)`: one `L`, a hyphen, and a bare end number. `<N>`
 
 ### 5. Add the lesson to the top-level index
 
-Add one line to `lesson_preview/INDEX.md`, in alphabetical position among the existing lines:
+Add one line to `lesson_preview/interview/architecture/INDEX.md`, in alphabetical position among the existing lines:
 
 ```
 - `<lesson-stem>`: <what the lesson covers, as five or six topics separated by commas>

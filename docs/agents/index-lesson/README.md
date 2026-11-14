@@ -4,16 +4,16 @@ For a fresh leader agent picking this up. Read this, then `.claude/skills/index-
 
 ## Goal
 
-Give a future data engineering agent a way to answer architecture questions from the lessons in `lesson_preview/` (26 markdown lessons, about 170k words). Chosen approach: agentic retrieval (grep, glob, read), helped by a hand-written two-level index. No RAG, no MCP for now.
+Give a future data engineering agent a way to answer architecture questions from the lessons in `lesson_preview/interview/architecture/` (26 markdown lessons, about 170k words). Chosen approach: agentic retrieval (grep, glob, read), helped by a hand-written two-level index. No RAG, no MCP for now.
 
 - Level 1 (not built yet): a small top-level index, one entry per lesson, pointing to its detail index.
-- Level 2: one file per lesson in `lesson_preview/index/<lesson-stem>.md`. Headers plus line ranges only, so the agent reads just the section it needs.
+- Level 2: one file per lesson in `lesson_preview/interview/architecture/index/<lesson-stem>.md`. Headers plus line ranges only, so the agent reads just the section it needs.
 
 Lessons are immutable. Only the index and the skill change.
 
 ## Decisions so far (and why)
 
-- Hand-written index, not script-generated. Headers need human judgment. The old generator `scripts/build_lesson_index.py` and `lesson_preview/INDEX.md` (generated, 766 lines) are stale and should be deleted.
+- Hand-written index, not script-generated. Headers need human judgment. The old generator `scripts/build_lesson_index.py` and `lesson_preview/interview/architecture/INDEX.md` (generated, 766 lines) are stale and should be deleted.
 - `##` titles copied word for word from the lesson. Vague ones are flagged to the human, never silently renamed.
 - `###` headers rewritten so each stands alone as a general concept. Claims where one idea dominates, topic labels where a section lists options. Ten words or fewer. No example-specific numbers.
 - No descriptions under headers. They summarize the lesson and tempt the agent to skip reading it. Fix the header or add an entry instead.
@@ -23,8 +23,8 @@ Lessons are immutable. Only the index and the skill change.
 ## State of the files
 
 - Skill: `.claude/skills/index-lesson/SKILL.md` (user-invoked).
-- Done and treated as the worked example: `lesson_preview/index/pa_pattern_backpressure_scaling.md` (hand-built with the human; 18 lesson `###` plus 2 extra entries from splitting L65-106).
-- Second lesson, indexed by a fresh subagent with the current skill: `lesson_preview/index/pa_pattern_batch_or_stream_intermediate.md` (5 `##`, 29 `###` vs 14 in the lesson).
+- Done and treated as the worked example: `lesson_preview/interview/architecture/index/pa_pattern_backpressure_scaling.md` (hand-built with the human; 18 lesson `###` plus 2 extra entries from splitting L65-106).
+- Second lesson, indexed by a fresh subagent with the current skill: `lesson_preview/interview/architecture/index/pa_pattern_batch_or_stream_intermediate.md` (5 `##`, 29 `###` vs 14 in the lesson).
 - First-run output from the earlier skill version, kept for comparison: `docs/agents/index-lesson/batch_or_stream_v1_first_run.md` (25 `###`, `##` titles reworded).
 
 ## How we test the skill
@@ -34,7 +34,7 @@ Spawn a general-purpose subagent with no other context, have it follow the skill
 First run:
 
 ```
-Read /home/dulain/projects/study-helper/.claude/skills/index-lesson/SKILL.md and follow it literally to index the lesson /home/dulain/projects/study-helper/lesson_preview/pa_pattern_batch_or_stream_intermediate.md. Write the result to /home/dulain/projects/study-helper/lesson_preview/index/pa_pattern_batch_or_stream_intermediate.md.
+Read /home/dulain/projects/study-helper/.claude/skills/index-lesson/SKILL.md and follow it literally to index the lesson /home/dulain/projects/study-helper/lesson_preview/interview/architecture/pa_pattern_batch_or_stream_intermediate.md. Write the result to /home/dulain/projects/study-helper/lesson_preview/interview/architecture/index/pa_pattern_batch_or_stream_intermediate.md.
 
 Do not edit the lesson or the skill file, and do not touch any other file. You have no other context; rely only on the skill and the files it points to.
 
@@ -44,7 +44,7 @@ When done, reply with: (1) the path you wrote, (2) any step or rule in the skill
 Redo after the skill was revised:
 
 ```
-Read /home/dulain/projects/study-helper/.claude/skills/index-lesson/SKILL.md and follow it literally to index the lesson /home/dulain/projects/study-helper/lesson_preview/pa_pattern_batch_or_stream_intermediate.md. Write the result to /home/dulain/projects/study-helper/lesson_preview/index/pa_pattern_batch_or_stream_intermediate.md, replacing any existing file there; do not read the existing file first.
+Read /home/dulain/projects/study-helper/.claude/skills/index-lesson/SKILL.md and follow it literally to index the lesson /home/dulain/projects/study-helper/lesson_preview/interview/architecture/pa_pattern_batch_or_stream_intermediate.md. Write the result to /home/dulain/projects/study-helper/lesson_preview/interview/architecture/index/pa_pattern_batch_or_stream_intermediate.md, replacing any existing file there; do not read the existing file first.
 
 Do not edit the lesson or the skill file, and do not touch any other file. You have no other context; rely only on the skill and the files it points to.
 
@@ -70,7 +70,7 @@ Better: `##` verbatim, vague title flagged ("Design for Both Batch and Stream"),
 1. Build a small eval before tuning more. Draft about 8 questions answerable from the two indexed lessons, each with the expected sections and key points. For each question run a fresh no-context subagent in three setups: A) lessons folder only (grep and read), B) the first-run index, C) the current index. Have it report which line ranges it read. Score section hit rate, lines read, and answer correctness. This only tests finding a section inside a known lesson, not choosing a lesson; the top-level index tests that later.
 2. Use the results to settle issue 3, then fix issues 1, 2, and 4 in the skill and re-run once.
 3. Add mechanical validation as a script: `##` titles match the lesson, ranges fall within the file, sibling ranges neither overlap nor leave gaps. Reserve the human or model review for header wording.
-4. Delete `scripts/build_lesson_index.py` and the old `lesson_preview/INDEX.md`.
+4. Delete `scripts/build_lesson_index.py` and the old `lesson_preview/interview/architecture/INDEX.md`.
 5. Design and build the top-level index, then index the remaining lessons in batches of 4 to 5 for human review.
 
 ## Working preferences observed
@@ -149,16 +149,16 @@ Default the skill to one-to-one: `##` titles verbatim, one rewritten `###` per l
 
 ## Status after eval 3
 
-The skill (`.claude/skills/index-lesson/SKILL.md`) is now one-to-one: `##` verbatim, one rewritten `###` per lesson `###`, no extra entries, and the backpressure worked example was brought in line (17 `###`, 5 `##`). Still stale: `lesson_preview/index/pa_pattern_batch_or_stream_intermediate.md` (29 entries, old skill) and the old generated `lesson_preview/INDEX.md` and `scripts/build_lesson_index.py`.
+The skill (`.claude/skills/index-lesson/SKILL.md`) is now one-to-one: `##` verbatim, one rewritten `###` per lesson `###`, no extra entries, and the backpressure worked example was brought in line (17 `###`, 5 `##`). Still stale: `lesson_preview/interview/architecture/index/pa_pattern_batch_or_stream_intermediate.md` (29 entries, old skill) and the old generated `lesson_preview/interview/architecture/INDEX.md` and `scripts/build_lesson_index.py`.
 
 Next: re-index batch_or_stream with the new skill and confirm its `###` count is 14, then index the remaining lessons in batches of 4 to 5 for review, then build the top-level index and delete the stale generated files.
 
 ## Status: all 26 lessons indexed
 
-All 26 lessons have an index in `lesson_preview/index/`, written by Haiku subagents with the one-to-one skill and checked by `scripts/validate_lesson_index.py` (all 26 print OK). The stale generated `INDEX.md` and `build_lesson_index.py` were deleted. Vague `##` titles are listed in `flagged-titles.md` for review. Not done yet: a top-level index (one entry per lesson, ideally by concept), and nothing is committed to git.
+All 26 lessons have an index in `lesson_preview/interview/architecture/index/`, written by Haiku subagents with the one-to-one skill and checked by `scripts/validate_lesson_index.py` (all 26 print OK). The stale generated `INDEX.md` and `build_lesson_index.py` were deleted. Vague `##` titles are listed in `flagged-titles.md` for review. Not done yet: a top-level index (one entry per lesson, ideally by concept), and nothing is committed to git.
 
 ## MCP server
 
 A small MCP server lives in `~/projects/data-eng-knowledge/` (own `.venv`, one file `server.py`). Five tools: list_lessons, get_lesson_index, read_lesson, search (headers), grep_lessons (full text). Its `instructions` tell the agent to treat the lessons as the source of truth and cite lesson and lines. Tested directly and over a real stdio MCP handshake. Measured: the top-level `INDEX.md` alone picked the right lesson first 57% of the time (top 2: 69%); header keyword search with the raw question as the query was weak (12% first, 54% anywhere in the top 8 hits), so it is a supplement to the agent's own keyword queries and `grep_lessons`, not a replacement. Agent-written queries were not measured.
 
-The `index-lesson` skill now also adds the lesson's line to `lesson_preview/INDEX.md`, and the validator checks it exists.
+The `index-lesson` skill now also adds the lesson's line to `lesson_preview/interview/architecture/INDEX.md`, and the validator checks it exists.

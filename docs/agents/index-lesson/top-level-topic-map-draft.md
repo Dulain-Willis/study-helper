@@ -3,8 +3,8 @@
 For data engineering architecture questions. Find the topic below, open that lesson's detail index, pick the section's line range, then read only those lines of the lesson.
 
 1. Find the topic under **Topics** (best lesson first; the section name in parentheses is that lesson's own `##` title).
-2. Open `lesson_preview/index/<lesson>.md` for the lesson's sections and line ranges.
-3. Read just that range of `lesson_preview/<lesson>.md` (Read with offset and limit).
+2. Open `lesson_preview/interview/architecture/index/<lesson>.md` for the lesson's sections and line ranges.
+3. Read just that range of `lesson_preview/interview/architecture/<lesson>.md` (Read with offset and limit).
 
 Two families: `pipeline_*` lessons teach fundamentals (beginner, intermediate, advanced); `pa_pattern_*` lessons go deep with numbers and interview-style answers. Use `pipeline_*` for definitions and `pa_pattern_*` for depth.
 
