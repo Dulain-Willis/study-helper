@@ -535,18 +535,18 @@ Do the arithmetic before touching the canvas. A million vehicles reporting every
 ```mermaid
 flowchart LR
     subgraph L0["Ingest"]
-        n0[("vehicle_telemetry<br/>(MQTT gateway -> Kafka producers)")]
+        n0[("vehicle_telemetry<br/>(MQTT gateway -#62; Kafka producers)")]
     end
     subgraph L1["Queue + consumers"]
-        n1[/"device_events<br/>(Kafka, ~125 partitions by device_id)"/]
-        n2["status_consumers<br/>(Consumer group, autoscaled, backpressured)"]
+        n1[/"device_events<br/>(Kafka)<br/>~125 partitions by device_id · Partitions: 125 partitions"/]
+        n2["status_consumers<br/>(Consumer group)<br/>autoscaled · backpressured · SLA: #60; 30s"]
     end
     subgraph L2["Serving"]
-        n3[("device_status_store<br/>(Low-latency KV store)")]
+        n3[("device_status_store<br/>(Low-latency KV store)<br/>SLA: #60; 30s")]
         n4(["status_api<br/>(Dashboards + mobile app)"])
     end
     subgraph L3["Observability"]
-        n5["lag_monitor<br/>(Partition-lag metrics -> autoscaler)"]
+        n5["lag_monitor<br/>(Partition-lag metrics -#62; autoscaler)<br/>Alert: Consumer lag climbing"]
     end
     n0 --> n1
     n1 --> n2
@@ -614,16 +614,16 @@ This is a throughput-chain problem wearing an incident costume. The pager says `
 ```mermaid
 flowchart LR
     subgraph L0["Ingest + buffer"]
-        n0[("gps_ingest<br/>(Kafka producers, 800k pings/sec)")]
-        n1[/"telemetry_topic<br/>(Kafka, 64 partitions)"/]
+        n0[("gps_ingest<br/>(Kafka producers)<br/>800k pings/sec")]
+        n1[/"telemetry_topic<br/>(Kafka)<br/>64 partitions · Partitions: 64 partitions"/]
     end
     subgraph L1["Consume + observe"]
-        n2["gps_stream<br/>(Flink / Kafka Streams)"]
+        n2["gps_stream<br/>(Flink / Kafka Streams)<br/>SLA: #60; 1min · Partitions: 64 consumers"]
         n3(["lag_monitor<br/>(Prometheus + Kafka exporter (or Datadog / Confluent Control Center))"])
     end
     subgraph L2["Serve"]
-        n4[("analytics_warehouse<br/>(Warehouse, 1.2M rows/sec)")]
-        n5(["surge_pricing<br/>(Surge + ETA models)"])
+        n4[("analytics_warehouse<br/>(Warehouse)<br/>1.2M rows/sec · SLA: #60; 15min")]
+        n5(["surge_pricing<br/>(Surge + ETA models)<br/>SLA: #60; 1min"])
     end
     n0 --> n1
     n1 --> n2
@@ -696,9 +696,9 @@ The other half of the trap is building the buffer and the monitoring but forgett
 ```mermaid
 flowchart LR
     n0[("checkout_service<br/>(API)")]
-    n1[/"checkout_events<br/>(Kafka)"/]
-    n2["consumer_group<br/>(Flink)"]
-    n3(["lag_monitor<br/>(Grafana)"])
+    n1[/"checkout_events<br/>(Kafka)<br/>Partitions: 32 partitions"/]
+    n2["consumer_group<br/>(Flink)<br/>Partitions: 8 to 32 tasks"]
+    n3(["lag_monitor<br/>(Grafana)<br/>Alert: scale out consumers if lag rises"])
     n4[("analytics_warehouse<br/>(warehouse)")]
     n0 --> n1
     n1 --> n2
