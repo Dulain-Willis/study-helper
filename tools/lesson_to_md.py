@@ -11,10 +11,15 @@ pipeline diagram as an image next to the Markdown.
 
 For personal study use. Output defaults to ./lesson_preview/.
 """
+import base64
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
+import time
 import urllib.request
 
 from bs4 import BeautifulSoup
@@ -292,10 +297,51 @@ def tick_cross(soup, block, tokens):
     block.replace_with(marker)
 
 
-def convert(html, diagram_images=(), exercises=()):
+def animation_info(html):
+    """Each animation block in page order: its mode labels and the caption under the player.
+
+    Read before clean() strips the buttons. A block with toggles (Query-based / Log-based)
+    has one radio button per mode; the caption is a paragraph right after the player.
+    """
+    soup = parse(html)
+    out = []
+    for block in soup.find_all(attrs={"data-note-block-type": re.compile(r"_animation$")}):
+        labels = [b.get_text(strip=True) for b in block.find_all("button", attrs={"role": "radio"})]
+        caption = ""
+        for para in block.find_all("p"):
+            before = para.find_previous_sibling()
+            if before is not None and before.find("button"):
+                caption = " ".join(para.get_text().split())
+                break
+        out.append({"labels": labels, "caption": caption})
+    return out
+
+
+def animation(soup, block, tokens, info, files):
+    """An animation block as its GIF(s), one per mode, and the caption as plain text.
+
+    The playback is drawn by JavaScript, so it can only be a recording (see record_animations).
+    Built as Markdown and swapped in after markdownify.
+    """
+    parts = []
+    for label, name in files or []:
+        parts.append((f"**{label}**\n\n" if label else "") + f"![{label or 'Animation'}](images/{name})")
+    if not parts:
+        parts.append("[Animation: not captured. Re-run with --screenshots]")
+    if info.get("caption"):
+        parts.append(f"*{info['caption']}*")
+    token = f"@@ANIMATION-{len(tokens)}@@"
+    tokens[token] = "\n\n".join(parts)
+    marker = soup.new_tag("p")
+    marker.string = token
+    block.replace_with(marker)
+
+
+def convert(html, diagram_images=(), exercises=(), animations=None):
     """diagram_images: screenshot file names, in page order, one per diagram block.
     exercises: [(anchor block id or None, markdown)]; each goes right after its anchor block,
     and the ones with no anchor are returned by the caller to append."""
+    animation_infos = animation_info(html)
     soup = parse(html)
     clean(soup)
     tokens = {}
@@ -309,11 +355,11 @@ def convert(html, diagram_images=(), exercises=()):
         p.string = EXERCISE_TOKEN.format(i)
         block.insert_after(p)
         tokens[EXERCISE_TOKEN.format(i)] = md_text
-    diagrams_seen = 0
+    diagrams_seen = animations_seen = 0
     questions = embedded_questions(html)
     for block in soup.find_all(attrs={"data-note-block-type": True}):
         kind = block_type(block)
-        if kind not in CUSTOM_BLOCKS | GENERIC_BLOCKS:
+        if kind not in CUSTOM_BLOCKS | GENERIC_BLOCKS and not kind.endswith("_animation"):
             print(f"warning: no rule for block type '{kind}'; used generic conversion",
                   file=sys.stderr)
         if kind in SKIPPED_BLOCKS:
@@ -347,6 +393,10 @@ def convert(html, diagram_images=(), exercises=()):
             info_list(soup, block)
         elif kind in ("best_practices", "comparison"):
             tick_cross(soup, block, tokens)
+        elif kind.endswith("_animation"):
+            info = animation_infos[animations_seen] if animations_seen < len(animation_infos) else {}
+            animation(soup, block, tokens, info, (animations or {}).get(animations_seen))
+            animations_seen += 1
         elif kind in DIAGRAM_LABELS:
             name = diagram_images[diagrams_seen] if diagrams_seen < len(diagram_images) else None
             diagrams_seen += 1
@@ -679,6 +729,102 @@ def screenshot_schema_diagrams(url, out_dir, slug, challenges):
     return saved
 
 
+# Animations (sql_animation, kafka_animation, pipeline_animation ...): a player that plays by
+# itself once scrolled into view, with a step counter ("3/9") and sometimes mode toggles.
+# Each mode is recorded as a screen video of the player alone, cropped, and made into a GIF.
+GIF_FILTER = ("fps=15,scale=1000:-1:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];"
+              "[b][p]paletteuse=dither=sierra2_4a")
+_STEP = re.compile(r"(\d+)\s*/\s*(\d+)")
+_PLAYER_BOX = """(block) => { const bs = [...block.querySelectorAll('button')]; if (!bs.length) return null;
+    let a = bs[0]; while (a && !bs.every(b => a.contains(b))) a = a.parentElement;
+    const r = a.getBoundingClientRect(); return {x: r.x + scrollX, y: r.y + scrollY, w: r.width, h: r.height}; }"""
+
+
+def record_animations(url, out_dir, slug, info):
+    """Save every animation block's playback as a GIF: one per mode (toggle) if it has any.
+
+    Returns {block number: [(mode label or None, file name)]}. The capture runs from the
+    moment the mode starts until the step counter reaches its last step (two seconds' grace),
+    so it needs no fixed length. The crop is the smallest box holding all the player's buttons,
+    which leaves out the caption paragraph that sits below it (that goes into the Markdown).
+    """
+    if not info:
+        return {}
+    if not shutil.which("ffmpeg"):
+        print("warning: ffmpeg not found; animations not captured", file=sys.stderr)
+        return {}
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        print("playwright not installed", file=sys.stderr)
+        return {}
+    img_dir = os.path.join(out_dir, "images")
+    os.makedirs(img_dir, exist_ok=True)
+    saved = {}
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        for k, entry in enumerate(info):
+            for m, label in enumerate(entry["labels"] or [None]):
+                with tempfile.TemporaryDirectory() as tmp:
+                    ctx = browser.new_context(viewport={"width": 1000, "height": 900}, color_scheme="light")
+                    page = ctx.new_page()
+                    page.goto(url, wait_until="domcontentloaded")
+                    page.wait_for_timeout(3000)
+                    block = page.locator('[data-note-block-type$="_animation"]').nth(k)
+                    block.scroll_into_view_if_needed()  # the first mode plays by itself once in view
+                    if m > 0:
+                        page.wait_for_timeout(300)
+                    box = block.evaluate(_PLAYER_BOX)
+                    if not box:
+                        ctx.close()
+                        print(f"warning: animation {k + 1} has no player controls; not captured", file=sys.stderr)
+                        break
+                    # Each frame is a 2x screenshot of the player alone, taken as fast as the browser
+                    # allows (about 14 per second). Playwright's recorded video is compressed and
+                    # its frames are 1x, so the small labels in the diagrams (down to 6.5 px) turned
+                    # fuzzy; at 2x they stay readable after the GIF is scaled down.
+                    cdp = ctx.new_cdp_session(page)
+                    clip = {"x": box["x"], "y": box["y"], "width": box["w"], "height": box["h"], "scale": 2}
+                    if m > 0:
+                        block.locator("button[role=radio]").nth(m).click()
+                    stamps, done_since, last_hash = [], None, None
+                    began = still_since = time.monotonic()
+                    while time.monotonic() - began < 150:
+                        stamp = time.monotonic() - began
+                        shot = cdp.send("Page.captureScreenshot", {"format": "jpeg", "quality": 92, "clip": clip})
+                        with open(os.path.join(tmp, f"f{len(stamps):05d}.jpg"), "wb") as fh:
+                            fh.write(base64.b64decode(shot["data"]))
+                        stamps.append(stamp)
+                        steps = _STEP.findall(block.inner_text())
+                        if steps and int(steps[-1][0]) >= int(steps[-1][1]):
+                            done_since = done_since or time.monotonic()
+                            if time.monotonic() - done_since >= 2:
+                                break
+                        elif not steps:  # no counter: stop once nothing has moved for 3 seconds
+                            if hash(shot["data"]) != last_hash:
+                                last_hash, still_since = hash(shot["data"]), time.monotonic()
+                            elif time.monotonic() - still_since >= 3:
+                                break
+                    ctx.close()
+                    if len(stamps) < 2:
+                        print(f"warning: animation {k + 1} produced no frames; not captured", file=sys.stderr)
+                        break
+                    with open(os.path.join(tmp, "list.txt"), "w") as fh:  # each frame lasts until the next
+                        for i, stamp in enumerate(stamps):
+                            span = stamps[i + 1] - stamp if i + 1 < len(stamps) else 1.0
+                            fh.write(f"file 'f{i:05d}.jpg'\nduration {max(span, 0.001):.4f}\n")
+                        fh.write(f"file 'f{len(stamps) - 1:05d}.jpg'\n")
+                    name = f"{slug}_animation_{k + 1}" + (f"_{re.sub(r'[^a-z0-9]+', '-', label.lower()).strip('-')}"
+                                                          if label else "") + ".gif"
+                    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0",
+                                    "-i", os.path.join(tmp, "list.txt"),
+                                    "-vf", GIF_FILTER, "-loop", "0",
+                                    os.path.join(img_dir, name)], check=True)
+                    saved.setdefault(k, []).append((label, name))
+        browser.close()
+    return saved
+
+
 def screenshot_diagrams(url, out_dir, slug):
     """Save every pipeline diagram block as <slug>_diagram_<n>.png.
 
@@ -722,6 +868,8 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     slug = url.rstrip("/").rsplit("/", 1)[-1]
     images = screenshot_diagrams(url, out_dir, slug) if "--screenshots" in sys.argv else []
+    animations = (record_animations(url, out_dir, slug, animation_info(html))
+                  if "--screenshots" in sys.argv else {})
     path = os.path.join(out_dir, slug + ".md")
     with open(path, "w", encoding="utf-8") as f:
         challenges = fetch_challenges(slug)
@@ -732,7 +880,7 @@ def main():
         for anchor, group in groups:
             sections.append((anchor, exercises_markdown(group, shots, start)))
             start += len(group)
-        f.write(convert(html, images, sections))
+        f.write(convert(html, images, sections, animations))
     print(path)
 
 
