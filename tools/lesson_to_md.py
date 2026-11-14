@@ -662,6 +662,12 @@ def exercises_markdown(challenges, images=None, start=0):
 # folded solution (graph after the fix, what changes, canonical code, walkthrough).
 
 
+# The Airflow exercises are badly made (grid/run-naming forms are buggy, Run/Submit need a
+# login), so none go into the Markdown. Animations are unaffected. Set True to bring back the
+# repair-the-DAG conversion below.
+INCLUDE_AIRFLOW_EXERCISES = False
+
+
 def challenge_path(c):
     sc = c["config"].get("scenario") or {}
     files = sc.get("files") or []
@@ -1126,7 +1132,11 @@ def main():
     with open(path, "w", encoding="utf-8") as f:
         challenges = fetch_challenges(slug)
         airflow = bool(challenges) and challenges[0].get("challenge_type") == "airflow"
-        if airflow:
+        if airflow and not INCLUDE_AIRFLOW_EXERCISES:
+            print(f"note: {len(challenges)} Airflow exercise(s) left out "
+                  f"(INCLUDE_AIRFLOW_EXERCISES is False)", file=sys.stderr)
+            sections = []
+        elif airflow:
             kept = [c for c in challenges if c["config"].get("form") == "dag_repair"]
             left_out = sorted({str(c["config"].get("form")) for c in challenges if c not in kept})
             if left_out:
