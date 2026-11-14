@@ -656,40 +656,10 @@ def exercises_markdown(challenges, images=None, start=0):
 
 
 # --- Airflow exercises (tools/airflow lessons) ----------------------------------------
-# Same endpoint as above, challenge_type "airflow". Two forms: dag_repair (fix the DAG
-# file) and grid_match (edit the DAG until the run grid matches a target). The page's live
-# editor + Airflow UI becomes: task, starter file, what the learner is shown, then a
-# folded solution with the canonical code and walkthrough.
-STATE_LABELS = {
-    "success": "✅ success", "failed": "❌ failed", "upstream_failed": "🟧 upstream_failed",
-    "running": "🔄 running", "none": "⬜ no state", "skipped": "⏭ skipped",
-}
-OUTCOME_TEXT = {"success": "every try succeeds", "fail": "fails", "fail_no_retry": "fails, no retry"}
-
-
-def duration(seconds):
-    return f"{seconds // 3600:02d}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}"
-
-
-def grid_table(runs):
-    """Run grid as a table: one row per task, one column per run (the site's Grid view)."""
-    tasks = list(runs[0]["tasks"])
-    head = "| task | " + " | ".join(r["logicalDate"][5:16].replace("T", " ") for r in runs) + " |"
-    rows = [f"| `{t}` | " + " | ".join(STATE_LABELS.get(r["tasks"].get(t), str(r["tasks"].get(t))) for r in runs) + " |"
-            for t in tasks]
-    return "\n".join([head, "|---" * (len(runs) + 1) + "|"] + rows)
-
-
-def task_lines(behaviors):
-    out = []
-    for b in behaviors:
-        outcome = OUTCOME_TEXT.get((b.get("outcomes") or ["success"])[0], b["outcomes"][0])
-        line = f"- `{b['taskId']}` · runs {duration(b.get('durationSeconds', 0))} · {outcome}"
-        for r in b.get("byRun") or []:
-            what = r.get("raises") or OUTCOME_TEXT.get(r["outcomes"][0], r["outcomes"][0])
-            line += f"\\\n  on {r['logicalDate'][:16].replace('T', ' ')}: {what}"
-        out.append(line)
-    return "\n".join(out)
+# Same endpoint as above, challenge_type "airflow". Only the dag_repair form (fix the DAG
+# file) is converted; see the note above airflow_widgets for what is left out and why. The
+# page's live editor + Airflow UI becomes: task, starter file, the deployed Grid/Graph, then a
+# folded solution (graph after the fix, what changes, canonical code, walkthrough).
 
 
 def challenge_path(c):
@@ -698,10 +668,13 @@ def challenge_path(c):
     return sc.get("file") or (files[0]["path"] if files else "dag.py")
 
 
-# The widgets are drawn by the browser. Two kinds: dr-widget (dag_repair: file, then the
-# Grid/Graph of the DEPLOYED starter) and gm-root (grid_match: file, task facts, airflow.cfg,
-# Grid with Target / As given). A pane is only captured when it holds something: Grid needs
-# cells, Graph needs nodes or an import error, Tasks / airflow.cfg need their card.
+# Only repair-the-DAG exercises (config.form "dag_repair", widget dr-widget) are converted.
+# Every other Airflow exercise form is left out on purpose (see BLOCK-TYPES.md): grid_match
+# (gm-root), the run-naming timeline widget, and any other. They are decided by form and
+# widget, never by where their sentence lands, because the site sometimes draws a widget's
+# sentence outside its frame. The widget is drawn by the browser: file, then the Grid/Graph of
+# the DEPLOYED starter. A pane is only captured when it holds something: Grid needs cells,
+# Graph needs nodes or an import error.
 _AF_ANCHOR = """(root) => { let anchor = null;
     for (const b of document.querySelectorAll('[data-note-block]')) {
         const pos = b.compareDocumentPosition(root);
@@ -727,13 +700,12 @@ def airflow_widgets(url, out_dir, slug, shoot):
                                 color_scheme="light", device_scale_factor=2)
         page.goto(url, wait_until="domcontentloaded")
         page.wait_for_timeout(6000)
-        roots = page.locator('[data-testid="dr-widget"], [data-testid="gm-root"]')
+        roots = page.locator('[data-testid="dr-widget"]')  # repair-the-DAG widgets only
         for i in range(roots.count()):
             root = roots.nth(i)
             root.scroll_into_view_if_needed()
             page.wait_for_timeout(500)
-            pre = "dr" if root.get_attribute("data-testid") == "dr-widget" else "gm"
-            header = root.locator('[data-testid="af-file-header"], [data-testid="af-file-card"]').first.inner_text()
+            header = root.locator('[data-testid="af-file-header"]').first.inner_text()
             m = re.search(r"dags/[\w./-]+\.py", header)
             shots = {}
 
@@ -751,38 +723,21 @@ def airflow_widgets(url, out_dir, slug, shoot):
                 root.get_by_text(re.compile(rf"^{text}$", re.I)).first.click()
                 page.wait_for_timeout(600)
 
-            grid = root.locator(f'[data-testid="{pre}-grid-page"]')
-            graph = root.locator(f'[data-testid="{pre}-graph-page"]')
-            if pre == "gm":
-                for key, cap, loc in (("tasks", "Tasks", root.locator('[data-testid="af-facts"]')),
-                                      ("cfg", "airflow.cfg", root.locator('[data-testid="af-config-card"]'))):
-                    if loc.count():
-                        snap(key, cap, loc)
-                click("Grid")
-                click("As given")
-                if grid.locator('[data-testid="af-cell"]').count():
-                    snap("grid_given", "Grid as given (your starter code)", grid)
-                click("Target")
-                if grid.locator('[data-testid="af-cell"]').count():
-                    snap("grid_target", "Target grid (match this)", grid)
-                click("As given")
-                click("Graph")
-                if graph.locator('[data-testid="af-graph-node"]').count():
-                    snap("graph", "Graph as given (your starter code)", graph)
-            else:
-                click("Grid")
-                if grid.locator('[data-testid="af-cell"]').count():
-                    snap("grid", "Grid, deployed (your starter code)", grid)
-                click("Graph")
-                if graph.locator('[data-testid="af-graph-node"], [data-testid="af-import-errors"]').count():
-                    snap("graph", "Graph, deployed (your starter code)", graph)
+            grid = root.locator('[data-testid="dr-grid-page"]')
+            graph = root.locator('[data-testid="dr-graph-page"]')
+            click("Grid")
+            if grid.locator('[data-testid="af-cell"]').count():
+                snap("grid", "Grid, deployed (your starter code)", grid)
+            click("Graph")
+            if graph.locator('[data-testid="af-graph-node"], [data-testid="af-import-errors"]').count():
+                snap("graph", "Graph, deployed (your starter code)", graph)
             widgets.append({"path": m.group(0) if m else None,
                             "anchor": root.evaluate(_AF_ANCHOR), "shots": shots})
         browser.close()
     return widgets
 
 
-SHOT_ORDER = ["tasks", "cfg", "grid_given", "grid_target", "grid", "graph"]
+SHOT_ORDER = ["grid", "graph"]
 
 
 GRAPH_STYLES = {"success": "fill:#0a3d12,stroke:#2ea043,color:#fff", "failed": "fill:#4d1010,stroke:#f85149,color:#fff",
@@ -877,32 +832,25 @@ def solution_graphs(c):
 
 def airflow_exercise_markdown(c, n, total, shots):
     cfg, sc = c["config"], c["config"].get("scenario") or {}
-    form = cfg.get("form")
-    titles = {"dag_repair": "Repair the DAG", "grid_match": "Match the grid"}
-    out = [f"### Exercise {n} of {total}: {titles.get(form, form)}", f"**● TASK**\n\n{c['prompt']}"]
+    out = [f"### Exercise {n} of {total}: Repair the DAG", f"**● TASK**\n\n{c['prompt']}"]
     files = sc.get("files") or []
     starter = (cfg.get("starter") or {}).get("source") or (files[0]["source"] if files else "")
     out.append(f"**Starter** — `{challenge_path(c)}`\n\n```python\n{starter}\n```")
     if shots:  # panes the page really shows, as the page draws them
         out += [f'**{shots[k][0]}**\n\n<img src="images/{shots[k][1]}" alt="{shots[k][0]}" width="{shots[k][2]}">'
                 for k in SHOT_ORDER if k in shots]
-    elif form == "grid_match":  # no screenshots: text versions of the same panes
-        if sc.get("target"):
-            out.append("**Target grid**\n\n" + grid_table(sc["target"]))
-        if sc.get("behaviors"):
-            out.append("**Tasks**\n\n" + task_lines(sc["behaviors"]))
     out.append("<details>\n<summary><strong>Solution</strong></summary>")
     # The site only draws the graph after a correct fix once the code is Run, and Run needs a
     # login, so it is drawn here from the solution's `>>` lines and the expected task states.
-    graphs = solution_graphs(c) if form == "dag_repair" else None
+    graphs = solution_graphs(c)
     if graphs:
         out.append("**Graph after the fix** (drawn from the solution code and the expected task states)\n\n" + graphs)
-    if form == "dag_repair":  # what the fix changes, so a small edit is easy to spot
-        fixed = ((c.get("deep_dive") or {}).get("reference") or {}).get("source") or ""
-        changes = [l for l in difflib.unified_diff(starter.splitlines(), fixed.splitlines(), lineterm="", n=1)
-                   if not l.startswith(("---", "+++", "@@"))]
-        if changes:
-            out.append("**What changes** (`-` starter, `+` solution)\n\n```diff\n" + "\n".join(changes) + "\n```")
+    # what the fix changes, so a small edit is easy to spot
+    fixed = ((c.get("deep_dive") or {}).get("reference") or {}).get("source") or ""
+    changes = [l for l in difflib.unified_diff(starter.splitlines(), fixed.splitlines(), lineterm="", n=1)
+               if not l.startswith(("---", "+++", "@@"))]
+    if changes:
+        out.append("**What changes** (`-` starter, `+` solution)\n\n```diff\n" + "\n".join(changes) + "\n```")
     out += [m for m in (solution_block(b) for b in (c.get("deep_dive") or {}).get("blocks") or []) if m]
     out.append("</details>")
     return "\n\n".join(out)
@@ -1179,7 +1127,12 @@ def main():
         challenges = fetch_challenges(slug)
         airflow = bool(challenges) and challenges[0].get("challenge_type") == "airflow"
         if airflow:
-            sections = airflow_sections(url, out_dir, slug, challenges)
+            kept = [c for c in challenges if c["config"].get("form") == "dag_repair"]
+            left_out = sorted({str(c["config"].get("form")) for c in challenges if c not in kept})
+            if left_out:
+                print(f"note: {len(challenges) - len(kept)} Airflow exercise(s) left out on purpose "
+                      f"(forms: {', '.join(left_out)})", file=sys.stderr)
+            sections = airflow_sections(url, out_dir, slug, kept) if kept else []
         else:
             groups = exercise_groups(url, challenges) if challenges else []
             shots = (screenshot_schema_diagrams(url, out_dir, slug, challenges)
