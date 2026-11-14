@@ -18,7 +18,8 @@ The site builds a lesson from blocks tagged `data-note-block-type="<type>"`, and
 ## Left out on purpose
 
 - **Star ratings (Daily Life, Interviews):** drawn on a canvas by JavaScript, so the page source holds no values.
-- **`multiple_choice`, `schema_story` (data_modeling lessons):** interactive quizzes. Options are buttons and answers are not in the page, so only a dangling question would remain. `SKIPPED_BLOCKS` drops them.
+- **`multiple_choice`:** the rendered options are buttons with no correct-answer marker, but the page's Next.js payload (`self.__next_f.push` script strings) holds `{"type":"multiple_choice","question","options":[{"text","is_correct","explanation"}]}`. `embedded_questions` reads it, matching each block to its JSON by question text, and `multiple_choice_markdown` writes the question, lettered options, then a closed `<details><summary>Solution</summary>` with the correct option, its explanation, and "Why the others are wrong" (one explanation per wrong option).
+- **`schema_story` (data_modeling lessons):** interactive quiz with no answers in the page, so only a dangling question would remain. `SKIPPED_BLOCKS` drops it. Not yet checked for embedded JSON the way `multiple_choice` was.
 - **The interactive pipeline-architecture exercise:** a live drag-and-drop widget; a screenshot shows an empty canvas.
 
 ## Repo facts

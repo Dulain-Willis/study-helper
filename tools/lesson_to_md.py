@@ -36,9 +36,9 @@ CUSTOM_BLOCKS = {
     "synthesis", "icon_list", "info_list", *DIAGRAM_LABELS,
     "multiple_choice", "schema_story",
 }
-# Interactive exercises: the answer options are buttons (stripped as noise) and the
-# correct answers are not in the page, so what's left is a dangling question. Dropped.
-SKIPPED_BLOCKS = {"multiple_choice", "schema_story"}
+# Interactive exercise with no answers in the page, so what's left is a dangling question.
+# Dropped. (multiple_choice used to be here; its answers ARE in the page's embedded JSON.)
+SKIPPED_BLOCKS = {"schema_story"}
 GENERIC_BLOCKS = {
     "lesson_title", "learning_objectives", "section_header", "h3", "body_text",
     "rich_text", "static_table", "side_by_side_tables", "comparison",
@@ -201,6 +201,48 @@ def diagram(soup, block, image_name, number):
         block.replace_with(note)
 
 
+MC_TOKEN = "@@MULTIPLE-CHOICE-{}@@"
+
+
+def embedded_questions(html):
+    """{question text: question dict} for every multiple_choice block in the page's JSON.
+
+    The page is a Next.js app: lesson data sits in self.__next_f.push([1, "<chunk>"])
+    script strings. The rendered options are buttons with no correct-answer marker, but
+    the JSON holds is_correct and an explanation per option.
+    """
+    chunks = re.findall(r'self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)', html)
+    text = "".join(json.loads(c) for c in chunks)
+    decoder, found = json.JSONDecoder(), {}
+    for m in re.finditer(r'\{"type":"multiple_choice"', text):
+        try:
+            q, _ = decoder.raw_decode(text, m.start())
+        except ValueError:
+            continue
+        found[" ".join(q["question"].split())] = q
+    return found
+
+
+def multiple_choice_markdown(q):
+    """Question, lettered options, then a closed <details> with the answer and why the rest are wrong."""
+    opts = [(chr(ord("A") + i), o) for i, o in enumerate(q["options"])]
+    lines = [f"**{q['question']}**", ""]
+    lines += [f"- **{letter}.** {o['text']}" for letter, o in opts]
+    lines += ["", "<details>", "<summary>Solution</summary>", ""]
+    for letter, o in opts:
+        if o.get("is_correct"):
+            lines += [f"**{letter}.** {o['text']}", ""]
+            if o.get("explanation"):
+                lines += [o["explanation"], ""]
+    wrong = [(letter, o) for letter, o in opts if not o.get("is_correct")]
+    if wrong:
+        lines += ["**Why the others are wrong**", ""]
+        lines += [f"- **{letter}.** {o.get('explanation') or o['text']}" for letter, o in wrong]
+        lines.append("")
+    lines.append("</details>")
+    return "\n".join(lines)
+
+
 def convert(html, diagram_images=(), exercises=()):
     """diagram_images: screenshot file names, in page order, one per diagram block.
     exercises: [(anchor block id or None, markdown)]; each goes right after its anchor block,
@@ -219,6 +261,7 @@ def convert(html, diagram_images=(), exercises=()):
         block.insert_after(p)
         tokens[EXERCISE_TOKEN.format(i)] = md_text
     diagrams_seen = 0
+    questions = embedded_questions(html)
     for block in soup.find_all(attrs={"data-note-block-type": True}):
         kind = block_type(block)
         if kind not in CUSTOM_BLOCKS | GENERIC_BLOCKS:
@@ -226,6 +269,19 @@ def convert(html, diagram_images=(), exercises=()):
                   file=sys.stderr)
         if kind in SKIPPED_BLOCKS:
             block.decompose()
+        elif kind == "multiple_choice":
+            p_el = block.find("p")
+            q = questions.get(" ".join(p_el.get_text().split())) if p_el else None
+            if q is None:
+                print("warning: multiple_choice answers not found in the page; block dropped",
+                      file=sys.stderr)
+                block.decompose()
+                continue
+            token = MC_TOKEN.format(len(tokens))
+            tokens[token] = multiple_choice_markdown(q)
+            new = soup.new_tag("p")
+            new.string = token
+            block.replace_with(new)
         elif kind == "static_code":
             code_block(soup, block)
         elif kind == "big_number":
