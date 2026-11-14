@@ -31,7 +31,11 @@ NOISE = ["script", "style", "nav", "footer", "button", "svg", "canvas", "head"]
 CUSTOM_BLOCKS = {
     "static_code", "big_number", "tip", "callout", "fun_fact", "key_takeaways",
     "synthesis", "icon_list", "info_list", *DIAGRAM_LABELS,
+    "multiple_choice", "schema_story",
 }
+# Interactive exercises: the answer options are buttons (stripped as noise) and the
+# correct answers are not in the page, so what's left is a dangling question. Dropped.
+SKIPPED_BLOCKS = {"multiple_choice", "schema_story"}
 GENERIC_BLOCKS = {
     "lesson_title", "learning_objectives", "section_header", "h3", "body_text",
     "rich_text", "static_table", "side_by_side_tables", "comparison",
@@ -204,7 +208,9 @@ def convert(html, diagram_images=()):
         if kind not in CUSTOM_BLOCKS | GENERIC_BLOCKS:
             print(f"warning: no rule for block type '{kind}'; used generic conversion",
                   file=sys.stderr)
-        if kind == "static_code":
+        if kind in SKIPPED_BLOCKS:
+            block.decompose()
+        elif kind == "static_code":
             code_block(soup, block)
         elif kind == "big_number":
             big_numbers(soup, block)

@@ -18,6 +18,7 @@ The site builds a lesson from blocks tagged `data-note-block-type="<type>"`, and
 ## Left out on purpose
 
 - **Star ratings (Daily Life, Interviews):** drawn on a canvas by JavaScript, so the page source holds no values.
+- **`multiple_choice`, `schema_story` (data_modeling lessons):** interactive quizzes. Options are buttons and answers are not in the page, so only a dangling question would remain. `SKIPPED_BLOCKS` drops them.
 - **The interactive pipeline-architecture exercise:** a live drag-and-drop widget; a screenshot shows an empty canvas.
 
 ## Repo facts
