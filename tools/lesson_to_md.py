@@ -664,35 +664,138 @@ def task_lines(behaviors):
     return "\n".join(out)
 
 
-def airflow_exercises_markdown(challenges):
-    out = ["## Airflow"]
+def challenge_path(c):
+    sc = c["config"].get("scenario") or {}
+    files = sc.get("files") or []
+    return sc.get("file") or (files[0]["path"] if files else "dag.py")
+
+
+# The widgets are drawn by the browser. Two kinds: dr-widget (dag_repair: file, then the
+# Grid/Graph of the DEPLOYED starter) and gm-root (grid_match: file, task facts, airflow.cfg,
+# Grid with Target / As given). A pane is only captured when it holds something: Grid needs
+# cells, Graph needs nodes or an import error, Tasks / airflow.cfg need their card.
+_AF_ANCHOR = """(root) => { let anchor = null;
+    for (const b of document.querySelectorAll('[data-note-block]')) {
+        const pos = b.compareDocumentPosition(root);
+        if (!(pos & 4) || (pos & 16)) continue;   // keep blocks that come before root, not its parents
+        const id = b.getAttribute('data-note-block');
+        if (/^[si]\\|/.test(id)) anchor = id; }
+    return anchor; }"""
+
+
+def airflow_widgets(url, out_dir, slug, shoot):
+    """Each Airflow widget in page order: {path, anchor, shots: {key: (caption, file)}}."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        print("playwright not installed; Airflow exercises go at the end", file=sys.stderr)
+        return []
+    img_dir = os.path.join(out_dir, "images")
+    os.makedirs(img_dir, exist_ok=True)
+    widgets = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(viewport={"width": 1400, "height": 1000},
+                                color_scheme="light", device_scale_factor=2)
+        page.goto(url, wait_until="domcontentloaded")
+        page.wait_for_timeout(6000)
+        roots = page.locator('[data-testid="dr-widget"], [data-testid="gm-root"]')
+        for i in range(roots.count()):
+            root = roots.nth(i)
+            root.scroll_into_view_if_needed()
+            page.wait_for_timeout(500)
+            pre = "dr" if root.get_attribute("data-testid") == "dr-widget" else "gm"
+            header = root.locator('[data-testid="af-file-header"], [data-testid="af-file-card"]').first.inner_text()
+            m = re.search(r"dags/[\w./-]+\.py", header)
+            shots = {}
+
+            def snap(key, caption, loc):
+                if not shoot:
+                    return
+                name = f"{slug}_ex{i + 1}_{key}.png"
+                loc.first.screenshot(path=os.path.join(img_dir, name))
+                shots[key] = (caption, name)
+
+            def click(text):
+                root.get_by_text(re.compile(rf"^{text}$", re.I)).first.click()
+                page.wait_for_timeout(600)
+
+            grid = root.locator(f'[data-testid="{pre}-grid-page"]')
+            graph = root.locator(f'[data-testid="{pre}-graph-page"]')
+            if pre == "gm":
+                for key, cap, loc in (("tasks", "Tasks", root.locator('[data-testid="af-facts"]')),
+                                      ("cfg", "airflow.cfg", root.locator('[data-testid="af-config-card"]'))):
+                    if loc.count():
+                        snap(key, cap, loc)
+                click("Grid")
+                click("As given")
+                if grid.locator('[data-testid="af-cell"]').count():
+                    snap("grid_given", "Grid as given (your starter code)", grid)
+                click("Target")
+                if grid.locator('[data-testid="af-cell"]').count():
+                    snap("grid_target", "Target grid (match this)", grid)
+                click("As given")
+                click("Graph")
+                if graph.locator('[data-testid="af-graph-node"]').count():
+                    snap("graph", "Graph as given (your starter code)", graph)
+            else:
+                click("Grid")
+                if grid.locator('[data-testid="af-cell"]').count():
+                    snap("grid", "Grid, deployed (your starter code)", grid)
+                click("Graph")
+                if graph.locator('[data-testid="af-graph-node"], [data-testid="af-import-errors"]').count():
+                    snap("graph", "Graph, deployed (your starter code)", graph)
+            widgets.append({"path": m.group(0) if m else None,
+                            "anchor": root.evaluate(_AF_ANCHOR), "shots": shots})
+        browser.close()
+    return widgets
+
+
+SHOT_ORDER = ["tasks", "cfg", "grid_given", "grid_target", "grid", "graph"]
+
+
+def airflow_exercise_markdown(c, n, total, shots):
+    cfg, sc = c["config"], c["config"].get("scenario") or {}
+    form = cfg.get("form")
     titles = {"dag_repair": "Repair the DAG", "grid_match": "Match the grid"}
-    for n, c in enumerate(challenges, 1):
-        cfg, sc = c["config"], c["config"].get("scenario") or {}
-        form = cfg.get("form")
-        out += [f"### Exercise {n} of {len(challenges)}: {titles.get(form, form)}",
-                f"**● TASK**\n\n{c['prompt']}"]
-        files = sc.get("files") or []
-        starter = (cfg.get("starter") or {}).get("source") or (files[0]["source"] if files else "")
-        path = sc.get("file") or (files[0]["path"] if files else "dag.py")
-        out.append(f"**Starter** — `{path}`\n\n```python\n{starter}\n```")
-        if form == "grid_match" and sc.get("target"):
-            out.append("**Target grid** (Airflow Grid view; your DAG must draw this):\n\n"
-                       + grid_table(sc["target"]))
+    out = [f"### Exercise {n} of {total}: {titles.get(form, form)}", f"**● TASK**\n\n{c['prompt']}"]
+    files = sc.get("files") or []
+    starter = (cfg.get("starter") or {}).get("source") or (files[0]["source"] if files else "")
+    out.append(f"**Starter** — `{challenge_path(c)}`\n\n```python\n{starter}\n```")
+    if shots:  # panes the page really shows, as the page draws them
+        out += [f"**{shots[k][0]}**\n\n![{shots[k][0]}](images/{shots[k][1]})" for k in SHOT_ORDER if k in shots]
+    elif form == "grid_match":  # no screenshots: text versions of the same panes
+        if sc.get("target"):
+            out.append("**Target grid**\n\n" + grid_table(sc["target"]))
         if sc.get("behaviors"):
             out.append("**Tasks**\n\n" + task_lines(sc["behaviors"]))
-        if sc.get("config"):
-            cfg_lines = "\n".join(f"{re.sub(r'([A-Z])', lambda m: '_' + m.group(1).lower(), k)} = {v}"
-                                  for k, v in sc["config"].items())
-            out.append(f"**airflow.cfg**\n\n```ini\n[core]\n{cfg_lines}\n```")
-        out.append("<details>\n<summary><strong>Solution</strong></summary>")
-        if form == "dag_repair" and (sc.get("expect") or {}).get("runs"):
-            runs = [{"logicalDate": f"run {i}", "tasks": r["tasks"]}
-                    for i, r in enumerate(sc["expect"]["runs"], 1)]
-            out.append("**Expected grid after the fix**\n\n" + grid_table(runs))
-        out += [m for m in (solution_block(b) for b in (c.get("deep_dive") or {}).get("blocks") or []) if m]
-        out.append("</details>")
+    out.append("<details>\n<summary><strong>Solution</strong></summary>")
+    if form == "dag_repair" and (sc.get("expect") or {}).get("runs"):
+        runs = [{"logicalDate": f"run {i}", "tasks": r["tasks"]}
+                for i, r in enumerate(sc["expect"]["runs"], 1)]
+        out.append("**Expected grid after the fix**\n\n" + grid_table(runs))
+    out += [m for m in (solution_block(b) for b in (c.get("deep_dive") or {}).get("blocks") or []) if m]
+    out.append("</details>")
     return "\n\n".join(out)
+
+
+def airflow_sections(url, out_dir, slug, challenges):
+    """[(anchor block id or None, markdown)]: each exercise where the page puts it."""
+    widgets = airflow_widgets(url, out_dir, slug, "--screenshots" in sys.argv)
+    by_path = {challenge_path(c): c for c in challenges}
+    ordered = [(w, by_path.get(w["path"])) for w in widgets]
+    if len(ordered) != len(challenges) or any(c is None for _, c in ordered):
+        print("warning: Airflow widgets do not match the data; exercises go at the end", file=sys.stderr)
+        return [(None, "\n\n".join(airflow_exercise_markdown(c, n, len(challenges), {})
+                                   for n, c in enumerate(challenges, 1)))]
+    sections = []
+    for n, (w, c) in enumerate(ordered, 1):
+        md = airflow_exercise_markdown(c, n, len(ordered), w["shots"])
+        if sections and sections[-1][0] == w["anchor"]:  # same spot: keep them in order
+            sections[-1] = (w["anchor"], sections[-1][1] + "\n\n" + md)
+        else:
+            sections.append((w["anchor"], md))
+    return sections
 
 
 # Taking a solution's schema diagram: it sits in a scrolling box inside a widget (one
@@ -942,15 +1045,16 @@ def main():
     with open(path, "w", encoding="utf-8") as f:
         challenges = fetch_challenges(slug)
         airflow = bool(challenges) and challenges[0].get("challenge_type") == "airflow"
-        groups = ([(None, challenges)] if airflow
-                  else exercise_groups(url, challenges) if challenges else [])
-        shots = (screenshot_schema_diagrams(url, out_dir, slug, challenges)
-                 if challenges and not airflow and "--screenshots" in sys.argv else {})
-        sections, start = [], 0
-        for anchor, group in groups:
-            sections.append((anchor, airflow_exercises_markdown(group) if airflow
-                             else exercises_markdown(group, shots, start)))
-            start += len(group)
+        if airflow:
+            sections = airflow_sections(url, out_dir, slug, challenges)
+        else:
+            groups = exercise_groups(url, challenges) if challenges else []
+            shots = (screenshot_schema_diagrams(url, out_dir, slug, challenges)
+                     if challenges and "--screenshots" in sys.argv else {})
+            sections, start = [], 0
+            for anchor, group in groups:
+                sections.append((anchor, exercises_markdown(group, shots, start)))
+                start += len(group)
         f.write(convert(html, images, sections, animations))
     print(path)
 

@@ -33,7 +33,7 @@ Airflow takes over the decision the timer could never make: whether a piece of w
 
 The rest of this lesson uses 3 words. A **DAG** is one described workflow: the tasks and the order between them, defined in one Python file. A **task** is one unit of work in it, such as running a shell command. A **run** is one execution of the whole DAG for one scheduled time, so the DAG for the nightly report has one run per night.
 
-[Pipeline diagram: not captured. Re-run with --screenshots]
+![Pipeline diagram 1](images/airflow_dag_anatomy_beginner_diagram_1.png)
 
 
 <br>
@@ -68,7 +68,7 @@ Airflow is an orchestrator. It starts work on other systems and waits for the re
 
 Follow the nightly report end to end to see where the line between what Airflow owns and what its systems own falls. Bookings and reviews are written by the app into a transactional database. The exports land as files in object storage. A warehouse loads the files and runs the SQL that aggregates them into a daily table. A dashboard tool reads that table at 09:00. Each of those 4 systems stores data or computes on it. Every arrow between them is a command an Airflow task issues.
 
-[Pipeline diagram: not captured. Re-run with --screenshots]
+![Pipeline diagram 2](images/airflow_dag_anatomy_beginner_diagram_2.png)
 
 | Step | System that does the work | What Airflow does |
 | --- | --- | --- |
@@ -235,6 +235,98 @@ The acyclic rule is enforced at read time. Adding `publish >> get_bookings` to t
 
 <br>
 
+### Exercise 1 of 5: Repair the DAG
+
+**● TASK**
+
+Its `>>` lines loop, so this file never registers. Rewire them: `merge` needs both pulls, each check needs `merge`, `publish` needs both checks. Nothing else waits.
+
+**Starter** — `dags/weekly_payroll.py`
+
+```python
+from airflow.sdk import DAG
+from airflow.providers.standard.operators.bash import BashOperator
+
+with DAG("weekly_payroll", schedule=None):
+    pull_hr = BashOperator(task_id="pull_hr", bash_command="true")
+    pull_time = BashOperator(task_id="pull_time", bash_command="true")
+    merge = BashOperator(task_id="merge", bash_command="true")
+    check_hrs = BashOperator(task_id="check_hrs", bash_command="true")
+    check_pay = BashOperator(task_id="check_pay", bash_command="true")
+    publish = BashOperator(task_id="publish", bash_command="true")
+
+    pull_hr >> pull_time >> merge
+    merge >> check_hrs >> check_pay
+    check_pay >> publish >> merge
+
+```
+
+**Graph, deployed (your starter code)**
+
+![Graph, deployed (your starter code)](images/airflow_dag_anatomy_beginner_ex1_graph.png)
+
+<details>
+<summary><strong>Solution</strong></summary>
+
+**Expected grid after the fix**
+
+| task |  |
+|---|---|
+| `merge` | ✅ success |
+| `publish` | 🟧 upstream_failed |
+| `pull_hr` | ✅ success |
+| `check_hrs` | ❌ failed |
+| `check_pay` | ✅ success |
+| `pull_time` | ✅ success |
+
+#### Edges say who waits, and nothing more
+
+Task dependencies are the edges of the graph, and every `a >> b` records exactly one rule: `b` waits for `a`. Put a list on one side of `>>` and the edge fans out to every task in it, so the 3 lines below record 6 edges, one per rule you were given, and not a single extra one.
+
+**`dags/weekly_payroll.py`**
+
+```python
+from airflow.sdk import DAG
+from airflow.providers.standard.operators.bash import BashOperator
+
+with DAG("weekly_payroll", schedule=None):
+    pull_hr = BashOperator(task_id="pull_hr", bash_command="true")
+    pull_time = BashOperator(task_id="pull_time", bash_command="true")
+    merge = BashOperator(task_id="merge", bash_command="true")
+    check_hrs = BashOperator(task_id="check_hrs", bash_command="true")
+    check_pay = BashOperator(task_id="check_pay", bash_command="true")
+    publish = BashOperator(task_id="publish", bash_command="true")
+
+    [pull_hr, pull_time] >> merge
+    merge >> [check_hrs, check_pay]
+    [check_hrs, check_pay] >> publish
+
+```
+
+*2 edges into `merge`, 2 out of it, 2 into `publish`.*
+
+| Pitfall: A chain adds a wait you never asked for |
+| --- |
+| `merge >> check_hrs >> check_pay` reads naturally, but it also records `check_hrs >> check_pay`: the second check now waits for the first. On a good night that only makes the run slower. On the test run it shows: `check_hrs` fails and `check_pay` never starts, even though no rule tied the 2 checks together. |
+
+| Key insight: A loop means there is no DAG at all |
+| --- |
+| `check_pay >> publish >> merge` closed a circle back to `merge`. Airflow refuses a cycle when it reads the file, so the DAG never registers and nothing runs. Deleting just that edge gets it to register, but the 2 extra waits from the chains would still be there. |
+
+With the edges exact, you can read what runs side by side straight off the graph: 2 tasks may overlap when neither one is upstream of the other. `pull_hr` and `pull_time` start together, `merge` starts once the slower pull ends, then `check_hrs` and `check_pay` run together, and `publish` runs alone at the end. No more than 2 tasks ever run at once, and no task overlaps anything it waits on or that waits on it.
+
+**Follow-up questions**
+
+1. A third source, `pull_bonus`, also feeds `merge`. Which line changes, and what can now run side by side at the start?\
+   *Growing a fan-in by editing one list.*
+2. Someone adds `pull_hr >> publish`. Does `publish` ever start at a different moment than before?\
+   *An edge that is already implied by a longer path adds no new wait.*
+
+</details>
+
+
+<br>
+
 ---
 
 ## The TaskFlow Decorators
@@ -345,199 +437,6 @@ TaskFlow
 
 <br>
 
----
-
-## Reading the Graph and Grid
-
-### Graph: the shape of one run
-
-The DAG page in the UI has 2 views of the same DAG, switched by a toggle. The graph draws the tasks as boxes and the edges as arrows, laid out left to right, so `nightly_bookings` shows `get_bookings` and `get_reviews` stacked on the left, `build_report` to their right with 2 arrows in, and `publish_dashboard` last. The shape alone answers 2 questions: which tasks can overlap, those with no arrow path between them, and what the longest chain is, which bounds how fast a run can finish. Select a run and each box takes the color of that task's state in that run, so the graph becomes a picture of where one night stands.
-
-
-<br>
-
-### Grid: the history of every run
-
-The grid turns time into columns. Each column is one run, oldest on the left and newest on the right; each row is one task; the cell where they meet is colored by the state of that task in that run. Read down a column to see how one night went; read across a row to see how one task has behaved night after night. 3 nights of `bookings_report`, the 3-task cousin of `nightly_bookings` that the animation below plays, make 3 columns of 3 cells. The colors are Airflow's state names, and 7 of them cover everything you will see in this lesson.
-
-| Color | State | What it says about the cell |
-| --- | --- | --- |
-| Green | success | The task finished and its command exited cleanly |
-| Red | failed | The task ran and its command exited with an error |
-| Orange | upstream_failed | A task upstream of it failed, so it will not run in this run |
-| Lime | running | A worker is executing the command now |
-| Grey | queued | Its upstream tasks are done; it waits for a worker to pick it up |
-| Tan | scheduled | The run has reached it and it is about to be queued |
-| No color | none | The run has not reached this task; an upstream task is still unfinished |
-
-The bar over a column carries the run's own state: lime while any task is still running, green once every task has finished with success, red once a task at the end of the graph has failed. The bar's height is the run's duration relative to its neighbours, so a night that ran long stands out as a taller bar before you read a single cell.
-
-[Animation: not captured. Re-run with --screenshots]
-
-Play the night above. At 00:00 on March 2 the first column appears and `get_bookings` and `get_reviews` turn lime together. `build_report` stays blank: the cell has no state until both tasks above it finish. At 00:10 `get_reviews` turns green and `build_report` still waits, because one of its 2 edges is unmet. At 00:20 the second edge is met, `build_report` passes through scheduled and queued and runs, and the column is all green at 00:35. On the night of March 3 `build_report` turns red at 00:35 and the bar over that column turns red with it: a run fails when a task at the end of its graph fails. Switch the dependencies to the serial file and `get_reviews` stays blank until `get_bookings` finishes at 00:20, then runs from 00:20 to 00:30; `build_report` starts at 00:30 instead of 00:20, so every column finishes 10 minutes later, at 00:45.
-
-Click a cell and a panel opens with that task's attempt in that run. It shows the attempt's state and its start and end times with the duration between them, and its Logs tab holds what the command printed. Use the grid to find the cell, the log to see what the command did, and the graph to see which other cells could have been affected by the one you are looking at.
-
-
-<br>
-
-### Reading a grid like a story
-
-A grid is a record you read by shape. One red cell in an otherwise green row names a night that went wrong, and the log behind that cell is where to look. A whole row of red names a task that has been broken since a certain column, and the DAG file or command changed around that date is the suspect. A red cell with orange cells below it in the same column names a night where an early task failed and every task after it was marked upstream_failed; the red cell is the one to open, since the orange cells never ran. A column whose bar is lime right now is a run in progress, and the blank cells in it are tasks whose turn has not come.
-
-| Pattern in the grid | What happened | Where to look first |
-| --- | --- | --- |
-| 1 red cell, rest of its row green | One night's command failed | That cell's log |
-| Red across a row from one column onward | The task broke on that date and stayed broken | The DAG file or the command, as changed around that date |
-| Red cell, orange cells below it in the column | An early task failed and nothing downstream ran | The red cell's log |
-| 2 rows lime at the same time | Those tasks run side by side; no edge joins them | The graph view, to confirm the shape |
-| Column bar lime, bottom cells blank | The run is still in progress | Wait, or watch the running cell |
-
-> **TIP**
->
-> When a dashboard is wrong at 09:00, open the grid before the data. The newest column tells you in one glance whether last night's run finished, and which cell to open if it did not.
-
-
-<br>
-
----
-
-## Putting It All Together
-
-A food-delivery company pays its couriers every morning. The payout job needs yesterday's completed orders, cancellations and tips loaded into the warehouse, then one SQL statement that nets them per courier, then a call to the payments provider; finance opens the payout dashboard at 08:00.
-
-- The 3 loads have no edge between them, so they start together at 00:00 and the netting statement waits for the last of them: the order from the DAG file replaces the clock-time guesses the timer version relied on.
-- The warehouse runs the netting statement and the payments provider moves the money; Airflow holds only the record of each attempt, which is the division between its own territory and the systems it calls.
-- The netting task returns the number of couriers paid, and passing that result into the payments call draws the edge and hands over the count in one line of TaskFlow.
-- When a courier reports a missing payout at 09:00, the newest grid column says whether the payments call ran, and its cell opens the log that says why it ended as it did.
-
-
-<br>
-
----
-
-## Key Takeaways
-
-- Airflow is an orchestrator: it decides when work may start, runs commands on machines it controls, and records every attempt, while the data stays in the systems the commands point at.
-- A DAG file is read to learn the graph; the commands and function bodies it names run later, once per run, on a worker.
-- An operator instance with a task_id inside the DAG is a task; >> draws an edge, and tasks with no path between them run side by side.
-- With @task, calling a decorated function creates the task, and passing its result into another call both draws the edge and carries the value.
-- The graph is the shape of one run; the grid is every run as a column, every task as a row, and every cell a state you can read before opening a log.
-
-[![](/tool-marks/airflow.svg)](https://airflow.apache.org/)
-
-Official Apache Airflow resourcesversion 3.3
-
-"Platform created by the community to programmatically author, schedule and monitor workflows." [airflow.apache.org](https://airflow.apache.org/)
-
-[Documentation](https://airflow.apache.org/docs/)[Install](https://airflow.apache.org/docs/apache-airflow/stable/installation/index.html)[Community](https://airflow.apache.org/community/)
-
-Apache Airflow, Apache, Airflow, the Airflow logo, and the Apache logo are either registered trademarks or trademarks of The Apache Software Foundation.
-
-
-<br>
-
----
-
-## Airflow
-
-### Exercise 1 of 5: Repair the DAG
-
-**● TASK**
-
-Its `>>` lines loop, so this file never registers. Rewire them: `merge` needs both pulls, each check needs `merge`, `publish` needs both checks. Nothing else waits.
-
-**Starter** — `dags/weekly_payroll.py`
-
-```python
-from airflow.sdk import DAG
-from airflow.providers.standard.operators.bash import BashOperator
-
-with DAG("weekly_payroll", schedule=None):
-    pull_hr = BashOperator(task_id="pull_hr", bash_command="true")
-    pull_time = BashOperator(task_id="pull_time", bash_command="true")
-    merge = BashOperator(task_id="merge", bash_command="true")
-    check_hrs = BashOperator(task_id="check_hrs", bash_command="true")
-    check_pay = BashOperator(task_id="check_pay", bash_command="true")
-    publish = BashOperator(task_id="publish", bash_command="true")
-
-    pull_hr >> pull_time >> merge
-    merge >> check_hrs >> check_pay
-    check_pay >> publish >> merge
-
-```
-
-**Tasks**
-
-- `pull_hr` · runs 00:02:00 · every try succeeds
-- `pull_time` · runs 00:05:00 · every try succeeds
-- `merge` · runs 00:01:00 · every try succeeds
-- `check_hrs` · runs 00:01:30 · fails, no retry
-- `check_pay` · runs 00:03:00 · every try succeeds
-- `publish` · runs 00:00:30 · every try succeeds
-
-<details>
-<summary><strong>Solution</strong></summary>
-
-**Expected grid after the fix**
-
-| task |  |
-|---|---|
-| `merge` | ✅ success |
-| `publish` | 🟧 upstream_failed |
-| `pull_hr` | ✅ success |
-| `check_hrs` | ❌ failed |
-| `check_pay` | ✅ success |
-| `pull_time` | ✅ success |
-
-#### Edges say who waits, and nothing more
-
-Task dependencies are the edges of the graph, and every `a >> b` records exactly one rule: `b` waits for `a`. Put a list on one side of `>>` and the edge fans out to every task in it, so the 3 lines below record 6 edges, one per rule you were given, and not a single extra one.
-
-**`dags/weekly_payroll.py`**
-
-```python
-from airflow.sdk import DAG
-from airflow.providers.standard.operators.bash import BashOperator
-
-with DAG("weekly_payroll", schedule=None):
-    pull_hr = BashOperator(task_id="pull_hr", bash_command="true")
-    pull_time = BashOperator(task_id="pull_time", bash_command="true")
-    merge = BashOperator(task_id="merge", bash_command="true")
-    check_hrs = BashOperator(task_id="check_hrs", bash_command="true")
-    check_pay = BashOperator(task_id="check_pay", bash_command="true")
-    publish = BashOperator(task_id="publish", bash_command="true")
-
-    [pull_hr, pull_time] >> merge
-    merge >> [check_hrs, check_pay]
-    [check_hrs, check_pay] >> publish
-
-```
-
-*2 edges into `merge`, 2 out of it, 2 into `publish`.*
-
-| Pitfall: A chain adds a wait you never asked for |
-| --- |
-| `merge >> check_hrs >> check_pay` reads naturally, but it also records `check_hrs >> check_pay`: the second check now waits for the first. On a good night that only makes the run slower. On the test run it shows: `check_hrs` fails and `check_pay` never starts, even though no rule tied the 2 checks together. |
-
-| Key insight: A loop means there is no DAG at all |
-| --- |
-| `check_pay >> publish >> merge` closed a circle back to `merge`. Airflow refuses a cycle when it reads the file, so the DAG never registers and nothing runs. Deleting just that edge gets it to register, but the 2 extra waits from the chains would still be there. |
-
-With the edges exact, you can read what runs side by side straight off the graph: 2 tasks may overlap when neither one is upstream of the other. `pull_hr` and `pull_time` start together, `merge` starts once the slower pull ends, then `check_hrs` and `check_pay` run together, and `publish` runs alone at the end. No more than 2 tasks ever run at once, and no task overlaps anything it waits on or that waits on it.
-
-**Follow-up questions**
-
-1. A third source, `pull_bonus`, also feeds `merge`. Which line changes, and what can now run side by side at the start?\
-   *Growing a fan-in by editing one list.*
-2. Someone adds `pull_hr >> publish`. Does `publish` ever start at a different moment than before?\
-   *An edge that is already implied by a longer path adds no new wait.*
-
-</details>
-
-
-<br>
-
 ### Exercise 2 of 5: Repair the DAG
 
 **● TASK**
@@ -564,11 +463,9 @@ row_report()
 
 ```
 
-**Tasks**
+**Graph, deployed (your starter code)**
 
-- `find_file` · runs 00:00:02 · every try succeeds
-- `count_rows` · runs 00:00:05 · every try succeeds
-- `summarize` · runs 00:00:02 · every try succeeds
+![Graph, deployed (your starter code)](images/airflow_dag_anatomy_beginner_ex2_graph.png)
 
 <details>
 <summary><strong>Solution</strong></summary>
@@ -631,7 +528,151 @@ row_report()
 
 <br>
 
+---
+
+## Reading the Graph and Grid
+
+### Graph: the shape of one run
+
+The DAG page in the UI has 2 views of the same DAG, switched by a toggle. The graph draws the tasks as boxes and the edges as arrows, laid out left to right, so `nightly_bookings` shows `get_bookings` and `get_reviews` stacked on the left, `build_report` to their right with 2 arrows in, and `publish_dashboard` last. The shape alone answers 2 questions: which tasks can overlap, those with no arrow path between them, and what the longest chain is, which bounds how fast a run can finish. Select a run and each box takes the color of that task's state in that run, so the graph becomes a picture of where one night stands.
+
+
+<br>
+
+### Grid: the history of every run
+
+The grid turns time into columns. Each column is one run, oldest on the left and newest on the right; each row is one task; the cell where they meet is colored by the state of that task in that run. Read down a column to see how one night went; read across a row to see how one task has behaved night after night. 3 nights of `bookings_report`, the 3-task cousin of `nightly_bookings` that the animation below plays, make 3 columns of 3 cells. The colors are Airflow's state names, and 7 of them cover everything you will see in this lesson.
+
+| Color | State | What it says about the cell |
+| --- | --- | --- |
+| Green | success | The task finished and its command exited cleanly |
+| Red | failed | The task ran and its command exited with an error |
+| Orange | upstream_failed | A task upstream of it failed, so it will not run in this run |
+| Lime | running | A worker is executing the command now |
+| Grey | queued | Its upstream tasks are done; it waits for a worker to pick it up |
+| Tan | scheduled | The run has reached it and it is about to be queued |
+| No color | none | The run has not reached this task; an upstream task is still unfinished |
+
+The bar over a column carries the run's own state: lime while any task is still running, green once every task has finished with success, red once a task at the end of the graph has failed. The bar's height is the run's duration relative to its neighbours, so a night that ran long stands out as a taller bar before you read a single cell.
+
+**Exports side by side**
+
+![Exports side by side](images/airflow_dag_anatomy_beginner_animation_1_exports-side-by-side.gif)
+
+**Exports chained**
+
+![Exports chained](images/airflow_dag_anatomy_beginner_animation_1_exports-chained.gif)
+
+Play the night above. At 00:00 on March 2 the first column appears and `get_bookings` and `get_reviews` turn lime together. `build_report` stays blank: the cell has no state until both tasks above it finish. At 00:10 `get_reviews` turns green and `build_report` still waits, because one of its 2 edges is unmet. At 00:20 the second edge is met, `build_report` passes through scheduled and queued and runs, and the column is all green at 00:35. On the night of March 3 `build_report` turns red at 00:35 and the bar over that column turns red with it: a run fails when a task at the end of its graph fails. Switch the dependencies to the serial file and `get_reviews` stays blank until `get_bookings` finishes at 00:20, then runs from 00:20 to 00:30; `build_report` starts at 00:30 instead of 00:20, so every column finishes 10 minutes later, at 00:45.
+
+Click a cell and a panel opens with that task's attempt in that run. It shows the attempt's state and its start and end times with the duration between them, and its Logs tab holds what the command printed. Use the grid to find the cell, the log to see what the command did, and the graph to see which other cells could have been affected by the one you are looking at.
+
+
+<br>
+
+### Reading a grid like a story
+
+A grid is a record you read by shape. One red cell in an otherwise green row names a night that went wrong, and the log behind that cell is where to look. A whole row of red names a task that has been broken since a certain column, and the DAG file or command changed around that date is the suspect. A red cell with orange cells below it in the same column names a night where an early task failed and every task after it was marked upstream_failed; the red cell is the one to open, since the orange cells never ran. A column whose bar is lime right now is a run in progress, and the blank cells in it are tasks whose turn has not come.
+
+| Pattern in the grid | What happened | Where to look first |
+| --- | --- | --- |
+| 1 red cell, rest of its row green | One night's command failed | That cell's log |
+| Red across a row from one column onward | The task broke on that date and stayed broken | The DAG file or the command, as changed around that date |
+| Red cell, orange cells below it in the column | An early task failed and nothing downstream ran | The red cell's log |
+| 2 rows lime at the same time | Those tasks run side by side; no edge joins them | The graph view, to confirm the shape |
+| Column bar lime, bottom cells blank | The run is still in progress | Wait, or watch the running cell |
+
+
+<br>
+
 ### Exercise 3 of 5: Match the grid
+
+**● TASK**
+
+Match the target grid of `nightly_bookings`: March 2 all green; at 00:05 on March 3 the 2 fetches running, `build_report` and `publish_dashboard` with no state. Set the 2 marked trigger rules: `always` starts a task at once, `all_success` waits for its upstream tasks.
+
+**Starter** — `dags/nightly_bookings.py`
+
+```python
+# in nightly_bookings(), daily 00:00 UTC
+@task(trigger_rule="always")
+def build_report(): ...
+@task(trigger_rule="always")
+def publish_dashboard(): ...
+
+b, r = get_bookings(), get_reviews()
+rep = build_report()
+[b, r] >> rep >> publish_dashboard()
+```
+
+**Tasks**
+
+![Tasks](images/airflow_dag_anatomy_beginner_ex3_tasks.png)
+
+**airflow.cfg**
+
+![airflow.cfg](images/airflow_dag_anatomy_beginner_ex3_cfg.png)
+
+**Grid as given (your starter code)**
+
+![Grid as given (your starter code)](images/airflow_dag_anatomy_beginner_ex3_grid_given.png)
+
+**Target grid (match this)**
+
+![Target grid (match this)](images/airflow_dag_anatomy_beginner_ex3_grid_target.png)
+
+**Graph as given (your starter code)**
+
+![Graph as given (your starter code)](images/airflow_dag_anatomy_beginner_ex3_graph.png)
+
+<details>
+<summary><strong>Solution</strong></summary>
+
+#### Blank cells are waiting tasks
+
+Task dependencies are what keep a cell blank in a run that is still going. `build_report` has 2 upstream edges, and with the default `all_success` it gets no state until `get_bookings` and `get_reviews` both finish. With `trigger_rule="always"` those edges stop holding it back: it starts at 00:00 beside the fetches, and so does `publish_dashboard`, which is why the starter's March 3 column had no blank cell at 00:05.
+
+**`nightly_bookings` with its waits restored**
+
+```python
+# in nightly_bookings(), daily 00:00 UTC
+@task
+def build_report(): ...
+@task
+def publish_dashboard(): ...
+
+b, r = get_bookings(), get_reviews()
+rep = build_report()
+[b, r] >> rep >> publish_dashboard()
+```
+
+*A bare `@task` uses `all_success`, so each task waits for every task above it.*
+
+| Pitfall: Fixing one task leaves the last cell started |
+| --- |
+| Setting only `build_report` back to `all_success` still leaves `publish_dashboard` on `always`. It starts at 00:00 and its cell has a state at 00:05, even though the task above it has not started. Every task whose cell should be blank needs its own wait restored. |
+
+| Key insight: A finished column hides the order |
+| --- |
+| The March 2 column is all green with either rule, because every task succeeds in the end. The order shows in 2 places: the in-progress column, where blank cells name the tasks whose turn has not come, and the bar height. With `always` everything runs at once and the run ends at 00:20; with the waits it ends at 00:40, a bar twice as tall. |
+
+**Follow-up questions**
+
+1. With the fixed file, what does the March 3 column show at 00:15?\
+   *`get_reviews` is green, `get_bookings` is still lime, and `build_report` stays blank on its one unmet edge.*
+2. If `get_bookings` failed on March 3, what would the 2 cells below it show, and which cell would you open?\
+   *Reading a red cell with orange cells under it in one column.*
+
+</details>
+
+> **TIP**
+>
+> When a dashboard is wrong at 09:00, open the grid before the data. The newest column tells you in one glance whether last night's run finished, and which cell to open if it did not.
+
+
+<br>
+
+### Exercise 4 of 5: Match the grid
 
 **● TASK**
 
@@ -655,23 +696,21 @@ def daily_totals():
 
 ```
 
-**Target grid** (Airflow Grid view; your DAG must draw this):
-
-| task | 03-01 02:00 | 03-02 02:00 | 03-03 02:00 | 03-04 02:00 |
-|---|---|---|---|---|
-| `fetch_rates` | ✅ success | ❌ failed | ✅ success | 🔄 running |
-| `build_totals` | ✅ success | 🟧 upstream_failed | ✅ success | ⬜ no state |
-| `clean_orders` | ✅ success | ✅ success | ✅ success | ✅ success |
-| `fetch_orders` | ✅ success | ✅ success | ✅ success | ✅ success |
-
 **Tasks**
 
-- `fetch_orders` · runs 00:05:00 · every try succeeds
-- `fetch_rates` · runs 00:05:00 · every try succeeds\
-  on 2026-03-02 02:00: RuntimeError: rates API returned 503\
-  on 2026-03-04 02:00: every try succeeds
-- `clean_orders` · runs 00:05:00 · every try succeeds
-- `build_totals` · runs 00:05:00 · every try succeeds
+![Tasks](images/airflow_dag_anatomy_beginner_ex4_tasks.png)
+
+**Grid as given (your starter code)**
+
+![Grid as given (your starter code)](images/airflow_dag_anatomy_beginner_ex4_grid_given.png)
+
+**Target grid (match this)**
+
+![Target grid (match this)](images/airflow_dag_anatomy_beginner_ex4_grid_target.png)
+
+**Graph as given (your starter code)**
+
+![Graph as given (your starter code)](images/airflow_dag_anatomy_beginner_ex4_graph.png)
 
 <details>
 <summary><strong>Solution</strong></summary>
@@ -718,7 +757,7 @@ Every column of the grid is one run, and the states down that column are the tas
 
 <br>
 
-### Exercise 4 of 5: Repair the DAG
+### Exercise 5 of 5: Repair the DAG
 
 **● TASK**
 
@@ -741,15 +780,9 @@ with DAG("nightly_retail", schedule="@daily",
 
 ```
 
-**Tasks**
+**Graph, deployed (your starter code)**
 
-- `pull_orders` · runs 00:02:00 · every try succeeds\
-  on 2026-11-04 09:05: AirflowException: Bash command failed. The command returned a non-zero exit code 1.
-- `pull_returns` · runs 00:02:00 · every try succeeds
-- `merge` · runs 00:01:00 · every try succeeds
-- `validate` · runs 00:01:00 · every try succeeds\
-  on 2026-11-04 09:30: AirflowException: Bash command failed. The command returned a non-zero exit code 1.
-- `publish` · runs 00:00:30 · every try succeeds
+![Graph, deployed (your starter code)](images/airflow_dag_anatomy_beginner_ex5_graph.png)
 
 <details>
 <summary><strong>Solution</strong></summary>
@@ -816,85 +849,36 @@ with DAG("nightly_retail", schedule="@daily",
 
 <br>
 
-### Exercise 5 of 5: Match the grid
+---
 
-**● TASK**
+## Putting It All Together
 
-Match the target grid of `nightly_bookings`: March 2 all green; at 00:05 on March 3 the 2 fetches running, `build_report` and `publish_dashboard` with no state. Set the 2 marked trigger rules: `always` starts a task at once, `all_success` waits for its upstream tasks.
+A food-delivery company pays its couriers every morning. The payout job needs yesterday's completed orders, cancellations and tips loaded into the warehouse, then one SQL statement that nets them per courier, then a call to the payments provider; finance opens the payout dashboard at 08:00.
 
-**Starter** — `dags/nightly_bookings.py`
+- The 3 loads have no edge between them, so they start together at 00:00 and the netting statement waits for the last of them: the order from the DAG file replaces the clock-time guesses the timer version relied on.
+- The warehouse runs the netting statement and the payments provider moves the money; Airflow holds only the record of each attempt, which is the division between its own territory and the systems it calls.
+- The netting task returns the number of couriers paid, and passing that result into the payments call draws the edge and hands over the count in one line of TaskFlow.
+- When a courier reports a missing payout at 09:00, the newest grid column says whether the payments call ran, and its cell opens the log that says why it ended as it did.
 
-```python
-# in nightly_bookings(), daily 00:00 UTC
-@task(trigger_rule="always")
-def build_report(): ...
-@task(trigger_rule="always")
-def publish_dashboard(): ...
 
-b, r = get_bookings(), get_reviews()
-rep = build_report()
-[b, r] >> rep >> publish_dashboard()
-```
+<br>
 
-**Target grid** (Airflow Grid view; your DAG must draw this):
+---
 
-| task | 03-02 00:00 | 03-03 00:00 |
-|---|---|---|
-| `get_reviews` | ✅ success | 🔄 running |
-| `build_report` | ✅ success | ⬜ no state |
-| `get_bookings` | ✅ success | 🔄 running |
-| `publish_dashboard` | ✅ success | ⬜ no state |
+## Key Takeaways
 
-**Tasks**
+- Airflow is an orchestrator: it decides when work may start, runs commands on machines it controls, and records every attempt, while the data stays in the systems the commands point at.
+- A DAG file is read to learn the graph; the commands and function bodies it names run later, once per run, on a worker.
+- An operator instance with a task_id inside the DAG is a task; >> draws an edge, and tasks with no path between them run side by side.
+- With @task, calling a decorated function creates the task, and passing its result into another call both draws the edge and carries the value.
+- The graph is the shape of one run; the grid is every run as a column, every task as a row, and every cell a state you can read before opening a log.
 
-- `get_bookings` · runs 00:20:00 · every try succeeds
-- `get_reviews` · runs 00:10:00 · every try succeeds
-- `build_report` · runs 00:15:00 · every try succeeds
-- `publish_dashboard` · runs 00:05:00 · every try succeeds
+[![](/tool-marks/airflow.svg)](https://airflow.apache.org/)
 
-**airflow.cfg**
+Official Apache Airflow resourcesversion 3.3
 
-```ini
-[core]
-dags_are_paused_at_creation = False
-```
+"Platform created by the community to programmatically author, schedule and monitor workflows." [airflow.apache.org](https://airflow.apache.org/)
 
-<details>
-<summary><strong>Solution</strong></summary>
+[Documentation](https://airflow.apache.org/docs/)[Install](https://airflow.apache.org/docs/apache-airflow/stable/installation/index.html)[Community](https://airflow.apache.org/community/)
 
-#### Blank cells are waiting tasks
-
-Task dependencies are what keep a cell blank in a run that is still going. `build_report` has 2 upstream edges, and with the default `all_success` it gets no state until `get_bookings` and `get_reviews` both finish. With `trigger_rule="always"` those edges stop holding it back: it starts at 00:00 beside the fetches, and so does `publish_dashboard`, which is why the starter's March 3 column had no blank cell at 00:05.
-
-**`nightly_bookings` with its waits restored**
-
-```python
-# in nightly_bookings(), daily 00:00 UTC
-@task
-def build_report(): ...
-@task
-def publish_dashboard(): ...
-
-b, r = get_bookings(), get_reviews()
-rep = build_report()
-[b, r] >> rep >> publish_dashboard()
-```
-
-*A bare `@task` uses `all_success`, so each task waits for every task above it.*
-
-| Pitfall: Fixing one task leaves the last cell started |
-| --- |
-| Setting only `build_report` back to `all_success` still leaves `publish_dashboard` on `always`. It starts at 00:00 and its cell has a state at 00:05, even though the task above it has not started. Every task whose cell should be blank needs its own wait restored. |
-
-| Key insight: A finished column hides the order |
-| --- |
-| The March 2 column is all green with either rule, because every task succeeds in the end. The order shows in 2 places: the in-progress column, where blank cells name the tasks whose turn has not come, and the bar height. With `always` everything runs at once and the run ends at 00:20; with the waits it ends at 00:40, a bar twice as tall. |
-
-**Follow-up questions**
-
-1. With the fixed file, what does the March 3 column show at 00:15?\
-   *`get_reviews` is green, `get_bookings` is still lime, and `build_report` stays blank on its one unmet edge.*
-2. If `get_bookings` failed on March 3, what would the 2 cells below it show, and which cell would you open?\
-   *Reading a red cell with orange cells under it in one column.*
-
-</details>
+Apache Airflow, Apache, Airflow, the Airflow logo, and the Apache logo are either registered trademarks or trademarks of The Apache Software Foundation.
