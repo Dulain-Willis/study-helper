@@ -493,9 +493,12 @@ def exercises_markdown(challenges, images=None, start=0):
             rows = [f"- {x['name']} ({x['node_type']}" + (f", {x['tech_label']}" if x.get("tech_label") else "") + ")"
                     for x in nodes]
             out.append("**Starting canvas** (already placed for you):\n\n" + "\n".join(rows))
-        out.append("### Solution")
+        # The solution is folded away until clicked, so an exercise reads as its task first.
+        # The blank line after <summary> is what lets Markdown render inside the fold.
+        out.append("<details>\n<summary><strong>Solution</strong></summary>")
         out += [m for m in (solution_block(b, (images or {}).get(start + n))
                             for b in (c.get("deep_dive") or {}).get("blocks") or []) if m]
+        out.append("</details>")
     return "\n\n".join(out)
 
 

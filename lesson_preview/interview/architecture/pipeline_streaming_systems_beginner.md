@@ -304,10 +304,8 @@ Mobile clients buffer events offline and upload them hours later, long after the
 - Windowed counter (drops late) (transform, Flink)
 - Counts (storage, PostgreSQL)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 Strip the mobile-analytics costume and this is **event-time windowing over a bimodal lateness distribution**. There are 2 crowds of stragglers: events a few minutes behind, and events hours behind because a phone was in a tunnel. The starter's `Windowed counter (drops late)` firing on real-time freshness treats both crowds the same way it treats normal traffic, so anything arriving after the window closes is silently discarded. The trap is thinking one knob fixes it: crank `allowedLateness` high enough to catch the hours-late crowd and you pin every 1-minute window's state in memory for hours. Get this wrong and your counts are quietly low forever, and nobody sees an error, they just see numbers that never reconcile.
 
@@ -387,6 +385,8 @@ flowchart LR
    *Probes for measuring the near-late distribution instead of picking a round number.*
 3. How do you keep window-state memory bounded when a spike of offline devices reconnects at once?\
    *Checks the understanding that the side output, not a bigger grace, absorbs the far-late surge.*
+
+</details>
 
 
 <br>
@@ -496,10 +496,8 @@ One malformed event makes the stream consumer crash-loop, blocking every good ev
 - Consumer (crash-loops) (transform, Flink)
 - Serving store (storage, Redis)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### The costume comes off
 
@@ -570,6 +568,8 @@ The consumer reads a record, fails to deserialize it, and the exception propagat
    *Probes idempotency on the `Redis` write path.*
 3. A downstream `Redis` write times out. Does that event go to the DLQ too?\
    *Separates deterministic parse failures from transient downstream faults; the latter want bounded retry, not dead-lettering.*
+
+</details>
 
 
 <br>
@@ -676,10 +676,8 @@ A food delivery marketplace shows its operations team orders delivered per resta
 
 A notification outage must never stall checkout, and an order arriving with a malformed payload or a negative amount has to be set aside without holding up the valid orders behind it. The order service currently calls inventory, notifications and analytics directly: redesign it so each placed order is announced once as an order-placed event that every team picks up on its own schedule, including the analytics team, which needs to replay last week's orders into a new model.
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 #### What this problem really is
 
@@ -761,6 +759,8 @@ flowchart LR
 2. Support fixes a rejected order and resubmits it. How do you stop analytics counting it twice?\
    *Tests whether the candidate keys on the order id: the fixed order carries its original id, so readers can recognise it and overwrite rather than add.*
 
+</details>
+
 
 <br>
 
@@ -775,10 +775,8 @@ Mobile and web click events land on an event platform, and some of them arrive l
 - Mobile + web events (source, Kafka)
 - Stream processor (transform, Flink)
 
-
-<br>
-
-### Solution
+<details>
+<summary><strong>Solution</strong></summary>
 
 Strip the costume and this is a **loss-free event-driven streaming pipeline**, exactly the pattern the lesson built up to. "Nothing gets lost" is not a slogan. It is the whole spec, and it points at the 2 ways a naive stream quietly leaks data. A late click arrives after its window closed and a careless window drops it. A malformed event hits your parser and the whole `Flink` job crashes or, worse, silently skips it. Anyone can draw `Kafka` to processor to dashboard. What separates candidates is knowing that watermarks save the late click and a dead letter queue saves the poison event. Leave either one out and your "real-time" numbers are wrong, and nobody notices until finance asks why the totals don't reconcile.
 
@@ -831,6 +829,8 @@ The dashboard reads what the processor emits, not raw events. As each event-time
    *Probes operational instinct: a new app release with a schema change, and the replay-after-fix workflow.*
 3. Marketing wants yesterday's exact totals recomputed after a bug fix. Does this streaming design help or hurt?\
    *Opens the case for the log's retention as a replay path.*
+
+</details>
 
 
 <br>
